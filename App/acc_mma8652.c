@@ -13,17 +13,18 @@
 #define MMA8652_I2C_ADDRESS             0x1D
 
 // MMA8652 register addresses
-#define ACC_REG_ADDR_STATUS             0x00
-#define ACC_REG_ADDR_XOUT_H             0x01
-#define ACC_REG_ADDR_XOUT_L             0x02
-#define ACC_REG_ADDR_YOUT_H             0x03
-#define ACC_REG_ADDR_YOUT_L             0x04
-#define ACC_REG_ADDR_ZOUT_H             0x05
-#define ACC_REG_ADDR_ZOUT_L             0x06
-#define ACC_REG_ADDR_SYSMOD             0x0B
-#define ACC_REG_ADDR_WHO_AM_I           0x0D
-#define ACC_REG_ADDR_XYZ_DATA_CFG       0x0E
-#define ACC_REG_ADDR_CTRL_REG1          0x2A
+#define ACC_REG_ADDR_STATUS                 0x00
+#define ACC_REG_ADDR_XOUT_H                 0x01
+#define ACC_REG_ADDR_XOUT_L                 0x02
+#define ACC_REG_ADDR_YOUT_H                 0x03
+#define ACC_REG_ADDR_YOUT_L                 0x04
+#define ACC_REG_ADDR_ZOUT_H                 0x05
+#define ACC_REG_ADDR_ZOUT_L                 0x06
+#define ACC_REG_ADDR_SYSMOD                 0x0B
+#define ACC_REG_ADDR_WHO_AM_I               0x0D
+#define ACC_REG_ADDR_XYZ_DATA_CFG           0x0E
+#define ACC_REG_ADDR_CTRL_REG1_DRATE_MODE   0x2A
+#define ACC_REG_ADDR_CTRL_REG4_INTRPT_CFG   0x2D
 
 // Select register valies
 #define REG_VAL_WHO_AM_I                0x4A
@@ -61,8 +62,26 @@ static bool HalAccTest(void);
  */
 bool HalAccInit(void)
 {
+    bool ret = FALSE;
+
+    // ACC INT1/2
+    P1SEL &= ~(1<<0);
+    P1DIR &= ~(1<<0);
+    
+    P0SEL &= ~(1<<6);
+    P0DIR &= ~(1<<6);  
+    
     HalAccSelect();
-    return HalAccTest();
+    
+    ret = HalAccTest();
+    if (ret == TRUE) {
+        // Disable interrupt
+        HalI2CWriteSingle(ACC_REG_ADDR_CTRL_REG4_INTRPT_CFG, 0x00);
+        
+        // Turn off acc
+        HalI2CWriteSingle(ACC_REG_ADDR_CTRL_REG1_DRATE_MODE, 0x00);
+    }
+    return ret; 
 }
 
 /**************************************************************************************************
@@ -83,10 +102,10 @@ bool HalAccRead(int16 *pBuf)
     // Select this sensor
     HalAccSelect();
 
-    cmd_tmp = HalI2CReadSingle(ACC_REG_ADDR_CTRL_REG1);
+    cmd_tmp = HalI2CReadSingle(ACC_REG_ADDR_CTRL_REG1_DRATE_MODE);
 
     // Turn on sensor
-    success = (bool)HalI2CWriteSingle(ACC_REG_ADDR_CTRL_REG1, cmd_tmp | 0x01);
+    success = (bool)HalI2CWriteSingle(ACC_REG_ADDR_CTRL_REG1_DRATE_MODE, cmd_tmp | 0x01);
 
     // Wait for measurement ready (appx. 1.45 ms)
     ST_HAL_DELAY(180);
@@ -104,7 +123,7 @@ bool HalAccRead(int16 *pBuf)
     pBuf[2] >>= 4;
 
     // Turn off sensor 
-    success = (bool)HalI2CWriteSingle(ACC_REG_ADDR_CTRL_REG1, (cmd_tmp & 0xFE));
+    success = (bool)HalI2CWriteSingle(ACC_REG_ADDR_CTRL_REG1_DRATE_MODE, (cmd_tmp & 0xFE));
 
     return success;
 }

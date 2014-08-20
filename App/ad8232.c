@@ -14,8 +14,11 @@ void ecg_hw_init_io(void)
     P1_1 = 0;
     
     // 8232_INT1
-    P1SEL &= ~(1<<0);
-    P1DIR &= ~(1<<0);
+    //P1SEL &= ~(1<<0);
+    //P1DIR &= ~(1<<0);
+    // 8232_INT2
+    //P0SEL &= ~(1<<6);
+    //P0DIR &= ~(1<<6);      
     
     // 8232 enable
     P0SEL &= ~(1<<0);
@@ -29,10 +32,6 @@ void ecg_hw_init_io(void)
     // 8232_LODN
     P0SEL &= ~(1<<2);
     P0DIR &= ~(1<<2);
-    
-    // 8232_INT2
-    P0SEL &= ~(1<<6);
-    P0DIR &= ~(1<<6);  
     
     // Enable AIN7 as reference voltage
     P0DIR &= ~(1<<4);

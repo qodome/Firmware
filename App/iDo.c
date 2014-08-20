@@ -344,9 +344,7 @@ void iDo_Init( uint8 task_id )
     
     ecg_hw_init_io();
     ecg_hw_sample_init();
-    if (!HalAccInit()) {
-        while (1);
-    }
+    HalAccInit();
     
     // Disable clock save feature for timing acuracy
     // REF: http://e2e.ti.com/support/wireless_connectivity/f/538/t/196614.aspx

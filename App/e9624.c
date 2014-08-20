@@ -7,7 +7,7 @@
 #include "ecg_hw_cfg.h"
 
 void ecg_hw_init_io(void)
-{
+{    
     // Enable AIN7 as reference voltage
     P0DIR &= ~(1<<5);
     P0SEL &= ~(1<<5);  
