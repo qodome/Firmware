@@ -57,6 +57,7 @@ contact Texas Instruments Incorporated at www.TI.com.
 #include "oad.h"
 #include "oad_target.h"
 #include "OSAL.h"
+#include "recorder.h"
 
 /*********************************************************************
  * CONSTANTS
@@ -421,7 +422,8 @@ static bStatus_t oadImgIdentifyWrite( uint16 connHandle, uint8 *pValue )
 static bStatus_t oadImgBlockWrite( uint16 connHandle, uint8 *pValue )
 {
     uint16 blkNum = BUILD_UINT16( pValue[0], pValue[1] );
-
+    uint8 sendNotify = 0;
+    
     // make sure this is the image we're expecting
     if ( blkNum == 0 )
     {
@@ -466,11 +468,13 @@ static bStatus_t oadImgBlockWrite( uint16 connHandle, uint8 *pValue )
             HalFlashErase(addr / OAD_FLASH_PAGE_MULT);
         }
 
-        HalFlashWrite(addr, pValue+2, (OAD_BLOCK_SIZE / HAL_FLASH_WORD_SIZE));
+        HalFlashWrite(addr, pValue+2, (OAD_BLOCK_SIZE / HAL_FLASH_WORD_SIZE));       
+    } else {
+        sendNotify = 1;
     }
 
     if (oadBlkNum == oadBlkTot)  // If the OAD Image is complete.
-    {
+    {        
 #if defined FEATURE_OAD_SECURE
         HAL_SYSTEM_RESET();  // Only the secure OAD boot loader has the security key to decrypt.
 #else
@@ -485,11 +489,13 @@ static bStatus_t oadImgBlockWrite( uint16 connHandle, uint8 *pValue )
 #endif
             HAL_SYSTEM_RESET();
         }
-#endif
+#endif 
     }
     else  // Request the next OAD Image block.
     {
-        oadImgBlockReq(connHandle, oadBlkNum);
+        if (sendNotify == 1) {
+            oadImgBlockReq(connHandle, oadBlkNum);
+        }
     }
 
     return ( SUCCESS );
