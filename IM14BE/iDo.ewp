@@ -2650,6 +2650,7 @@
           <state>$PROJ_DIR$\Profiles\ECG</state>
           <state>$PROJ_DIR$\Profiles\MemDump</state>
           <state>$PROJ_DIR$\Profiles\Accelerometer</state>
+          <state>$PROJ_DIR$\Profiles\DataRecorder</state>
           <state>$PROJ_DIR$\App</state>
         </option>
         <option>
