@@ -18,7 +18,10 @@ C_SOURCE_FILES += crc16.c
 C_SOURCE_FILES += app_timer.c
 C_SOURCE_FILES += app_scheduler.c
 C_SOURCE_FILES += app_gpiote.c
-C_SOURCE_FILES += spi_master.c
+C_SOURCE_FILES += spi_master_io.c
+C_SOURCE_FILES += ble_ecg.c
+C_SOURCE_FILES += ble_bas.c
+C_SOURCE_FILES += ble_dis.c
 
 OUTPUT_FILENAME := ble_app_ecg
 
@@ -28,7 +31,7 @@ DEVICE_VARIANT := xxaa
 USE_SOFTDEVICE := S110
 #USE_SOFTDEVICE := S210
 
-CFLAGS := -DDEBUG_NRF_USER -DBLE_STACK_SUPPORT_REQD -DSPI_MASTER_0_ENABLE
+CFLAGS := -DDEBUG_NRF_USER -DBLE_STACK_SUPPORT_REQD -DSPI_MASTER_0_ENABLE -DSPI_MASTER_1_ENABLE 
 
 # we do not use heap in this app
 ASMFLAGS := -D__HEAP_SIZE=0

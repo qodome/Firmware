@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#undef DEBUG_SPI
+
 // CONFIG1
 #pragma config FOSC = INTOSC    // Oscillator Selection (INTOSC oscillator: I/O function on CLKIN pin)
 #pragma config WDTE = OFF       // Watchdog Timer Enable (WDT disabled)
@@ -69,31 +71,15 @@ interrupt void isr(void)
     if (SSP1IF & SSP1IE) {
         SSP1IF = 0;
         dummy = SSPBUF;
+#ifdef DEBUG_SPI
+        RC4 ^= 1;
+#endif
         if (adc_buf_ridx < 1000) {
-            SSPBUF = adc_buf_read_ptr[adc_buf_ridx++];
+            //SSPBUF = adc_buf_read_ptr[adc_buf_ridx++];
+            SSPBUF = adc_buf_ridx++;
         } else {
             RC6 = 0;
             switch_to_slow();
-        }
-    }
-
-    // ADC interrupt
-    if (ADIF & ADIE) {
-        RC4 ^= 1;
-        CCP1IF = 0;
-        ADIF = 0;
-        adc_buffer[adc_buf_wptr][adc_buf_widx++] = ((uint16_t)ADRESH << 8) | ADRESL;
-        if (adc_buf_widx >= 500) {
-            adc_buf_rptr = adc_buf_wptr;
-            adc_buf_ridx = 0;
-            adc_buf_read_ptr = (uint8_t *)&(adc_buffer[adc_buf_rptr][0]);
-            trigger_spi_send = 1;
-            switch_to_fast();
-            adc_buf_widx = 0;
-            adc_buf_wptr = (adc_buf_wptr + 1) % 2;
-        }
-        if (adc_buf_widx == 250) {
-            RC6 = 0;
         }
     }
 }
@@ -117,6 +103,20 @@ int main(int argc, char** argv)
     while (!HFIOFR);
 
     // For those unused pins, set them to output digital
+#ifdef DEBUG_SPI
+    // RA0-4, 6-7; RB2-5; RC0-2, 7
+    ANSELA &= ~0x9F;
+    TRISA &= ~0x9F;
+    PORTA &= ~0x9F;
+
+    ANSELB &= ~0x3C;
+    TRISB &= ~0x3C;
+    PORTB &= ~0x3C;
+
+    ANSELC &= ~0x87;
+    TRISC &= ~0x87;
+    PORTC &= ~0x87;
+#else
     // RA0-4, 6-7; RB2-5; RC0, 7
     ANSELA &= ~0x9F;
     TRISA &= ~0x9F;
@@ -129,8 +129,25 @@ int main(int argc, char** argv)
     ANSELC &= ~0x81;
     TRISC &= ~0x81;
     PORTC &= ~0x81;
+#endif
 
     // Configure SPI pin function location
+#ifdef DEBUG_SPI
+    ANSA5 = 0;              // MCU_SS   - RA5 digital
+    ANSB6 = 0;              // MCU_MOSI - RC4 digital
+    ANSC5 = 0;              // MCU_MISO - RC5 digital
+
+    SDOSEL = 0;             // SDO RC5
+    SDISEL = 1;             // SDI RB6
+    SCKSEL = 1;             // SCK RB7
+    APFCON2bits.SSSEL = 0;  // SS RA5
+
+    // SPI pin direction
+    TRISA5 = 1;
+    TRISB7 = 1;
+    TRISB6 = 1;
+    TRISC5 = 0;
+#else
     ANSA5 = 0;              // MCU_SS   - RA5 digital
     ANSC3 = 0;              // MCU_SCK  - RC3 digital
     ANSC4 = 0;              // MCU_MOSI - RC4 digital
@@ -146,6 +163,7 @@ int main(int argc, char** argv)
     TRISC3 = 1;
     TRISC4 = 1;
     TRISC5 = 0;
+#endif
 
     // INT GPIO direction
     ANSC6 = 0;
@@ -192,7 +210,8 @@ int main(int argc, char** argv)
     ADCON2bits.TRIGSEL = 0b0001;
     ADON = 1;
     // Enable interrupt
-    ADIE = 1;
+    ADIE = 0;
+    ADIF = 0;
 
     // Configure CCP
     CCPR1H = 0x01;
@@ -217,25 +236,40 @@ int main(int argc, char** argv)
     TMR1ON = 1;
     TMR1GE = 0;
 
+#ifdef DEBUG_SPI
+    ANSC4 = 0;
+    TRISC4 = 0;             // RC4 debug output
+    RC4 = 0;
+#else
     // RC1-2 input
     ANSC1 = 0;
     ANSC2 = 0;
     TRISC1 = 1;
     TRISC2 = 1;
+#endif
 
     while (1) {
-        if (trigger_spi_send == 0) {
-            NOP();
-            NOP();
-            NOP();
-            NOP();
-            NOP();
-        } else {
-            trigger_spi_send = 0;
+        // Handle ADC event
+        while (ADIF == 0);
+        CCP1IF = 0;
+        ADIF = 0;
+        adc_buffer[adc_buf_wptr][adc_buf_widx++] = ((uint16_t)ADRESH << 8) | ADRESL;
+        if (adc_buf_widx >= 500) {
+            adc_buf_rptr = adc_buf_wptr;
+            adc_buf_ridx = 0;
+            adc_buf_read_ptr = (uint8_t *)&(adc_buffer[adc_buf_rptr][0]);
+
             dummy = SSPBUF;
             SSPBUF = adc_buf_read_ptr[adc_buf_ridx++];
             // Interrupt BLE
             RC6 = 1;
+
+            switch_to_fast();
+            adc_buf_widx = 0;
+            adc_buf_wptr = (adc_buf_wptr + 1) % 2;
+        }
+        if (adc_buf_widx == 250) {
+            RC6 = 0;
         }
     }
     return (EXIT_SUCCESS);

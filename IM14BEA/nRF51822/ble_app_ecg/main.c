@@ -46,21 +46,30 @@
 
 #include "app_util_platform.h"
 #include "spi_master.h"
+#include "nrf_delay.h"
+#include "ble_ecg.h"
+#include "ble_bas.h"
+#include "ble_dis.h"
+
+#define MANUFACTURER_NAME                    "Qodome Co., Ltd."                     /**< Manufacturer. Will be passed to Device Information Service. */
+#define MODEL_NUM                            "IM14BEA"                              /**< Model number. Will be passed to Device Information Service. */
+#define MANUFACTURER_ID                      0x1122334455                           /**< Manufacturer ID, part of System ID. Will be passed to Device Information Service. */
+#define ORG_UNIQUE_ID                        0x667788                                   /**< Organizational Unique ID, part of System ID. Will be passed to Device Information Service. */
 
 #define IS_SRVC_CHANGED_CHARACT_PRESENT 0                                           /**< Include or not the service_changed characteristic. if not enabled, the server's database cannot be changed for the lifetime of the device*/
 
 #define DEVICE_NAME                     "iMo"                           /**< Name of device. Will be included in the advertising data. */
 
-#define APP_ADV_INTERVAL                64                                          /**< The advertising interval (in units of 0.625 ms. This value corresponds to 40 ms). */
-#define APP_ADV_TIMEOUT_IN_SECONDS      180                                         /**< The advertising timeout (in units of seconds). */
+#define APP_ADV_INTERVAL                2056    /* iOS recommandation */
+#define APP_ADV_TIMEOUT_IN_SECONDS      0       /* advertise till battery over */
 
 // YOUR_JOB: Modify these according to requirements.
 #define APP_TIMER_PRESCALER             0                                           /**< Value of the RTC1 PRESCALER register. */
 #define APP_TIMER_MAX_TIMERS            2                                           /**< Maximum number of simultaneously created timers. */
 #define APP_TIMER_OP_QUEUE_SIZE         4                                           /**< Size of timer operation queues. */
 
-#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(500, UNIT_1_25_MS)            /**< Minimum acceptable connection interval (0.5 seconds). */
-#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(1000, UNIT_1_25_MS)           /**< Maximum acceptable connection interval (1 second). */
+#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(100, UNIT_1_25_MS)            /**< Minimum acceptable connection interval (0.5 seconds). */
+#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(500, UNIT_1_25_MS)           /**< Maximum acceptable connection interval (1 second). */
 #define SLAVE_LATENCY                   0                                           /**< Slave latency. */
 #define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(4000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds). */
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000, APP_TIMER_PRESCALER)  /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
@@ -81,8 +90,11 @@
 
 #define DEAD_BEEF                       0xDEADBEEF                                  /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
-static ble_gap_sec_params_t             m_sec_params;                               /**< Security requirements for this application. */
-static uint16_t                         m_conn_handle = BLE_CONN_HANDLE_INVALID;    /**< Handle of the current connection. */
+static ble_gap_sec_params_t m_sec_params;                   /**< Security requirements for this application. */
+static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;    /**< Handle of the current connection. */
+static ble_bas_t m_bas;                                     /**< Structure used to identify the battery service. */
+static ble_ecg_t m_ecg;                                     /**< Structure used to identify the ECG service. */
+static bool ecg_notify_on = false;
 
 // YOUR_JOB: Modify these according to requirements (e.g. if other event types are to pass through
 //           the scheduler).
@@ -92,7 +104,9 @@ static uint16_t                         m_conn_handle = BLE_CONN_HANDLE_INVALID;
 // GPIOTE user identifier for the example module.
 static app_gpiote_user_id_t m_gpio_uid;
 
-volatile bool transmission_completed = false;
+static app_timer_id_t m_app_timer_id;
+#define ECG_BUFFER_SIZE     1000
+uint8_t ecg_rx_buffer[ECG_BUFFER_SIZE] = {0x00};
 
 // Persistent storage system event handler
 void pstorage_sys_event_handler (uint32_t p_evt);
@@ -155,21 +169,24 @@ static void service_error_handler(uint32_t nrf_error)
     APP_ERROR_HANDLER(nrf_error);
 } */
 
+// When timer time happens, call SPI to receive 1K bytes
+static void timer_timeout_handler(void * p_context)
+{
+}
+
 /**@brief Function for the Timer initialization.
  *
  * @details Initializes the timer module.
  */
 static void timers_init(void)
 {
-    // Initialize timer module, making it use the scheduler
-    APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_MAX_TIMERS, APP_TIMER_OP_QUEUE_SIZE, true);
+    uint32_t err_code = 0;
 
-    /* YOUR_JOB: Create any timers to be used by the application.
-                 Below is an example of how to create a timer.
-                 For every new timer needed, increase the value of the macro APP_TIMER_MAX_TIMERS by
-                 one.
-    err_code = app_timer_create(&m_app_timer_id, APP_TIMER_MODE_REPEATED, timer_timeout_handler);
-    APP_ERROR_CHECK(err_code); */
+    // Initialize timer module, making it use the scheduler
+    APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_MAX_TIMERS, APP_TIMER_OP_QUEUE_SIZE, false);
+
+    err_code = app_timer_create(&m_app_timer_id, APP_TIMER_MODE_SINGLE_SHOT, timer_timeout_handler);
+    APP_ERROR_CHECK(err_code);
 }
 
 
@@ -216,7 +233,7 @@ static void advertising_init(void)
 {
     uint32_t      err_code;
     ble_advdata_t advdata;
-    uint8_t       flags = BLE_GAP_ADV_FLAGS_LE_ONLY_LIMITED_DISC_MODE;
+    uint8_t       flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
 
     // YOUR_JOB: Use UUIDs for service(s) used in your application.
     ble_uuid_t adv_uuids[] = {{BLE_UUID_BATTERY_SERVICE, BLE_UUID_TYPE_BLE}};
@@ -235,12 +252,88 @@ static void advertising_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
+/**@brief Function for handling the ECG Service events.
+ *
+ * @details This function will be called for all ECG Service events which are passed
+ *          to the application.
+ *
+ * @param[in]   p_ecg   ECG Service structure.
+ * @param[in]   p_evt   Event received from the ECG Service.
+ */
+static void on_ecg_evt(ble_ecg_t * p_ecg, ble_ecg_evt_t *p_evt)
+{
+    switch (p_evt->evt_type)
+    {
+        case BLE_ECG_EVT_NOTIFY_ENABLED:
+            ecg_notify_on = true;
+            break;
+
+        case BLE_ECG_EVT_NOTIFY_DISABLED:
+            ecg_notify_on = false;
+            break;
+
+        default:
+            // No implementation needed.
+            break;
+    }
+}
 
 /**@brief Function for initializing services that will be used by the application.
  */
 static void services_init(void)
 {
-    // YOUR_JOB: Add code to initialize the services used by the application.
+    uint32_t         err_code;
+    ble_ecg_init_t   ecg_init;
+    ble_bas_init_t   bas_init;
+    ble_dis_init_t   dis_init;
+    ble_dis_sys_id_t sys_id;
+
+    // Initialize ECG Service
+    memset(&ecg_init, 0, sizeof(ecg_init));
+
+    ecg_init.evt_handler                 = on_ecg_evt;
+
+    // Here the sec level for the Health Thermometer Service can be changed/increased.
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&ecg_init.ecg_attr_md.cccd_write_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&ecg_init.ecg_attr_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&ecg_init.ecg_attr_md.write_perm);
+
+    err_code = ble_ecg_init(&m_ecg, &ecg_init);
+    APP_ERROR_CHECK(err_code);
+
+    // Initialize Battery Service.
+    memset(&bas_init, 0, sizeof(bas_init));
+
+    // Here the sec level for the Battery Service can be changed/increased.
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&bas_init.battery_level_char_attr_md.cccd_write_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&bas_init.battery_level_char_attr_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&bas_init.battery_level_char_attr_md.write_perm);
+
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&bas_init.battery_level_report_read_perm);
+
+    bas_init.evt_handler          = NULL;
+    bas_init.support_notification = true;
+    bas_init.p_report_ref         = NULL;
+    bas_init.initial_batt_level   = 100;
+
+    err_code = ble_bas_init(&m_bas, &bas_init);
+    APP_ERROR_CHECK(err_code);
+
+    // Initialize Device Information Service.
+    memset(&dis_init, 0, sizeof(dis_init));
+
+    ble_srv_ascii_to_utf8(&dis_init.manufact_name_str, MANUFACTURER_NAME);
+    ble_srv_ascii_to_utf8(&dis_init.model_num_str,     MODEL_NUM);
+
+    sys_id.manufacturer_id            = MANUFACTURER_ID;
+    sys_id.organizationally_unique_id = ORG_UNIQUE_ID;
+    dis_init.p_sys_id                 = &sys_id;
+
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&dis_init.dis_attr_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&dis_init.dis_attr_md.write_perm);
+
+    err_code = ble_dis_init(&dis_init);
+    APP_ERROR_CHECK(err_code);
 }
 
 
@@ -311,19 +404,6 @@ static void conn_params_init(void)
     err_code = ble_conn_params_init(&cp_init);
     APP_ERROR_CHECK(err_code);
 }
-
-
-/**@brief Function for starting timers.
-*/
-static void timers_start(void)
-{
-    /* YOUR_JOB: Start your timers. below is an example of how to start a timer.
-    uint32_t err_code;
-
-    err_code = app_timer_start(m_app_timer_id, TIMER_INTERVAL, NULL);
-    APP_ERROR_CHECK(err_code); */
-}
-
 
 /**@brief Function for starting advertising.
  */
@@ -441,10 +521,9 @@ static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
 {
     on_ble_evt(p_ble_evt);
     ble_conn_params_on_ble_evt(p_ble_evt);
-    /*
-    YOUR_JOB: Add service ble_evt handlers calls here, like, for example:
+
+    ble_ecg_on_ble_evt(&m_ecg, p_ble_evt);
     ble_bas_on_ble_evt(&m_bas, p_ble_evt);
-    */
 }
 
 
@@ -483,7 +562,7 @@ static void ble_stack_init(void)
     err_code = softdevice_ble_evt_handler_set(ble_evt_dispatch);
     APP_ERROR_CHECK(err_code);
     
-    // Register with the SoftDevice handler module for BLE events.
+    // Register with the SoftDevice handler module for sys events.
     err_code = softdevice_sys_evt_handler_set(sys_evt_dispatch);
     APP_ERROR_CHECK(err_code);
 }
@@ -496,38 +575,12 @@ static void scheduler_init(void)
     APP_SCHED_INIT(SCHED_MAX_EVENT_DATA_SIZE, SCHED_QUEUE_SIZE);
 }
 
-/**@brief Function for handling a button event.
- *
- * @param[in]   pin_no         Pin that had an event happen.
- * @param[in]   button_event   APP_BUTTON_PUSH or APP_BUTTON_RELEASE.
- */
-/* YOUR_JOB: Uncomment this function if you need to handle button events.
-static void button_event_handler(uint8_t pin_no, uint8_t button_event)
-{
-    if (button_action == APP_BUTTON_PUSH)
-    {
-        switch (pin_no)
-        {
-            case MY_BUTTON_PIN:
-                // Code to handle MY_BUTTON keypresses
-                break;
-
-            // Handle any other buttons
-
-            default:
-                APP_ERROR_HANDLER(pin_no);
-                break;
-        }
-    }
-}
-*/
+static void ecg_do_spi_rx(void * p_event_data, uint16_t event_size);
 
 void ecg_gpiote_event_handler(uint32_t event_pins_low_to_high, uint32_t event_pins_high_to_low)
 {
-    uint32_t tmp = 0;
-
-    if (event_pins_low_to_high & 0x00000400) {
-        tmp++;
+    if (event_pins_low_to_high & 0x400) {
+    	app_sched_event_put(NULL, 0, ecg_do_spi_rx);
     }
 }
 
@@ -535,7 +588,7 @@ void ecg_gpiote_event_handler(uint32_t event_pins_low_to_high, uint32_t event_pi
  */
 static void gpiote_init(void)
 {
-    uint32_t low_to_high_bitmask = 0xFFFFFFFF; // Bitmask to be notified of transition from low to high for GPIO 10
+    uint32_t low_to_high_bitmask = 0x00000400; // Bitmask to be notified of transition from low to high for GPIO 10
     uint32_t high_to_low_bitmask = 0x00000000; // don't care
     uint32_t retval;
 
@@ -558,21 +611,6 @@ static void power_manage(void)
     APP_ERROR_CHECK(err_code);
 }
 
-void acc_spi_event_handler(spi_master_evt_t spi_master_evt)
-{
-    switch (spi_master_evt.evt_type)
-    {
-        case SPI_MASTER_EVT_TRANSFER_COMPLETED:
-            //Data transmission is ended successful. 'rx_buffer' has data received from SPI slave.
-            transmission_completed = true;
-            break;
-
-        default:
-            //No implementation needed.
-            break;
-    }
-}
-
 static void acc_spi_init(void)
 {
     spi_master_config_t spi_config = SPI_MASTER_INIT_DEFAULT;
@@ -587,34 +625,50 @@ static void acc_spi_init(void)
     //Initialize SPI master.
     uint32_t err_code = spi_master_open(SPI_MASTER_0, &spi_config);
     APP_ERROR_CHECK(err_code);
-
-    //Register SPI master event handler.
-    spi_master_evt_handler_reg(SPI_MASTER_0, acc_spi_event_handler);
 }
 
-static void check_acc_register(void)
+static void ecg_spi_init(void)
 {
-    uint16_t buf_len = 3;
-    uint8_t rx_buffer[3] = {0x00, 0x00, 0x00}; //Receive buffer to get data from SPI slave.
-    uint8_t tx_buffer[3] = {0x0B, 0x00, 0x00};
-    uint8_t result = 0;
+    spi_master_config_t spi_config = SPI_MASTER_INIT_DEFAULT;
 
-    transmission_completed = false;
-    uint32_t err_code = spi_master_send_recv(SPI_MASTER_0, tx_buffer, buf_len, rx_buffer, buf_len);
+    //Configure SPI master.
+    spi_config.SPI_Pin_SCK = 13;
+    spi_config.SPI_Pin_MISO = 11;
+    spi_config.SPI_Pin_MOSI = 12;
+    spi_config.SPI_Pin_SS = 16;
+    spi_config.SPI_CONFIG_CPHA = SPI_CONFIG_CPHA_Trailing;
+    spi_config.SPI_CONFIG_ORDER = SPI_CONFIG_ORDER_MsbFirst;
+    spi_config.SPI_Freq = SPI_FREQUENCY_FREQUENCY_M1;
+
+    //Initialize SPI master.
+    uint32_t err_code = spi_master_open(SPI_MASTER_1, &spi_config);
     APP_ERROR_CHECK(err_code);
+}
 
-    while (transmission_completed == false) {
+static void ecg_do_spi_rx(void * p_event_data, uint16_t event_size)
+{
+    ble_ecg_v_t ecg_v;
+    uint32_t err_code;
 
+    spi_master_send_recv(SPI_MASTER_1, NULL, 0, ecg_rx_buffer, ECG_BUFFER_SIZE);
+
+    if (ecg_notify_on) {
+        memcpy((uint8_t *)&ecg_v, ecg_rx_buffer, sizeof(ble_ecg_v_t));
+        err_code = ble_ecg_v_send(&m_ecg, &ecg_v);
+        switch (err_code)
+        {
+            case NRF_SUCCESS:
+                break;
+
+            case NRF_ERROR_INVALID_STATE:
+                // Ignore error.
+                break;
+
+            default:
+                APP_ERROR_HANDLER(err_code);
+                break;
+        }
     }
-
-    result = rx_buffer[2];
-
-    if (result == 0xAD) {
-    	transmission_completed = true;
-    } else {
-    	transmission_completed = false;
-    }
-    transmission_completed = (bool)result;
 }
 
 /**@brief Function for application main entry.
@@ -625,11 +679,12 @@ int main(void)
     timers_init();
     ble_stack_init();
 
-    // GPIO Task & Event receive bulk request from PIC
-    gpiote_init();
-
+    // ACC/ECG SPI
     acc_spi_init();
-    check_acc_register();
+    ecg_spi_init();
+
+    // PIC interrupt
+    gpiote_init();
 
     scheduler_init();    
     gap_params_init();
@@ -639,7 +694,6 @@ int main(void)
     sec_params_init();
 
     // Start execution
-    timers_start();
     advertising_start();
 
     // Enter main loop
