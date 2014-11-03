@@ -231,6 +231,7 @@ uint32_t spi_master_send_recv(const spi_master_hw_instance_t spi_master_hw_insta
     uint32_t err_code   = NRF_SUCCESS;
     uint16_t max_length = 0;
     uint32_t idx = 0;
+    uint8_t nop_idx = 0;
 
 	max_length = (rx_buf_len > tx_buf_len) ? rx_buf_len : tx_buf_len;
 
@@ -246,6 +247,9 @@ uint32_t spi_master_send_recv(const spi_master_hw_instance_t spi_master_hw_insta
 		p_spi_instance->p_nrf_spi->TXD = ((p_tx_buf != NULL) && (idx < tx_buf_len)) ? p_tx_buf[idx]: SPI_DEFAULT_TX_BYTE;
 
 		while (p_spi_instance->p_nrf_spi->EVENTS_READY != 1);
+		for (nop_idx = 0; nop_idx < 2; nop_idx++) {
+			__NOP();
+		}
 
 		if (idx < rx_buf_len) {
 			p_rx_buf[idx] = p_spi_instance->p_nrf_spi->RXD;

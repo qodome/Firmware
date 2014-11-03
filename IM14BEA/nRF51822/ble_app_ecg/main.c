@@ -68,12 +68,12 @@
 #define APP_TIMER_MAX_TIMERS            2                                           /**< Maximum number of simultaneously created timers. */
 #define APP_TIMER_OP_QUEUE_SIZE         4                                           /**< Size of timer operation queues. */
 
-#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(100, UNIT_1_25_MS)            /**< Minimum acceptable connection interval (0.5 seconds). */
-#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(500, UNIT_1_25_MS)           /**< Maximum acceptable connection interval (1 second). */
-#define SLAVE_LATENCY                   0                                           /**< Slave latency. */
+#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(20, UNIT_1_25_MS)            /**< Minimum acceptable connection interval (0.5 seconds). */
+#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(20, UNIT_1_25_MS)           /**< Maximum acceptable connection interval (1 second). */
+#define SLAVE_LATENCY                   4                                           /**< Slave latency. */
 #define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(4000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds). */
-#define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000, APP_TIMER_PRESCALER)  /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
-#define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(30000, APP_TIMER_PRESCALER) /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
+#define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)  /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
+#define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(5000, APP_TIMER_PRESCALER) /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
 #define MAX_CONN_PARAMS_UPDATE_COUNT    3                                           /**< Number of attempts before giving up the connection parameter negotiation. */
 
 #define APP_GPIOTE_MAX_USERS            1                                           /**< Maximum number of users of the GPIOTE handler. */
@@ -105,11 +105,17 @@ static bool ecg_notify_on = false;
 static app_gpiote_user_id_t m_gpio_uid;
 
 static app_timer_id_t m_app_timer_id;
+#define ECG_TX_SIZE			1000
 #define ECG_BUFFER_SIZE     1000
 uint8_t ecg_rx_buffer[ECG_BUFFER_SIZE] = {0x00};
+uint16_t ecg_rx_buffer_idx = 0;
+uint8_t tx_buffer_cnt = 0;
 
 // Persistent storage system event handler
 void pstorage_sys_event_handler (uint32_t p_evt);
+
+static void ecg_do_spi_rx(void * p_event_data, uint16_t event_size);
+static void ecg_notify(void * p_event_data, uint16_t event_size);
 
 /**@brief Function for error handling, which is called when an error has occurred.
  *
@@ -503,6 +509,13 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             }
             break;
 
+        case BLE_EVT_TX_COMPLETE:
+        	tx_buffer_cnt += p_ble_evt->evt.common_evt.params.tx_complete.count;
+        	if (ecg_rx_buffer_idx < ECG_TX_SIZE) {
+        		app_sched_event_put(NULL, 0, ecg_notify);
+        	}
+        	break;
+
         default:
             // No implementation needed.
             break;
@@ -575,8 +588,6 @@ static void scheduler_init(void)
     APP_SCHED_INIT(SCHED_MAX_EVENT_DATA_SIZE, SCHED_QUEUE_SIZE);
 }
 
-static void ecg_do_spi_rx(void * p_event_data, uint16_t event_size);
-
 void ecg_gpiote_event_handler(uint32_t event_pins_low_to_high, uint32_t event_pins_high_to_low)
 {
     if (event_pins_low_to_high & 0x400) {
@@ -593,6 +604,7 @@ static void gpiote_init(void)
     uint32_t retval;
 
     nrf_gpio_pin_dir_set(10, NRF_GPIO_PIN_DIR_INPUT);
+    //nrf_gpio_pin_dir_set(14, NRF_GPIO_PIN_DIR_INPUT);
 
     APP_GPIOTE_INIT(APP_GPIOTE_MAX_USERS);
 
@@ -645,29 +657,25 @@ static void ecg_spi_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
-static void ecg_do_spi_rx(void * p_event_data, uint16_t event_size)
+static void ecg_notify(void * p_event_data, uint16_t event_size)
 {
     ble_ecg_v_t ecg_v;
-    uint32_t err_code;
 
+	while (ecg_rx_buffer_idx < ECG_TX_SIZE && tx_buffer_cnt != 0) {
+		memcpy((uint8_t *)&ecg_v, (ecg_rx_buffer + ecg_rx_buffer_idx), sizeof(ble_ecg_v_t));
+		ble_ecg_v_send(&m_ecg, &ecg_v);
+		ecg_rx_buffer_idx += sizeof(ble_ecg_v_t);
+		tx_buffer_cnt--;
+	}
+}
+
+static void ecg_do_spi_rx(void * p_event_data, uint16_t event_size)
+{
     spi_master_send_recv(SPI_MASTER_1, NULL, 0, ecg_rx_buffer, ECG_BUFFER_SIZE);
+    ecg_rx_buffer_idx = 0;
 
     if (ecg_notify_on) {
-        memcpy((uint8_t *)&ecg_v, ecg_rx_buffer, sizeof(ble_ecg_v_t));
-        err_code = ble_ecg_v_send(&m_ecg, &ecg_v);
-        switch (err_code)
-        {
-            case NRF_SUCCESS:
-                break;
-
-            case NRF_ERROR_INVALID_STATE:
-                // Ignore error.
-                break;
-
-            default:
-                APP_ERROR_HANDLER(err_code);
-                break;
-        }
+    	ecg_notify(p_event_data, event_size);
     }
 }
 
@@ -692,6 +700,12 @@ int main(void)
     services_init();
     conn_params_init();
     sec_params_init();
+
+    if (sd_ble_tx_buffer_count_get(&tx_buffer_cnt) != NRF_SUCCESS) {
+    	for (;;) {
+    		power_manage();
+    	}
+    }
 
     // Start execution
     advertising_start();

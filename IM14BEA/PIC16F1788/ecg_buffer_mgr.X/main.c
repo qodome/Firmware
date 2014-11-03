@@ -75,8 +75,7 @@ interrupt void isr(void)
         RC4 ^= 1;
 #endif
         if (adc_buf_ridx < 1000) {
-            //SSPBUF = adc_buf_read_ptr[adc_buf_ridx++];
-            SSPBUF = adc_buf_ridx++;
+            SSPBUF = adc_buf_read_ptr[adc_buf_ridx++];
         } else {
             RC6 = 0;
             switch_to_slow();
@@ -215,11 +214,11 @@ int main(int argc, char** argv)
 
     // Configure CCP
     CCPR1H = 0x01;
-    CCPR1L = 00;
+    CCPR1L = 0x00;
     //CCPR1H = 0x20;
     //CCPR1L = 00;
-    //CCP1SEL = 0;
-    //TRISC2 = 0;             // RC0 output
+    CCP1SEL = 0;
+    TRISC2 = 0;             // RC0 output
     CCP1IE = 0;                 // disable CCP interrupt
     CCP1CONbits.CCP1M = 0b1011;
 
