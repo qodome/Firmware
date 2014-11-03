@@ -13,3 +13,5 @@ IM14BEA/nRF51822/ble_app_ecg/gcc/_build/*
 IM14BEA/nRF51822/ble_app_ecg/gcc/Makefile.custom
 IM14BEA/nRF51822/bootloader/gcc/_build/*
 IM14BEA/nRF51822/bootloader/gcc/Makefile.custom
+iQo/IQ14BLW/nrf51/s130_demo_app/gcc/_build/*
+iQo/IQ14BLW/nrf51/s130_demo_app/gcc/Makefile.custom
