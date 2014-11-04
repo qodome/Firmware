@@ -7,6 +7,13 @@ include ./Makefile.custom
 C_SOURCE_FILES += main.c
 C_SOURCE_FILES += uart.c
 C_SOURCE_FILES += app_timer.c
+C_SOURCE_FILES += softdevice_handler.c
+C_SOURCE_FILES += nrf_assert.c
+C_SOURCE_FILES += ble_memdump.c
+C_SOURCE_FILES += app_scheduler.c
+C_SOURCE_FILES += ble_advdata.c
+C_SOURCE_FILES += ble_conn_params_twice.c
+C_SOURCE_FILES += ble_db_discovery.c
 
 OUTPUT_FILENAME := s130_demo_app
 
@@ -15,16 +22,16 @@ DEVICE_VARIANT := xxaa
 
 USE_SOFTDEVICE := S130
 
-CFLAGS := -DDEBUG_NRF -DNRF51 -DPCA10001 
+CFLAGS := -DDEBUG_NRF -DNRF51 -DPCA10001 -DBLE_STACK_SUPPORT_REQD
 
 # we do not use heap in this app
 ASMFLAGS := -D__HEAP_SIZE=0
 
 # keep every function in separate section. This will allow linker to dump unused functions
-CFLAGS += -ffunction-sections
+CFLAGS += -ffunction-sections -g
 
 # let linker to dump unused sections
-LDFLAGS := -Wl,--gc-sections
+LDFLAGS := -Wl,--gc-sections 
 
 INCLUDEPATHS += -I"$(SDK_PATH)Include/s130"
 INCLUDEPATHS += -I"$(SDK_PATH)Include/ble"
