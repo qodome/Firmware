@@ -12,8 +12,9 @@ C_SOURCE_FILES += nrf_assert.c
 C_SOURCE_FILES += ble_memdump.c
 C_SOURCE_FILES += app_scheduler.c
 C_SOURCE_FILES += ble_advdata.c
-C_SOURCE_FILES += ble_conn_params_twice.c
-C_SOURCE_FILES += ble_db_discovery.c
+C_SOURCE_FILES += ble_conn_params_s130.c
+C_SOURCE_FILES += ble_db_discovery_s130.c
+C_SOURCE_FILES += ble_hts_c.c
 
 OUTPUT_FILENAME := s130_demo_app
 

@@ -28,19 +28,10 @@
 #include "ble_advdata.h"
 #include "ble_conn_params.h"
 #include "ble_db_discovery.h"
+#include "ble_hts_c.h"
 
 /* Addresses of peer peripherals that are expeted to run Heart Rate Service. */
 #define NUMBER_OF_PERIPHERALS                   3
-static const ble_gap_addr_t gs_hb_peripheral_address[NUMBER_OF_PERIPHERALS] = {{BLE_GAP_ADDR_TYPE_RANDOM_STATIC, {0x00, 0x0D, 0x80, 0x20, 0x12, 0xD9}} /*0xD91220800D00*/,	\
-                                                {BLE_GAP_ADDR_TYPE_RANDOM_STATIC, {0x00, 0x04, 0x80, 0x20, 0x00, 0xC8}} /*0xC80020800400*/,	\
-                                                {BLE_GAP_ADDR_TYPE_RANDOM_STATIC, {0x00, 0x04, 0x80, 0x20, 0x12, 0xF8}} /*0xF81220800400*/};
-
-                                                /* Service exposed to Central to be used for sending average values - of data collected from peer peripherals - as notifications. */
-#define SERVICE_UUID128                         0x1b, 0xc5, 0xd5, 0xa5, 0x02, 0x00, 0xbe, 0xa1, 0xe3, 0x11, 0x6b, 0xed, 0x40, 0xfe, 0x0b, 0x31 /* UUID 128: 310bfe40-ed6b-11e3-a1be-0002a5d5c51b */
-#define SERVICE_CHARACTERISTIC_UUID             0x9001
-#define SERVICE_CHARACTERISTIC_VALUE            {0,0,0}
-#define SERVICE_CHARACTERISTIC_DESCRIPTOR_UUID  0x9002
-#define SERVICE_CHARACTERISTIC_DESC_VALUE       "Average"
 
 /* Services on Peripherals */
 #define HEART_RATE_SERVICE                      0x180D
@@ -51,7 +42,6 @@ static const ble_gap_addr_t gs_hb_peripheral_address[NUMBER_OF_PERIPHERALS] = {{
 #define WRITE_VALUE_DISABLE_NOTIFICATIONS       0x0000              /* Disable notifications command. */
 
 #define DEVICE_NAME                             "iQo" 
-#define SCAN_RESPONSE_DATA                      {0x04, 'D', 'E', 'M', 'O'}
 
 #define APP_ADV_INTERVAL                        MSEC_TO_UNITS(1285, UNIT_0_625_MS)  /* The advertising interval (in units of 0.625 ms. This value corresponds to 25 ms). */
 #define APP_ADV_TIMEOUT_IN_SECONDS              0                                 /* The advertising NEVER timeout */
@@ -89,6 +79,8 @@ static const ble_gap_addr_t gs_hb_peripheral_address[NUMBER_OF_PERIPHERALS] = {{
 #define SCHED_MAX_EVENT_DATA_SIZE       sizeof(app_timer_event_t)                   /**< Maximum size of scheduler events. Note that scheduler BLE stack events do not contain any data, as the events are being pulled from the stack in the event handler. */
 #define SCHED_QUEUE_SIZE                10                                          /**< Maximum number of events in the scheduler queue. */
 
+#define TARGET_UUID                     0x1809                             /**< Target device name that application is looking for. */
+#define UUID16_SIZE                2                                  /**< Size of 16 bit UUID */
 
 #define NRF51_TO_MCU_MAIL_IO			12
 
@@ -101,7 +93,7 @@ static const ble_gap_addr_t gs_hb_peripheral_address[NUMBER_OF_PERIPHERALS] = {{
 /**@brief Local function prototypes. 
  */
 static void board_configure(void);
-static void uart_logf(const char *fmt, ...);
+void uart_logf(const char *fmt, ...);
 static void advertising_start(void);
 
 /*****************************************************************************
@@ -117,7 +109,7 @@ static void advertising_start(void);
                     If logging/printing is disabled, it will just yield a NOP instruction. 
 */
 #ifdef USE_UART_LOG_DEBUG
-    #define LOG_DEBUG(F, ...) (uart_logf("S130_DEMO_LOG: %s: %d: " F "\r\n", __FILE__, __LINE__, ##__VA_ARGS__))
+    #define LOG_DEBUG(F, ...) (uart_logf(F "\r\n", ##__VA_ARGS__))
 #else
     #define LOG_DEBUG(F, ...) (void)__NOP()
 #endif
@@ -129,6 +121,20 @@ static void advertising_start(void);
     #define LOG_INFO(F, ...) (void)__NOP()
 #endif
 
+#define UUID16_EXTRACT(DST,SRC)                                                                  \
+        do                                                                                       \
+        {                                                                                        \
+            (*(DST)) = (SRC)[1];                                                                 \
+            (*(DST)) <<= 8;                                                                      \
+            (*(DST)) |= (SRC)[0];                                                                \
+        } while(0)
+
+/**@brief Variable length data encapsulation in terms of length and pointer to data */
+typedef struct
+{
+    uint8_t     * p_data;                                         /**< Pointer to data. */
+    uint16_t      data_len;                                       /**< Length of data. */
+}data_t;
 
 /*****************************************************************************
 * Asserts handling
@@ -139,27 +145,25 @@ static void advertising_start(void);
 void softdevice_assert_callback(uint32_t pc, uint16_t line_num, const uint8_t *file_name);
 void app_assert_callback(uint32_t line_num, const uint8_t *file_name);
 
-/**@brief Global variables used for storing assert information from the SoftDevice.
- */
-static uint32_t gs_sd_assert_line_num;
-static uint8_t  gs_sd_assert_file_name[100];
-
-/**@brief Global variables used for storing assert information from the test application.
- */
-static uint32_t gs_app_assert_line_num;
-static uint8_t  gs_app_assert_file_name[100];
-
 static app_timer_id_t m_app_timer_id;
 static app_timer_id_t scheduler_timer_id;
 static uint8_t scheduler_flag = 0;
-static uint16_t	m_conn_handle = BLE_CONN_HANDLE_INVALID;
 
-static ble_memdump_t                             m_memdump;
+static ble_memdump_t                            m_memdump;
+static ble_gap_scan_params_t                    m_scan_param;
+
+static const ble_gap_conn_params_t m_connection_param =
+{
+    (uint16_t)PERIPHERAL_AND_MIN_CONN_INTERVAL,     // Minimum connection
+    (uint16_t)PERIPHERAL_AND_MAX_CONN_INTERVAL,     // Maximum connection
+    (uint16_t)PERIPHERAL_AND_SLAVE_LATENCY,         // Slave latency
+    (uint16_t)PERIPHERAL_AND_CONN_SUP_TIMEOUT       // Supervision time-out
+};
 
 /*****************************************************************************
 * Functions and structures related to connection and buffers
 *****************************************************************************/
-#define DATA_BUFFER_SIZE                   16 /* Size of bufer that collects HBR data from one peripheral. */
+#define DATA_BUFFER_SIZE                   16 /* Size of bufer that collects HTS data from one peripheral. */
 
 #define TX_BUFFER_READY                    1 /* TX buffer empty. */
 #define TX_BUFFER_BUSY                     0 /* TX buffer in use. */                               
@@ -172,12 +176,14 @@ typedef struct {
 } data_buffer_t;
 
 typedef struct {
-    uint16_t              conn_handle;
-    uint16_t              descriptor_handle;
-    data_buffer_t         data_buffer;
+    uint16_t                conn_handle;
+    uint16_t                descriptor_handle;
+    data_buffer_t           data_buffer;
+    ble_db_discovery_t      db_discovery;
+    ble_hts_c_t             hts_c;
 } peripheral_t;
 
-static peripheral_t gs_peripheral[NUMBER_OF_PERIPHERALS];
+peripheral_t gs_peripheral[NUMBER_OF_PERIPHERALS];
 
 typedef struct
 {
@@ -186,7 +192,7 @@ typedef struct
     uint8_t  cpu_request_done;
 } central_t;
 
-static central_t gs_central;
+central_t gs_central;
 static bool gs_advertising_is_running = false;
 
 // Application error handler
@@ -362,13 +368,42 @@ static uint16_t peripheral_id_get(uint16_t conn_handle)
     return ID_NOT_FOUND;
 }
 
+// Get available peripheral ID
+static uint16_t peripheral_get_available_id(void)
+{
+    uint8_t i = 0;
+    
+    for (i = 0; i < NUMBER_OF_PERIPHERALS; i++)
+    {
+        if (gs_peripheral[i].conn_handle == BLE_CONN_HANDLE_INVALID)
+        {
+            return i;
+        }
+    }
+    return ID_NOT_FOUND;
+}
+
+ble_hts_c_t *peripheral_get_hts_c(uint16_t conn_handle)
+{
+    uint8_t i = 0;
+    
+    for (i = 0; i < NUMBER_OF_PERIPHERALS; i++)
+    {
+        if (gs_peripheral[i].conn_handle == conn_handle)
+        {
+            return &(gs_peripheral[i].hts_c);
+        }
+    }
+    return NULL;
+}
+
 /**@brief Function checks if given connection handle comes from peer central.
  *
  * @param[in]   conn_handle Connection handle to be checked if it belongs to peer central.
  *
  * @retval      true or false
 */
-static bool is_central(uint16_t conn_handle)
+bool is_central(uint16_t conn_handle)
 {
     if (conn_handle == gs_central.conn_handle)
     {
@@ -392,7 +427,7 @@ static bool is_central(uint16_t conn_handle)
  *
  * @param[in]   p_ble_evt        Pointer to buffer filled in with an event.
 */
-static __INLINE void connect_peer_central(ble_evt_t *p_ble_evt)
+static void connect_peer_central(ble_evt_t *p_ble_evt)
 {
     if (gs_central.conn_handle == BLE_CONN_HANDLE_INVALID)
     {
@@ -412,58 +447,10 @@ static __INLINE void connect_peer_central(ble_evt_t *p_ble_evt)
 */
 static __INLINE void disconnect_event_handle(ble_evt_t *p_ble_evt)
 {
-    uint16_t peripheral_id = ID_NOT_FOUND;
+    //uint16_t peripheral_id = ID_NOT_FOUND;
 
    LOG_DEBUG("BLE_GAP_EVT_DISCONNECTED (0x%x) from connection handle 0x%x.", p_ble_evt->header.evt_id, p_ble_evt->evt.gap_evt.conn_handle);
-   if (is_central(p_ble_evt->evt.gap_evt.conn_handle))
-    {
-        central_info_reset();
-        gs_advertising_is_running = false;
-        if (p_ble_evt->evt.gap_evt.params.disconnected.reason == BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION)
-        {
-            LOG_INFO("Central disconnected. Connection terminated remotely.");
-        }
-        else
-        {
-            LOG_INFO("Central disconnected.");
-            if (p_ble_evt->evt.gap_evt.params.disconnected.reason == BLE_HCI_CONNECTION_TIMEOUT)
-            {
-                LOG_INFO("Reason: Timeout");
-            }
-            LOG_DEBUG("Central disconnected (reason 0x%x).", p_ble_evt->evt.gap_evt.params.disconnected.reason);
-        }
-    }
-    else
-    {
-        if ((peripheral_id = peripheral_id_get(p_ble_evt->evt.gap_evt.conn_handle)) == ID_NOT_FOUND )
-        {
-            LOG_DEBUG("Disconnect from unknown device (0x%x)", p_ble_evt->evt.gap_evt.conn_handle);
-        }
-        else
-        {
-            if (peripheral_info_reset(peripheral_id) == NRF_ERROR_INVALID_PARAM)
-            {
-                LOG_DEBUG("Peripheral information not reset - given invalid peripheral id (%i).", peripheral_id);
-            }
-            
-            switch(p_ble_evt->evt.gap_evt.params.disconnected.reason)
-            {
-                case BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION:
-                    LOG_DEBUG("(Peripheral %i) Disconnected. Conection terminated remotely.", peripheral_id);
-                    break;
-                case BLE_HCI_LOCAL_HOST_TERMINATED_CONNECTION:
-                    LOG_DEBUG("(Peripheral %i) Disconnected by this device.", peripheral_id);
-                    break;
-                case BLE_HCI_CONNECTION_TIMEOUT:
-                    LOG_DEBUG("(Peripheral %i) Disconnected due to timeout.", peripheral_id);
-                    break;
-                default:
-                    LOG_DEBUG("(Peripheral %i) Disconnected (reason 0x%x)", peripheral_id, p_ble_evt->evt.gap_evt.params.disconnected.reason);
-                    break;
-            }
-            LOG_INFO("(Peripheral %i) Disconnected.", peripheral_id);
-        }
-    }
+
 }
 
 /**@brief Function that handles BLE write event
@@ -1132,19 +1119,192 @@ static void mail_io_init(void)
 	nrf_gpio_pin_clear(NRF51_TO_MCU_MAIL_IO);
 }
 
+static uint32_t adv_report_parse(uint8_t type, data_t * p_advdata, data_t * p_typedata)
+{
+    uint32_t index = 0;
+    uint8_t * p_data;
+
+    p_data = p_advdata->p_data;
+
+    while (index < p_advdata->data_len)
+    {
+        uint8_t field_length = p_data[index];
+        uint8_t field_type = p_data[index+1];
+
+        if (field_type == type)
+        {
+            p_typedata->p_data = &p_data[index+2];
+            p_typedata->data_len = field_length-1;
+            return NRF_SUCCESS;
+        }
+        index += field_length+1;
+    }
+    return NRF_ERROR_NOT_FOUND;
+}
+
+static void hts_c_evt_handler(ble_hts_c_t * p_hts_c, ble_hts_c_evt_t * p_hts_c_evt)
+{
+    uint32_t err_code;
+
+    switch (p_hts_c_evt->evt_type)
+    {
+        case BLE_HTS_C_EVT_DISCOVERY_COMPLETE:
+            // Health Therometer Service discovered. Enable notification of Heart Rate Measurement.
+            err_code = ble_hts_c_tm_idct_enable(p_hts_c);
+            APP_ERROR_CHECK(err_code);
+            break;
+
+        case BLE_HTS_C_EVT_TM_INDICATION:
+        {
+            LOG_INFO("indication received");
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+static void hts_c_init(uint16_t conn_handle)
+{
+    ble_hts_c_init_t hts_c_init_obj;
+    uint16_t peripheral_id = peripheral_id_get(conn_handle);
+
+    hts_c_init_obj.evt_handler = hts_c_evt_handler;
+
+    uint32_t err_code = ble_hts_c_init(conn_handle, 
+                                        (peripheral_id == ID_NOT_FOUND) ? NULL : &(gs_peripheral[peripheral_id].hts_c), 
+                                        &hts_c_init_obj);
+    APP_ERROR_CHECK(err_code);
+}
+
 static void on_ble_evt(ble_evt_t * p_ble_evt)
 {
+    data_t adv_data;
+    data_t type_data;
     uint32_t err_code = NRF_SUCCESS;
+    uint16_t peripheral_id = 0;
+    const ble_gap_evt_t   * p_gap_evt = &p_ble_evt->evt.gap_evt;
 
     switch (p_ble_evt->header.evt_id)
     {
+        case BLE_GAP_EVT_ADV_REPORT:
+            LOG_INFO("BLE_GAP_EVT_ADV_REPORT");
+
+            // Initialize advertisement report for parsing.
+            adv_data.p_data = (uint8_t *)p_gap_evt->params.adv_report.data;
+            adv_data.data_len = p_gap_evt->params.adv_report.dlen;
+
+            err_code = adv_report_parse(BLE_GAP_AD_TYPE_16BIT_SERVICE_UUID_MORE_AVAILABLE,
+                                        &adv_data,
+                                        &type_data);
+            if (err_code != NRF_SUCCESS)
+            {
+                // Compare short local name in case complete name does not match.
+                err_code = adv_report_parse(BLE_GAP_AD_TYPE_16BIT_SERVICE_UUID_COMPLETE,
+                                            &adv_data,
+                                            &type_data);
+            }
+
+            // Verify if short or complete name matches target.
+            if (err_code == NRF_SUCCESS)
+            {
+                uint16_t extracted_uuid;
+
+                // UUIDs found, look for matching UUID
+                for (uint32_t u_index = 0; u_index < (type_data.data_len/UUID16_SIZE); u_index++)
+                {
+                    UUID16_EXTRACT(&extracted_uuid,&type_data.p_data[u_index * UUID16_SIZE]);
+
+                    if(extracted_uuid == TARGET_UUID)
+                    {
+                        // Stop scanning.
+                        err_code = sd_ble_gap_scan_stop();
+                        if (err_code != NRF_SUCCESS)
+                        {
+                            LOG_INFO("sd_ble_gap_scan_stop failed");
+                        }
+                        
+                        // Initiate connection.
+                        err_code = sd_ble_gap_connect(&p_gap_evt->params.adv_report.peer_addr,
+                                                       &m_scan_param,
+                                                       &m_connection_param);
+
+                        if (err_code != NRF_SUCCESS)
+                        {
+                            LOG_INFO("Connection Request Failed, reason %d", err_code);
+                        }
+                        break;
+                    }
+                }
+            }
+            break;
+
         case BLE_GAP_EVT_CONNECTED:
-            m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
+            if (p_ble_evt->evt.gap_evt.params.connected.role == BLE_GAP_ROLE_PERIPH) {
+                // Peer is central, we are peripheral
+                connect_peer_central(p_ble_evt);
+            } else {
+                // Connected to peer peripheral
+                uint16_t next_id = 0;
+
+                LOG_INFO("Connected to peer peripheral");
+                next_id = peripheral_get_available_id();
+                if (next_id != ID_NOT_FOUND) {
+                    gs_peripheral[next_id].conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
+                } else {
+                    LOG_INFO("Cannot find available slot for peripheral");
+                }
+
+                // Initialize collector
+                hts_c_init(p_ble_evt->evt.gap_evt.conn_handle);
+            }
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
-            m_conn_handle = BLE_CONN_HANDLE_INVALID;
-            advertising_start();
+            if (is_central(p_ble_evt->evt.gap_evt.conn_handle)) {
+                // Disconnected with peer central
+                central_info_reset();
+                if (p_ble_evt->evt.gap_evt.params.disconnected.reason == BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION)
+                {
+                    LOG_INFO("Central disconnected. Connection terminated remotely.");
+                }
+                else
+                {
+                    LOG_INFO("Central disconnected.");
+                    if (p_ble_evt->evt.gap_evt.params.disconnected.reason == BLE_HCI_CONNECTION_TIMEOUT)
+                    {
+                        LOG_INFO("Reason: Timeout");
+                    }
+                    LOG_DEBUG("Central disconnected (reason 0x%x).", p_ble_evt->evt.gap_evt.params.disconnected.reason);
+                }
+                advertising_start();
+            }
+            else
+            {
+                if ((peripheral_id = peripheral_id_get(p_ble_evt->evt.gap_evt.conn_handle)) == ID_NOT_FOUND ) {
+                    LOG_DEBUG("Disconnect from unknown device (0x%x)", p_ble_evt->evt.gap_evt.conn_handle);
+                } else {
+                    if (peripheral_info_reset(peripheral_id) == NRF_ERROR_INVALID_PARAM) {
+                        LOG_DEBUG("Peripheral information not reset - given invalid peripheral id (%i).", peripheral_id);
+                    }
+
+                    switch(p_ble_evt->evt.gap_evt.params.disconnected.reason) {
+                        case BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION:
+                            LOG_DEBUG("(Peripheral %i) Disconnected. Conection terminated remotely.", peripheral_id);
+                            break;
+                        case BLE_HCI_LOCAL_HOST_TERMINATED_CONNECTION:
+                            LOG_DEBUG("(Peripheral %i) Disconnected by this device.", peripheral_id);
+                            break;
+                        case BLE_HCI_CONNECTION_TIMEOUT:
+                            LOG_DEBUG("(Peripheral %i) Disconnected due to timeout.", peripheral_id);
+                            break;
+                        default:
+                            LOG_DEBUG("(Peripheral %i) Disconnected (reason 0x%x)", peripheral_id, p_ble_evt->evt.gap_evt.params.disconnected.reason);
+                            break;
+                    }
+                    LOG_INFO("(Peripheral %i) Disconnected.", peripheral_id);
+                }
+            }
             break;
 
         case BLE_GAP_EVT_TIMEOUT:
@@ -1154,9 +1314,7 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
         case BLE_GATTS_EVT_TIMEOUT:
             if (p_ble_evt->evt.gatts_evt.params.timeout.src == BLE_GATT_TIMEOUT_SRC_PROTOCOL)
             {
-                err_code = sd_ble_gap_disconnect(m_conn_handle,
-                                                 BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-                APP_ERROR_CHECK(err_code);
+
             }
             break;
 
@@ -1168,9 +1326,14 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
 
 static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
 {
+    uint16_t peripheral_id;
+
+    on_ble_evt(p_ble_evt);
+    peripheral_id = peripheral_id_get(p_ble_evt->evt.common_evt.conn_handle);
+    ble_db_discovery_on_ble_evt((peripheral_id == ID_NOT_FOUND) ? NULL : &(gs_peripheral[peripheral_id].db_discovery), p_ble_evt);
 	ble_memdump_on_ble_evt(&m_memdump, p_ble_evt);
     ble_conn_params_on_ble_evt(p_ble_evt);
-    on_ble_evt(p_ble_evt);
+    ble_hts_c_on_ble_evt((peripheral_id == ID_NOT_FOUND) ? NULL : &(gs_peripheral[peripheral_id].hts_c), p_ble_evt);
 }
 
 static void on_sys_evt(uint32_t sys_evt)
@@ -1340,8 +1503,23 @@ static void db_discovery_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
-/**@brief Initial configuration of peripherals and hardware before the test begins. Calling the main loop.    
- */
+static void scan_start(void)
+{
+    uint32_t              err_code;
+
+    // No devices in whitelist, hence non selective performed.
+    m_scan_param.active       = 0;            // Active scanning set.
+    m_scan_param.selective    = 0;            // Selective scanning not set.
+    m_scan_param.interval     = SCAN_INTERVAL;// Scan interval.
+    m_scan_param.window       = SCAN_WINDOW;  // Scan window.
+    m_scan_param.p_whitelist  = NULL;         // No whitelist provided.
+    m_scan_param.timeout      = 0x0000;       // No timeout.
+
+    err_code = sd_ble_gap_scan_start(&m_scan_param);
+    APP_ERROR_CHECK(err_code);
+}
+
+/* Initial configuration of peripherals and hardware before the test begins. Calling the main loop. */
 int main(void)
 {
     // Initialize peripheral
@@ -1358,14 +1536,15 @@ int main(void)
     // Initialize central
     db_discovery_init();
 
-    //peripherals_info_reset();
-    //central_info_reset();
+    peripherals_info_reset();
+    central_info_reset();
 
     LOG_INFO("#########################");
     LOG_INFO("# S130 Demo application #");
     LOG_INFO("#########################");
 
     advertising_start();
+    scan_start(); 
 
     //do_work();
     for (;;) {
@@ -1377,11 +1556,7 @@ int main(void)
 /**@brief Assert callback handler for SoftDevice asserts. */
 void softdevice_assert_callback(uint32_t pc, uint16_t line_num, const uint8_t *file_name)
 {
-    gs_sd_assert_line_num = line_num;
-    memset((void*)gs_sd_assert_file_name, 0x00, sizeof(gs_sd_assert_file_name));
-    (void)strncpy((char*) gs_sd_assert_file_name, (const char*)file_name, sizeof(gs_sd_assert_file_name) - 1);
-    
-     LOG_DEBUG("%s: SOFTDEVICE ASSERT: line = %d file = %s", __FUNCTION__, gs_sd_assert_line_num, gs_sd_assert_file_name);
+    LOG_DEBUG("softdevice_assert_callback");
 
     while (1);
 }
@@ -1389,11 +1564,7 @@ void softdevice_assert_callback(uint32_t pc, uint16_t line_num, const uint8_t *f
 /**@brief Assert callback handler for application asserts. */
 void app_assert_callback(uint32_t line_num, const uint8_t *file_name)
 {
-    gs_app_assert_line_num = line_num;
-    memset((void*)gs_app_assert_file_name, 0x00, sizeof(gs_app_assert_file_name));
-    (void)strncpy((char*) gs_app_assert_file_name, (const char*)file_name, sizeof(gs_app_assert_file_name) - 1);
-    
-     LOG_DEBUG("%s: APP ASSERT: line = %d file = %s", __FUNCTION__, gs_app_assert_line_num, gs_app_assert_file_name);
+     LOG_DEBUG("app_assert_callback");
 
     while (1);
 }
@@ -1433,10 +1604,10 @@ static void board_configure(void)
 
 /**@brief Logging function, used for formated output on the UART.
  */
-static void uart_logf(const char *fmt, ...)
+void uart_logf(const char *fmt, ...)
 {
     uint16_t i = 0;
-    static uint8_t logf_buf[150];
+    uint8_t logf_buf[200];
     va_list args;
     va_start(args, fmt);    
     i = vsnprintf((char*)logf_buf, sizeof(logf_buf) - 1, fmt, args);
