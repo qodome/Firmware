@@ -257,6 +257,7 @@ void halSetSleepMode(void)
   HAL_DISABLE_INTERRUPTS();
 }
 
+extern void battMeasureBeforeSleep(void);
 /*******************************************************************************
  * @fn          halSleep
  *
@@ -369,6 +370,10 @@ void halSleep( uint32 osal_timeout )
         }
       }
       
+      if (timeout >= 3000) {
+        // We can do ADC battery measurement here
+        battMeasureBeforeSleep();
+      }
       // prep CC254x power mode
       HAL_SLEEP_PREP_POWER_MODE(halPwrMgtMode);
 

@@ -9,7 +9,7 @@
 #include "OSAL_Clock.h"
 
 #define REC_ENTRY_PER_PAGE (2048 / 256)
-#define REC_DATA_PER_ENTRY  125
+#define REC_DATA_PER_ENTRY  124
 #define REC_DATA_ENTRY_OFFSET   6
 
 struct record_read_temperature {
@@ -33,7 +33,8 @@ struct data_entry {
 struct record_entry {
     uint32 unix_time;
     int16 base_temp;
-    struct data_entry entries[125];
+    struct data_entry entries[REC_DATA_PER_ENTRY];
+    uint8 magic[2];
 };
 
 void recorder_init(void);

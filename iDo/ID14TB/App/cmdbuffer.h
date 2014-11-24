@@ -12,12 +12,15 @@
 #define CB_CIRCULAR_BUFFER_DEPTH 32
 #endif
 
+#define TIME_VALID_FLAG		0x01
+#define TYPE_VALID_FLAG		0x02
+
 // status bit flags
 #define CB_WRITE_DONE           0x01
 
 struct temp_cache {
     int16 tempValue;
-    uint8 timeValid;
+    uint8 validFlag;
     UTCTimeStruct timeTick;
 };
     

@@ -113,8 +113,11 @@ static uint8 time_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
     
     switch (uuid) {
     case DATE_TIME_UUID:
-        *pLen = 7;
-        osal_ConvertUTCTime(&timeNow, osal_getClock());
+        osal_memset((void *)&timeNow, 0, sizeof(UTCTimeStruct));
+        if (osal_TimeInitialized()) {
+            osal_ConvertUTCTime(&timeNow, osal_getClock());                    
+        }
+        *pLen = sizeof(UTCTimeStruct);
         VOID osal_memcpy(pValue, pAttr->pValue, 7);
         break;
         

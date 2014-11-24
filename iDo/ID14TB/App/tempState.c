@@ -66,7 +66,7 @@ static void __temp_state_transit_state_update(int16 filteredTemp)
         }
     }
     
-    if (transitMCount > 25) {
+    if (transitMCount > 10) {
         tempStateTransit = 0;
         // Invoke iDo callback to notify temperature is ready
         iDo_indicate_measurement_ready();

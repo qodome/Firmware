@@ -1,18 +1,18 @@
 1. Health therometer service
-    (1) Temperature sensor SPI interface    (intermediate temperature)
-    (2) Offbody detection                   (temperature type)
-    (3) Temperature result buffer           (temperature measurement)
-    (4) Timer                               (timestamp)
+    (1) Temperature sensor SPI interface    (intermediate temperature)  DONE
+    (2) Offbody detection                   (temperature type)          DONE    
+    (3) Temperature result buffer           (temperature measurement)   DONE
+    (4) Timer                               (timestamp)                 DONE
 2. Device information service
-    Model name, SN, firmware/software version, Manfacturer name
+    Model name, SN, firmware/software version, Manfacturer name         DONE
 3. Over the air download
     nRF51822 lib
 4. Connection parameter update for iOS and android
-    nRF51822 lib
+    nRF51822 lib                                                        DONE
 5. Measurement result dump into flash
-    nRF51822 flash layout, nRF51822 lib
+    nRF51822 flash layout, nRF51822 lib                                 DONE
 6. Customization
-    Customize iDo names (reserve flash page)
+    Customize iDo names (reserve flash page)                            DONE
 7. Debugging and trouble shooting
     (1) Statistics (for feature development)
     (2) Logging (for production)

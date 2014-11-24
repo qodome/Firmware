@@ -159,6 +159,8 @@ uint32 Temp_mill_seconds_before_next_indication(void);
 
 uint8 Temp_Monitor(void);
 
+uint8 Temp_TM_sending(uint16 connHandle);
+
 /*********************************************************************
 *********************************************************************/
 

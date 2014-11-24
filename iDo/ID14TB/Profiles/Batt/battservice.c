@@ -65,6 +65,9 @@
 
 // ADC voltage levels
 #define BATT_ADC_LEVEL_3V           409
+#define BATT_ADC_LEVEL_2P9V         395
+#define BATT_ADC_LEVEL_2P74V        374
+#define BATT_ADC_LEVEL_2P44V        333
 #define BATT_ADC_LEVEL_2V           273
 
 #define BATT_LEVEL_VALUE_IDX        2 // Position of battery level in attribute array
@@ -104,23 +107,8 @@ CONST uint8 battLevelUUID[ATT_BT_UUID_SIZE] =
 // Application callback
 static battServiceCB_t battServiceCB;
 
-// Measurement setup callback
-static battServiceSetupCB_t battServiceSetupCB = NULL;
-
-// Measurement teardown callback
-static battServiceTeardownCB_t battServiceTeardownCB = NULL;
-
-// Measurement calculation callback
-static battServiceCalcCB_t battServiceCalcCB = NULL;
-
-static uint16 battMinLevel = BATT_ADC_LEVEL_2V; // For VDD/3 measurements
-static uint16 battMaxLevel = BATT_ADC_LEVEL_3V; // For VDD/3 measurements
-
 // Critical battery level setting
 static uint8 battCriticalLevel;
-
-// ADC channel to be used for reading
-static uint8 battServiceAdcCh = HAL_ADC_CHANNEL_VDD;
 
 /*********************************************************************
  * Profile Attributes - variables
@@ -134,6 +122,11 @@ static uint8 battLevelProps = GATT_PROP_READ | GATT_PROP_NOTIFY;
 static uint8 battLevel = 100;
 static uint16 battLevelUpsCount = 0;
 static gattCharCfg_t battLevelClientCharCfg[GATT_MAX_NUM_CONN];
+
+static uint8 batteryLevelKnown = 0; 
+static uint8 batteryLevelLatest = 0; 
+static uint8 batteryServiceEnabled = 0;
+static uint16 batteryDebugCnt = 0;
 
 // HID Report Reference characteristic descriptor, battery level
 static uint8 hidReportRefBattLevel[HID_REPORT_REF_LEN] =
@@ -212,7 +205,7 @@ CONST gattServiceCBs_t battCBs =
 /*********************************************************************
  * PUBLIC FUNCTIONS
  */
-
+   
 /*********************************************************************
  * @fn      Batt_AddService
  *
@@ -224,7 +217,9 @@ CONST gattServiceCBs_t battCBs =
 bStatus_t Batt_AddService( void )
 {
   uint8 status = SUCCESS;
-
+  
+  battLevel = batteryLevelLatest;
+  
   // Initialize Client Characteristic Configuration attributes
   GATTServApp_InitCharCfg( INVALID_CONNHANDLE, battLevelClientCharCfg );
 
@@ -232,7 +227,8 @@ bStatus_t Batt_AddService( void )
   status = GATTServApp_RegisterService( battAttrTbl,
                                         GATT_NUM_ATTRS( battAttrTbl ),
                                         &battCBs );
-
+  batteryServiceEnabled = 1;
+  
   return ( status );
 }
 
@@ -401,13 +397,6 @@ void Batt_Setup( uint8 adc_ch, uint16 minVal, uint16 maxVal,
                  battServiceSetupCB_t sCB, battServiceTeardownCB_t tCB,
                  battServiceCalcCB_t cCB )
 {
-  battServiceAdcCh = adc_ch;
-  battMinLevel = minVal;
-  battMaxLevel = maxVal;
-
-  battServiceSetupCB = sCB;
-  battServiceTeardownCB = tCB;
-  battServiceCalcCB = cCB;
 }
 
 /*********************************************************************
@@ -551,31 +540,6 @@ static void battNotifyCB( linkDBItem_t *pLinkItem )
   }
 }
 
-/*
-static uint8 batt_need_measure_flag = 1;
-static uint8 batt_last_measure = 0;
-
-void battDoMeasure( void )
-{
-  if (batt_need_measure_flag == 1) {
-    batt_last_measure = battMeasure();
-    batt_need_measure_flag = 0;
-  }
-}
-
-static uint8 battGetMeasure( void )
-{
-  uint8 ret = 0;
-  
-  if (batt_need_measure_flag == 0) {
-    batt_need_measure_flag = 1;
-    ret = batt_last_measure;
-    batt_last_measure = 0;
-  }
-  return ret;
-}
-*/
-
 /*********************************************************************
  * @fn      battMeasure
  *
@@ -584,86 +548,114 @@ static uint8 battGetMeasure( void )
  *
  * @return  Battery level.
  */
-static uint8 battMeasure( void )
+static uint8 _battMeasure( void )
 {
-  uint16 adc;
-  uint8 percent;
-
-  /**
-   * Battery level conversion from ADC to a percentage:
-   *
-   * The maximum ADC value for the battery voltage level is 511 for a
-   * 10-bit conversion.  The ADC value is references vs. 1.25v and
-   * this maximum value corresponds to a voltage of 3.75v.
-   *
-   * For a coin cell battery 3.0v = 100%.  The minimum operating
-   * voltage of the CC2540 is 2.0v so 2.0v = 0%.
-   *
-   * To convert a voltage to an ADC value use:
-   *
-   *   (v/3)/1.25 * 511 = adc
-   *
-   * 3.0v = 409 ADC
-   * 2.0v = 273 ADC
-   *
-   * We need to map ADC values from 409-273 to 100%-0%.
-   *
-   * Normalize the ADC values to zero:
-   *
-   * 409 - 273 = 136
-   *
-   * And convert ADC range to percentage range:
-   *
-   * percent/adc = 100/136 = 25/34
-   *
-   * Resulting in the final equation, with round:
-   *
-   * percent = ((adc - 273) * 25) + 33 / 34
-   */
-
-  // Call measurement setup callback
-  if (battServiceSetupCB != NULL)
-  {
-    battServiceSetupCB();
-  }
-
-  // Configure ADC and perform a read
-  HalAdcSetReference( HAL_ADC_REF_125V );
-  adc = HalAdcRead( battServiceAdcCh, HAL_ADC_RESOLUTION_10 );
-
-  // Call measurement teardown callback
-  if (battServiceTeardownCB != NULL)
-  {
-    battServiceTeardownCB();
-  }
-
-  if (adc >= battMaxLevel)
-  {
-    percent = 100;
-  }
-  else if (adc <= battMinLevel)
-  {
-    percent = 0;
-  }
-  else
-  {
-    if (battServiceCalcCB != NULL)
+    uint16 adc;
+    uint8 percent;
+    
+    /**
+    * Battery level conversion from ADC to a percentage:
+    *
+    * The maximum ADC value for the battery voltage level is 511 for a
+    * 10-bit conversion.  The ADC value is references vs. 1.25v and
+    * this maximum value corresponds to a voltage of 3.75v.
+    *
+    * For a coin cell battery 3.0v = 100%.  The minimum operating
+    * voltage of the CC2540 is 2.0v so 2.0v = 0%.
+    *
+    * To convert a voltage to an ADC value use:
+    *
+    *   (v/3)/1.25 * 511 = adc
+    *
+    * 3.0v = 409 ADC
+    * 2.0v = 273 ADC
+    *
+    * We need to map ADC values from 409-273 to 100%-0%.
+    *
+    * Normalize the ADC values to zero:
+    *
+    * 409 - 273 = 136
+    *
+    * And convert ADC range to percentage range:
+    *
+    * percent/adc = 100/136 = 25/34
+    *
+    * Resulting in the final equation, with round:
+    *
+    * percent = ((adc - 273) * 25) + 33 / 34
+    */
+    
+    /** 
+    *  The calculation is based on a linearized version of the battery's discharge
+    *  curve. 3.0V returns 100% battery level. The limit for power failure is 2.1V and
+    *  is considered to be the lower boundary.
+    *
+    *  The discharge curve for CR2032 is non-linear. In this model it is split into
+    *  4 linear sections:
+    *  - Section 1: 3.0V - 2.9V = 100% - 42% (58% drop on 100 mV)
+    *  - Section 2: 2.9V - 2.74V = 42% - 18% (24% drop on 160 mV)
+    *  - Section 3: 2.74V - 2.44V = 18% - 6% (12% drop on 300 mV)
+    *  - Section 4: 2.44V - 2.0V = 6% - 0% (6% drop on 340 mV)
+    */
+    
+    // Configure ADC and perform a read
+    // ADC read timing: Tconv = (decimation rate + 16) ¡Á 0.25 ¦Ìs
+    // (128 + 16) * 0.25 = 35us
+    HalAdcSetReference( HAL_ADC_REF_125V );
+    adc = HalAdcRead(HAL_ADC_CHANNEL_VDD, HAL_ADC_RESOLUTION_10);
+    
+    if (adc >= BATT_ADC_LEVEL_3V)
     {
-      percent = battServiceCalcCB(adc);
+        percent = 100;
+    }
+    else if (adc <= BATT_ADC_LEVEL_2V)
+    {
+        percent = 0;
     }
     else
-    {
-      uint16 range =  battMaxLevel - battMinLevel + 1;
-
-      // optional if you want to keep it even, otherwise just take floor of divide
-      // range += (range & 1);
-      range >>= 2; // divide by 4
-
-      percent = (uint8) ((((adc - battMinLevel) * 25) + (range - 1)) / range);
+    {       
+        if (adc >= BATT_ADC_LEVEL_2P9V) {
+            percent = 100 - (uint8)((BATT_ADC_LEVEL_3V - adc) * 58 / (BATT_ADC_LEVEL_3V - BATT_ADC_LEVEL_2P9V));
+        } else if (adc >= BATT_ADC_LEVEL_2P74V) {
+            percent = 42 - (uint8)((BATT_ADC_LEVEL_2P9V - adc) * 24 / (BATT_ADC_LEVEL_2P9V - BATT_ADC_LEVEL_2P74V));
+        } else if (adc >= BATT_ADC_LEVEL_2P44V) {
+            percent = 18 - (uint8)((BATT_ADC_LEVEL_2P74V - adc) * 12 / (BATT_ADC_LEVEL_2P74V - BATT_ADC_LEVEL_2P44V));
+        } else {
+            percent = 6 - (uint8)((BATT_ADC_LEVEL_2P44V - adc) * 6 / (BATT_ADC_LEVEL_2P44V - BATT_ADC_LEVEL_2V));
+        }
+        /*
+        uint16 range =  battMaxLevel - battMinLevel + 1;
+        
+        // optional if you want to keep it even, otherwise just take floor of divide
+        // range += (range & 1);
+        range >>= 2; // divide by 4
+        
+        percent = (uint8) ((((adc - battMinLevel) * 25) + (range - 1)) / range);
+        */
     }
-  }
 
-  return percent;
+    return percent;
+}
+        
+extern void iDo_EnableBattService(void);
+
+void battMeasureBeforeSleep(void)
+{
+    if (batteryLevelKnown == 0) {
+        batteryLevelKnown = 1;
+        batteryDebugCnt++;
+        batteryLevelLatest = _battMeasure();
+        
+        if (batteryServiceEnabled == 0) {
+            iDo_EnableBattService();
+        }
+    }
+}
+
+static uint8 battMeasure( void )
+{    
+    batteryLevelKnown = 0;   
+    return batteryLevelLatest;
 }
 
 /*********************************************************************

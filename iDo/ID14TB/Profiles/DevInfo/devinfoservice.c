@@ -181,7 +181,7 @@ static const uint8 devInfoHardwareRev[] = "0.7.0";        // major.minor.revisio
 
 // Software Revision String characteristic
 static uint8 devInfoSoftwareRevProps = GATT_PROP_READ;
-static const uint8 devInfoSoftwareRev[] = "0.0.0";        // major.minor.revision.build
+static const uint8 devInfoSoftwareRev[] = "1.0.0";        // major.minor.revision.build
 
 // Manufacturer Name String characteristic
 static uint8 devInfoMfrNameProps = GATT_PROP_READ;
@@ -366,6 +366,21 @@ CONST gattServiceCBs_t devInfoCBs =
  * PUBLIC FUNCTIONS
  */
 
+static uint8 bin_to_ascii(uint8 b)
+{
+	uint8 a = 0;
+
+	if (b > 15) {
+		return ' ';
+	}
+	if (b < 10) {
+		a = '0' + b;
+	} else {
+		a = 'a' + (b - 10);
+	}
+	return a;
+}
+
 /*********************************************************************
  * @fn      DevInfo_AddService
  *
@@ -376,13 +391,44 @@ CONST gattServiceCBs_t devInfoCBs =
  */
 bStatus_t DevInfo_AddService( void )
 {
+    uint8 idx = 0;   
+    uint8 *p_sn = NULL;
+    
+    p_sn = (uint8 *)0x780E;
+    for (idx = 0; idx < 6; idx++) {
+    	devInfoSerialNumber[idx * 3] = bin_to_ascii((p_sn[idx] >> 4) & 0x0F);
+    	devInfoSerialNumber[idx * 3 + 1] = bin_to_ascii(p_sn[idx] & 0x0F);
+    	if (idx == 5) {
+    		devInfoSerialNumber[idx * 3 + 2] = 0;
+    	} else {
+    		devInfoSerialNumber[idx * 3 + 2] = ':';
+    	}
+    }
+    devInfoFirmwareRev[0] = '1';
+    devInfoFirmwareRev[1] = '.';
+    devInfoFirmwareRev[2] = '0';
+    devInfoFirmwareRev[3] = '.';
+    devInfoFirmwareRev[4] = '0';
+    devInfoFirmwareRev[5] = '(';
+    devInfoFirmwareRev[6] = bin_to_ascii((OAD_IMAGE_VERSION >> 4) & 0x0F);
+    devInfoFirmwareRev[7] = bin_to_ascii(OAD_IMAGE_VERSION & 0x0F);
+#if defined HAL_IMAGE_A
+    devInfoFirmwareRev[8] = 'A';
+#endif
+#if defined HAL_IMAGE_B
+    devInfoFirmwareRev[8] = 'B';
+#endif   
+    devInfoFirmwareRev[9] = ')';
+    devInfoFirmwareRev[10] = 0;    
+    /*
   sprintf(devInfoSerialNumber, "%02x:%02x:%02x:%02x:%02x:%02x", ((uint8 *)0x780E)[0],
                                                         ((uint8 *)0x780E)[1],
                                                         ((uint8 *)0x780E)[2],
                                                         ((uint8 *)0x780E)[3],
                                                         ((uint8 *)0x780E)[4],
                                                         ((uint8 *)0x780E)[5]);
-  sprintf(devInfoFirmwareRev, "0.1.3 (%d)", OAD_IMAGE_VERSION);           // major.minor.revision.build
+
+    */
   // Register GATT attribute list and CBs with GATT Server App
   return GATTServApp_RegisterService( devInfoAttrTbl,
                                       GATT_NUM_ATTRS( devInfoAttrTbl ),

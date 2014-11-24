@@ -23,5 +23,7 @@ iDo/ID14TB/iDo-OAD-ImgB/*
 iDo/ID14TB/iDo-ImgA-for-flash/*
 iDo/ID14TBA/ble_app_hts/gcc/_build/*
 iDo/ID14TBA/ble_app_hts/gcc/Makefile.custom
+iDo/ID14TBA/bootloader/gcc/_build/*
+iDo/ID14TBA/bootloader/gcc/Makefile.custom
 .gitignore.bak
 *.bak

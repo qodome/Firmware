@@ -10,6 +10,7 @@
 #include "cmdbuffer.h"
 #include "recorder.h"
 #include "OSAL_Clock.h"
+#include "tempState.h"
 
 /*
  * CB related static states
@@ -51,7 +52,7 @@ void CBCleanup(void)
 /*
  * Get the next Temperature Measurement
  */
-struct cmd_buffer *CBGetNextBufferForTX (int16 *tempPtr, uint8 *timeValid, UTCTimeStruct *tempTSPtr)
+struct cmd_buffer *CBGetNextBufferForTX (int16 *tempPtr, uint8 *validFlag, UTCTimeStruct *tempTSPtr)
 {
     struct cmd_buffer *ret = NULL;
     halIntState_t intState;
@@ -61,7 +62,7 @@ struct cmd_buffer *CBGetNextBufferForTX (int16 *tempPtr, uint8 *timeValid, UTCTi
     if ((__cb_pop_idx != -1) && (__cb[__cb_pop_idx].status_flag & CB_WRITE_DONE)) {
         ret = &(__cb[__cb_pop_idx]);
         *tempPtr = __cb[__cb_pop_idx].t_buf.tempValue;
-        *timeValid = __cb[__cb_pop_idx].t_buf.timeValid;
+        *validFlag = __cb[__cb_pop_idx].t_buf.validFlag;
         VOID osal_memcpy(tempTSPtr, &(__cb[__cb_pop_idx].t_buf.timeTick), sizeof(UTCTimeStruct));
     } else {
         buf_stats.underflow_counts++;
@@ -110,10 +111,16 @@ void CBPushTemp (int16 temp)
     if (__cb[__cb_push_idx].status_flag & CB_WRITE_DONE) {
         buf_stats.overflow_counts++;
     }
-    __cb[__cb_push_idx].t_buf.timeValid = osal_TimeInitialized();
-    if (__cb[__cb_push_idx].t_buf.timeValid == 1) {
+    
+	__cb[__cb_push_idx].t_buf.validFlag = 0;
+	if (osal_TimeInitialized()) {
+		__cb[__cb_push_idx].t_buf.validFlag |= TIME_VALID_FLAG;
         osal_memcpy((void *)&(__cb[__cb_push_idx].t_buf.timeTick), (void *)&utc, sizeof(utc));
-    }
+	}
+	if (temp_state_is_attached()) {
+		__cb[__cb_push_idx].t_buf.validFlag |= TYPE_VALID_FLAG;
+	}    
+    
     __cb[__cb_push_idx].t_buf.tempValue = temp;
     __cb[__cb_push_idx].status_flag |= CB_WRITE_DONE;
     

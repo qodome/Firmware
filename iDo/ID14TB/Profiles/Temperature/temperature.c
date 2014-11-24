@@ -29,6 +29,8 @@
 #include "recorder.h"
 #include "iDo.h"
 #include "OSAL_Clock.h"
+#include "memdump.h"
+#include <string.h>
 
 #ifdef DEBUG_STATS
 #include "statistics.h"
@@ -114,7 +116,7 @@ static uint8 tempIntervalProps = GATT_PROP_READ | GATT_PROP_WRITE;
 static uint16 tempInterval = 30;
 
 // Measurement Interval Range
-static thermometerIRange_t  thermometerIRange = {1, 60};
+static thermometerIRange_t  thermometerIRange = {2, 300};
 
 // Timestamp related setting
 static uint8 tempTimeProps = GATT_PROP_READ | GATT_PROP_WRITE;
@@ -402,6 +404,7 @@ static uint8 temp_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
 static bStatus_t temp_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
                                   uint8 *pValue, uint8 len, uint16 offset )
 {
+    uint16 newInterval = 0;
     bStatus_t status = ATT_ERR_ATTR_NOT_FOUND;
     
     if ( pAttr->type.len == ATT_BT_UUID_SIZE )
@@ -442,7 +445,11 @@ static bStatus_t temp_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
             if (len != sizeof(struct temp_intermediate_rw)) {
                 return ATT_ERR_INVALID_VALUE_SIZE;
             }
-            recorder_set_read_base_ts((UTCTimeStruct *)(pValue + TEMP_INTERMEDIATE_TIME_OFFSET));
+            if (memcmp(pValue, "_QoDoMe_2014", 12) == 0) {
+                MemDump_AddService();
+            } else {
+                recorder_set_read_base_ts((UTCTimeStruct *)(pValue + TEMP_INTERMEDIATE_TIME_OFFSET));
+            }
             status = SUCCESS;
             break;
             
@@ -450,8 +457,13 @@ static bStatus_t temp_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
             if (len != sizeof(tempInterval)) {
                 return ATT_ERR_INVALID_VALUE_SIZE;
             }
-            tempInterval = *(uint16 *)pValue;
-            status = SUCCESS;
+            newInterval = *(uint16 *)pValue;
+            if (newInterval >= 2 && newInterval <= 300) {
+                tempInterval = *(uint16 *)pValue;
+                status = SUCCESS;
+            } else {
+                status = ATT_ERR_INVALID_PDU;
+            }
             break;
             
         case TEMP_TIME_UUID:
@@ -521,6 +533,17 @@ uint32 Temp_mill_seconds_before_next_indication(void)
 uint8 Temp_Monitor(void)
 {
     return (uint8)(spi_read(0x01) & 0xFF);
+}
+
+uint8 Temp_TM_sending(uint16 connHandle)
+{
+    uint16 value = GATTServApp_ReadCharCfg(connHandle, valueConfigCoordinates);
+    
+    if (value & GATT_CLIENT_CFG_INDICATE) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
 /*********************************************************************
 *********************************************************************/

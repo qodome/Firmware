@@ -24,7 +24,6 @@
 #if defined(HAL_IMAGE_A) || defined(HAL_IMAGE_B)
 
 // Member variables
-struct record_position rec_head;
 struct record_position rec_next_write;
 struct record_read_temperature rec_read;
 struct record_entry rec_latest;
@@ -120,7 +119,7 @@ static uint8 __recorder_get_next_page(uint8 pg_idx)
 
 static int __recorder_get_record_buf(int8 page_idx, int8 record_entry_idx, int8 data_entry_idx, uint8 *buf_out)
 {
-    int ret = 0;
+    uint8 magic[2] = {0};
 
     if (rec_next_write.page_idx == page_idx && 
         rec_next_write.record_entry_idx == record_entry_idx) {
@@ -131,17 +130,23 @@ static int __recorder_get_record_buf(int8 page_idx, int8 record_entry_idx, int8 
                 osal_memcpy(buf_out, (uint8 *)&(rec_latest.entries[data_entry_idx]), sizeof(struct data_entry));
             }
         } else {
-            ret = -1;
+            return -1;
         }
     } else {
         if (data_entry_idx == -1) {
-            HalFlashRead(page_idx, (int16)record_entry_idx * sizeof(struct record_entry), buf_out, 6);
+            HalFlashRead(page_idx, (int16)(record_entry_idx + 1) * sizeof(struct record_entry) - 2, magic, 2);
+            if (magic[0] == 0x52 && magic[1] == 0x44) {
+                HalFlashRead(page_idx, (int16)record_entry_idx * sizeof(struct record_entry), buf_out, 6);                
+            } else {
+                // magic not found
+                return -1;
+            }
         } else {
             HalFlashRead(page_idx, (int16)record_entry_idx * sizeof(struct record_entry) + REC_DATA_ENTRY_OFFSET + (int16)data_entry_idx * sizeof(struct data_entry), 
                         buf_out, sizeof(struct data_entry));
         }
     }
-    return ret;
+    return 0;
 }
 
 /*
@@ -175,8 +180,6 @@ void recorder_init(void)
     
     HalFlashErase(available_page_idx);
     HalFlashErase(__recorder_get_next_page(available_page_idx));
-    rec_head.page_idx = available_page_idx;
-    rec_head.record_entry_idx = -1;
     rec_next_write.page_idx = available_page_idx;
     rec_next_write.record_entry_idx = 0;
     osal_memset(&rec_latest, 0, sizeof(struct record_entry));
@@ -211,6 +214,8 @@ void recorder_add_temperature(int16 temp)
             
             // First dump data into flash
             addr = ((uint32)rec_next_write.page_idx * 2048 + (uint32)rec_next_write.record_entry_idx * sizeof(struct record_entry)) / 4;
+            rec_latest.magic[0] = 0x52;
+            rec_latest.magic[1] = 0x44;
             HalFlashWrite(addr, (uint8 *)&rec_latest, (sizeof(struct record_entry)/4));
                 
             // Cleanup stale temperature records
@@ -239,6 +244,8 @@ void recorder_add_temperature(int16 temp)
             if (rec_latest_entry_idx >= REC_DATA_PER_ENTRY) {
                 // Latest record full, dump into flash
                 addr = ((uint32)rec_next_write.page_idx * 2048 + (uint32)rec_next_write.record_entry_idx * sizeof(struct record_entry)) / 4;
+                rec_latest.magic[0] = 0x52;
+                rec_latest.magic[1] = 0x44;
                 HalFlashWrite(addr, (uint8 *)&rec_latest, (sizeof(struct record_entry)/4));
                 
                 // Cleanup stale temperature records
@@ -319,20 +326,16 @@ int16 recorder_get_temperature(UTCTimeStruct *tc_out)
 recheck:
         // The first data entry on the none-first record
         if (__recorder_get_record_buf(rec_read.page_idx, rec_read.record_entry_idx, rec_read.data_entry_idx, buf) != 0) {
+            rec_read.data_entry_idx = -1;
+            rec_read.record_entry_idx++;
+            if (rec_read.record_entry_idx >= REC_ENTRY_PER_PAGE) {
+                rec_read.record_entry_idx = 0;
+                rec_read.page_idx = __recorder_get_next_page(rec_read.page_idx);
+            }
             return 0;
         }
         ret_temp = ((uint16)buf[5] << 8) | buf[4];
         tmp_ts = (uint32)buf[3] << 24 | (uint32)buf[2] << 16 | (uint32)buf[1] << 8 | (uint32)buf[0];
-        if (rec_read.last_data_entry_unix_ts != 0) {
-            // For none-first record, check to make sure time is increased over last sample
-            if (rec_read.last_data_entry_unix_ts > tmp_ts) {
-                return 0;
-            }
-        } else {
-            if (tmp_ts > 315360000) {
-                return 0;
-            }
-        }
         rec_read.last_data_entry_temp = ret_temp;
         rec_read.last_data_entry_unix_ts = tmp_ts;
         
@@ -357,6 +360,11 @@ void recorder_set_read_base_ts(UTCTimeStruct *tc)
     uint8 rec_idx = 0, last_rec_idx = 0;
     uint8 check_previous = 0;
     uint8 buf[4];
+    // Get the latest recorder before the search point
+    uint8 magic[2] = {0};
+    uint8 page_idx_ancient = 0;
+    uint8 rec_idx_ancient = 0;
+    uint32 delta_ancient = 0xFFFFFFFF;
 
     if (tc != NULL) {
         ts = osal_ConvertUTCSecs(tc);
@@ -364,24 +372,43 @@ void recorder_set_read_base_ts(UTCTimeStruct *tc)
         page_idx = __recorder_get_first_page();
         do {
             for (rec_idx = 0; rec_idx < REC_ENTRY_PER_PAGE; rec_idx++) {
-                HalFlashRead(page_idx, (uint16)rec_idx * sizeof(struct record_entry), buf, 4);
-                if ((*(uint32 *)buf <= ts) && ((ts - *(uint32 *)buf) < 2000)) {
-                    check_previous = 1;
-                    last_page_idx = page_idx;
-                    last_rec_idx = rec_idx;
-                } else if (check_previous == 1 && (*(uint32 *)buf >= ts) && ((*(uint32 *)buf - ts) < 2000)) {
-                    rec_read.page_idx = last_page_idx;
-                    rec_read.record_entry_idx = last_rec_idx;
-                    rec_read.data_entry_idx = -1;
-                    rec_read.last_data_entry_unix_ts = 0;
-                    rec_read.last_data_entry_temp = 0; 
-                    return;
-                } else {
-                    check_previous = 0;
+                // First check magic "RD"
+                HalFlashRead(page_idx, (uint16)(rec_idx + 1) * sizeof(struct record_entry) - 2, magic, 2);
+                if (magic[0] == 0x52 && magic[1] == 0x44) {
+                    HalFlashRead(page_idx, (uint16)rec_idx * sizeof(struct record_entry), buf, 4);
+                    if (ts >= *(uint32 *)buf) {
+                        if ((ts - *(uint32 *)buf) < delta_ancient) {
+                            delta_ancient = (ts - *(uint32 *)buf);
+                            page_idx_ancient = page_idx;
+                            rec_idx_ancient = rec_idx;
+                        }
+                    }
+                    if ((*(uint32 *)buf <= ts) && ((ts - *(uint32 *)buf) < 2000)) {
+                        check_previous = 1;
+                        last_page_idx = page_idx;
+                        last_rec_idx = rec_idx;
+                    } else if (check_previous == 1 && (*(uint32 *)buf >= ts) && ((*(uint32 *)buf - ts) < 2000)) {
+                        rec_read.page_idx = last_page_idx;
+                        rec_read.record_entry_idx = last_rec_idx;
+                        rec_read.data_entry_idx = -1;
+                        rec_read.last_data_entry_unix_ts = 0;
+                        rec_read.last_data_entry_temp = 0; 
+                        return;
+                    } else {
+                        check_previous = 0;
+                    }
                 }
             }
             page_idx = __recorder_get_next_page(page_idx);
         } while (page_idx != __recorder_get_first_page());
+        
+        if (page_idx_ancient != 0) {
+            rec_read.page_idx = page_idx_ancient;
+            rec_read.record_entry_idx = rec_idx_ancient;
+            rec_read.data_entry_idx = -1;
+            rec_read.last_data_entry_unix_ts = 0;
+            rec_read.last_data_entry_temp = 0;             
+        }
     }
 }
 

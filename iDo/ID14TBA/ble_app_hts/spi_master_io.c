@@ -17,6 +17,8 @@
 #include "spi_master.h"
 #include "nrf_delay.h"
 
+#if 1
+
 #if defined(SPI_MASTER_0_ENABLE) || defined(SPI_MASTER_1_ENABLE)
 
 typedef struct
@@ -105,6 +107,8 @@ uint32_t spi_master_open(const spi_master_hw_instance_t    spi_master_hw_instanc
                          spi_master_config_t const * const p_spi_master_config)
 {
 #if defined(SPI_MASTER_0_ENABLE) || defined(SPI_MASTER_1_ENABLE)
+	uint8_t idx = 0;
+
     /*
      * Hardware SPI
      */
@@ -148,7 +152,25 @@ uint32_t spi_master_open(const spi_master_hw_instance_t    spi_master_hw_instanc
     nrf_gpio_cfg_output(p_spi_master_config->SPI_Pin_SCK);
     nrf_gpio_pin_clear(p_spi_master_config->SPI_Pin_SCK);
 
+    //Clear MOSI
+    nrf_gpio_pin_clear(p_spi_master_config->SPI_Pin_MOSI);
     nrf_gpio_cfg_output(p_spi_master_config->SPI_Pin_MOSI);
+    nrf_gpio_pin_clear(p_spi_master_config->SPI_Pin_MOSI);
+
+    // Perform ADT7320 interface reset before moving on
+    nrf_gpio_pin_clear(p_spi_master_config->SPI_Pin_SS);
+    for (idx = 0; idx < 34; idx++) {
+        nrf_gpio_pin_clear(p_spi_master_config->SPI_Pin_SCK);
+        nrf_gpio_pin_set(p_spi_master_config->SPI_Pin_MOSI);
+        nrf_delay_us(50);
+        nrf_gpio_pin_set(p_spi_master_config->SPI_Pin_SCK);
+        nrf_delay_us(50);
+    }
+    nrf_gpio_pin_set(p_spi_master_config->SPI_Pin_SS);
+    // reset end
+
+    nrf_gpio_pin_clear(p_spi_master_config->SPI_Pin_SCK);
+    nrf_gpio_pin_clear(p_spi_master_config->SPI_Pin_MOSI);
     nrf_gpio_cfg_input(p_spi_master_config->SPI_Pin_MISO, NRF_GPIO_PIN_NOPULL);
     p_spi_instance->pin_slave_select = p_spi_master_config->SPI_Pin_SS;
 
@@ -266,3 +288,106 @@ uint32_t spi_master_send_recv(const spi_master_hw_instance_t spi_master_hw_insta
     return NRF_ERROR_NOT_SUPPORTED;
 #endif
 }
+
+#else
+
+#define SS		18
+#define SCK		15
+#define MOSI	17
+#define MISO	14
+
+uint32_t spi_master_open(const spi_master_hw_instance_t    spi_master_hw_instance,
+                         spi_master_config_t const * const p_spi_master_config)
+{
+	uint8_t idx = 0;
+
+    //A Slave select must be set as high before setting it as output,
+    //because during connect it to the pin it causes glitches.
+    nrf_gpio_pin_set(p_spi_master_config->SPI_Pin_SS);
+    nrf_gpio_cfg_output(p_spi_master_config->SPI_Pin_SS);
+    nrf_gpio_pin_set(p_spi_master_config->SPI_Pin_SS);
+
+    //Configure GPIO
+    //Clear SCK
+    nrf_gpio_pin_clear(p_spi_master_config->SPI_Pin_SCK);
+    nrf_gpio_cfg_output(p_spi_master_config->SPI_Pin_SCK);
+    nrf_gpio_pin_clear(p_spi_master_config->SPI_Pin_SCK);
+
+    //Clear MOSI
+    nrf_gpio_pin_clear(p_spi_master_config->SPI_Pin_MOSI);
+    nrf_gpio_cfg_output(p_spi_master_config->SPI_Pin_MOSI);
+    nrf_gpio_pin_clear(p_spi_master_config->SPI_Pin_MOSI);
+
+    // Perform ADT7320 interface reset before moving on
+    nrf_gpio_pin_clear(p_spi_master_config->SPI_Pin_SS);
+    for (idx = 0; idx < 34; idx++) {
+        nrf_gpio_pin_clear(p_spi_master_config->SPI_Pin_SCK);
+        nrf_gpio_pin_set(p_spi_master_config->SPI_Pin_MOSI);
+        nrf_delay_us(50);
+        nrf_gpio_pin_set(p_spi_master_config->SPI_Pin_SCK);
+        nrf_delay_us(50);
+    }
+    nrf_gpio_pin_set(p_spi_master_config->SPI_Pin_SS);
+    // reset end
+
+    nrf_gpio_pin_set(p_spi_master_config->SPI_Pin_SS);
+    nrf_gpio_pin_set(p_spi_master_config->SPI_Pin_SCK);
+    nrf_gpio_pin_clear(p_spi_master_config->SPI_Pin_MOSI);
+    nrf_gpio_cfg_input(p_spi_master_config->SPI_Pin_MISO, NRF_GPIO_PIN_NOPULL);
+
+    return NRF_SUCCESS;
+}
+
+uint32_t spi_master_send_recv(const spi_master_hw_instance_t spi_master_hw_instance,
+                              uint8_t * p_tx_buf, const uint16_t tx_buf_len,
+                              uint8_t * p_rx_buf, const uint16_t rx_buf_len)
+{
+	uint16_t idx = 0;
+	uint8_t i = 0, inData = 0;
+
+    nrf_gpio_pin_set(SS);
+    nrf_gpio_cfg_output(SS);
+    nrf_gpio_pin_set(SS);
+
+    //Configure GPIO
+    //Clear SCK
+    nrf_gpio_pin_set(SCK);
+    nrf_gpio_cfg_output(SCK);
+    nrf_gpio_pin_set(SCK);
+
+    //Clear MOSI
+    nrf_gpio_pin_clear(MOSI);
+    nrf_gpio_cfg_output(MOSI);
+    nrf_gpio_pin_clear(MOSI);
+
+    nrf_gpio_cfg_input(MISO, NRF_GPIO_PIN_NOPULL);
+
+	nrf_gpio_pin_clear(SS);
+	nrf_delay_us(50);
+
+	for (idx = 0; idx < tx_buf_len; idx++) {
+		inData = 0;
+		for(i=0; i<8; i++)
+		{
+			nrf_gpio_pin_clear(SCK);
+	        if ((p_tx_buf[idx]<<i) & 0x80) {
+	        	nrf_gpio_pin_set(MOSI);
+	        } else {
+	        	nrf_gpio_pin_clear(MOSI);
+	        }
+			nrf_delay_us(200);
+			nrf_gpio_pin_set(SCK);
+			inData <<= 1;
+			inData |= nrf_gpio_pin_read(MISO);
+			nrf_delay_us(200);
+		}
+		p_rx_buf[idx] = inData;
+	}
+
+	nrf_delay_us(50);
+	nrf_gpio_pin_set(SS);
+
+	return NRF_SUCCESS;
+}
+
+#endif

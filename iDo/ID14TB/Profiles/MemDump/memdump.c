@@ -1,8 +1,6 @@
 /*
  * Memory dump profile
  */
-#ifdef DEBUG_MEM
-
 #include "bcomdef.h"
 #include "OSAL.h"
 #include "linkdb.h"
@@ -13,6 +11,7 @@
 
 #include "memdump.h"
 #include "st_util.h"
+#include "hal_flash.h"
 
 // Memory dump service
 CONST uint8 memdumpServUUID[ATT_BT_UUID_SIZE] =
@@ -29,10 +28,12 @@ CONST uint8 memdumpByteUUID[ATT_BT_UUID_SIZE] =
 static CONST gattAttrType_t memdumpService = {ATT_BT_UUID_SIZE, memdumpServUUID};
 
 // Memdump Characteristic Properties
-static uint8 memdumpBytes[18];
+static uint8 memdumpBytes[20];
 static uint8 memdumpByteCharProps = GATT_PROP_READ | GATT_PROP_WRITE;
 static uint8 memType = 0;
-static uint8 *memPtr = 0x0000;
+static uint8 memFlash = 0;
+static uint32 memPtr = 0x00000000;
+static uint8 deleteService = 0;
 
 /*********************************************************************
 * Profile Attributes - Table
@@ -86,15 +87,34 @@ CONST gattServiceCBs_t memdumpCBs =
 /*********************************************************************
 * PUBLIC FUNCTIONS
 */
-bStatus_t MemDump_AddService(uint32 services)
+uint8 MemDump_ServiceNeedDelete(void)
+{
+    return deleteService;
+}
+
+bStatus_t MemDump_AddService(void)
 {
     uint8 status = SUCCESS;
     
     status = GATTServApp_RegisterService( memdumpAttrTbl, 
                                          GATT_NUM_ATTRS( memdumpAttrTbl ),
                                          &memdumpCBs );
-    
+    if (status == SUCCESS) {
+        deleteService = 1;
+    }
     return ( status );
+}
+
+bStatus_t MemDump_DelService(void)
+{
+    uint8 status = SUCCESS;
+    gattAttribute_t *pServ = NULL;
+    
+    status = GATTServApp_DeregisterService(GATT_SERVICE_HANDLE(memdumpAttrTbl), &pServ );
+    if (status == SUCCESS) {
+        deleteService = 0;
+    }
+    return status;
 }
 
 /*
@@ -105,6 +125,9 @@ static uint8 memdump_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
 {
     bStatus_t status = SUCCESS;
     uint16 uuid = 0;
+    uint8 flash_pg = 0;
+    uint16 flash_offset = 0;
+    uint16 ptr = 0;
     
     if (utilExtractUuid16(pAttr,&uuid) == FAILURE)
     {
@@ -115,11 +138,22 @@ static uint8 memdump_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
     
     switch (uuid) {
     case MEMDUMP_BYTES:
-        *pLen = 18;
-        memdumpBytes[0] = (uint8)(((uint16)memPtr >> 8) & 0xFF);
-        memdumpBytes[1] = (uint8)((uint16)memPtr & 0xFF);
-        osal_memcpy(&(memdumpBytes[2]), memPtr, 16);
-        VOID osal_memcpy(pValue, pAttr->pValue, 18);
+        *pLen = 20;
+        memdumpBytes[0] = (uint8)((memPtr >> 24) & 0xFF);
+        memdumpBytes[1] = (uint8)((memPtr >> 16) & 0xFF);
+        memdumpBytes[2] = (uint8)((memPtr >> 8) & 0xFF);
+        memdumpBytes[3] = (uint8)(memPtr & 0xFF);
+        ptr = (uint16)memPtr;
+        if (memFlash == 0) {
+            osal_memcpy(&(memdumpBytes[4]), (void *)ptr, 16);
+        } else {
+            flash_pg = (uint8)(memPtr/2048);
+            if (flash_pg < 128) {
+                flash_offset = (uint16)(memPtr - (uint32)flash_pg * 2048);
+                HalFlashRead(flash_pg, flash_offset, &(memdumpBytes[4]), 16);
+            }
+        }
+        VOID osal_memcpy(pValue, pAttr->pValue, 20);
         if (memType) {
             memPtr += 16;
         }
@@ -148,13 +182,18 @@ static bStatus_t memdump_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
         switch ( uuid )
         {
         case MEMDUMP_BYTES:
-            if (len == 2) {
+            if (len == 4) {
                 if (pValue[0] & 0x80) {
                     memType = 1;
                 } else {
                     memType = 0;
                 }
-                memPtr = (uint8 *)((((uint16)pValue[0] << 8) | (uint16)pValue[1]) & 0x7FFF);
+                if (pValue[0] & 0x40) {
+                    memFlash = 1;
+                } else {
+                    memFlash = 0;
+                }
+                memPtr = (uint32)((((uint32)pValue[0] << 24) | ((uint32)pValue[1] << 16) | ((uint32)pValue[2] << 8) | (uint32)pValue[3]) & 0x3FFFFFFF);
             } else {
                 status = ATT_ERR_ATTR_NOT_LONG;
             }
@@ -167,5 +206,3 @@ static bStatus_t memdump_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
     
     return ( status );
 }
-
-#endif

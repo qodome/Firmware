@@ -3,7 +3,7 @@
 <Workspace>
   <ConfigDictionary>
     
-  <CurrentConfigs><Project>iDo/_old_iDo-ImgA-for-flash</Project></CurrentConfigs></ConfigDictionary>
+  <CurrentConfigs><Project>iDo/iDo-ImgA-for-flash</Project></CurrentConfigs></ConfigDictionary>
   <Desktop>
     <Static>
       <Workspace>
@@ -12,7 +12,7 @@
           
           
           
-        <Column0>279</Column0><Column1>19</Column1><Column2>31</Column2><Column3>0</Column3></ColumnWidths>
+        <Column0>222</Column0><Column1>19</Column1><Column2>31</Column2><Column3>0</Column3></ColumnWidths>
       </Workspace>
       <Build>
         
@@ -24,7 +24,7 @@
     <Windows>
       
       
-    <Wnd2>
+    <Wnd0>
         <Tabs>
           <Tab>
             <Identity>TabID-16829-7481</Identity>
@@ -32,11 +32,11 @@
             <Factory>Workspace</Factory>
             <Session>
               
-            <NodeDict><ExpandedNode>iDo</ExpandedNode><ExpandedNode>iDo/APP</ExpandedNode><ExpandedNode>iDo/HAL</ExpandedNode><ExpandedNode>iDo/HAL/Common</ExpandedNode><ExpandedNode>iDo/HAL/Target</ExpandedNode><ExpandedNode>iDo/HAL/Target/Drivers</ExpandedNode><ExpandedNode>iDo/NPI</ExpandedNode><ExpandedNode>iDo/OSAL</ExpandedNode><ExpandedNode>iDo/PROFILES</ExpandedNode><ExpandedNode>iDo/PROFILES/battservice.c</ExpandedNode><ExpandedNode>iDo/TOOLS</ExpandedNode></NodeDict></Session>
+            <NodeDict><ExpandedNode>iDo</ExpandedNode><ExpandedNode>iDo/APP</ExpandedNode><ExpandedNode>iDo/HAL</ExpandedNode><ExpandedNode>iDo/HAL/Target</ExpandedNode><ExpandedNode>iDo/HAL/Target/Drivers</ExpandedNode><ExpandedNode>iDo/NPI</ExpandedNode><ExpandedNode>iDo/OSAL</ExpandedNode><ExpandedNode>iDo/PROFILES</ExpandedNode><ExpandedNode>iDo/TOOLS</ExpandedNode></NodeDict></Session>
           </Tab>
         </Tabs>
         
-      <SelectedTab>0</SelectedTab></Wnd2><Wnd3>
+      <SelectedTab>0</SelectedTab></Wnd0><Wnd1>
         <Tabs>
           <Tab>
             <Identity>TabID-15783-7501</Identity>
@@ -46,20 +46,20 @@
           </Tab>
         <Tab><Identity>TabID-6890-16781</Identity><TabName>Debug Log</TabName><Factory>Debug-Log</Factory><Session/></Tab></Tabs>
         
-      <SelectedTab>0</SelectedTab></Wnd3></Windows>
+      <SelectedTab>0</SelectedTab></Wnd1></Windows>
     <Editor>
       
       
       
       
-    <Pane><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\App\customize.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>33</YPos2><SelStart2>1744</SelStart2><SelEnd2>1744</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\Temperature\SoftwareSPI.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>45</YPos2><SelStart2>1407</SelStart2><SelEnd2>1407</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\Temperature\temperature.h</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>3</YPos2><SelStart2>306</SelStart2><SelEnd2>306</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Include\gatt_profile_uuid.h</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>96</YPos2><SelStart2>1075</SelStart2><SelEnd2>1075</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\MemDump\memdump.h</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>0</YPos2><SelStart2>0</SelStart2><SelEnd2>0</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\iDo_Stats\statistics.h</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>7</YPos2><SelStart2>564</SelStart2><SelEnd2>564</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\App\iDo.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>92</YPos2><SelStart2>4096</SelStart2><SelEnd2>4096</SelEnd2></Tab><ActiveTab>6</ActiveTab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\Temperature\temperature.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>415</YPos2><SelStart2>13483</SelStart2><SelEnd2>13496</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\DataRecorder\recorder.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>92</YPos2><SelStart2>2445</SelStart2><SelEnd2>2445</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\DataRecorder\recorder.h</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>0</YPos2><SelStart2>501</SelStart2><SelEnd2>501</SelEnd2></Tab></Pane><ActivePane>0</ActivePane><Sizes><Pane><X>1000000</X><Y>1000000</Y></Pane></Sizes><SplitMode>1</SplitMode></Editor>
+    <Pane><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\App\iDo.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>516</YPos2><SelStart2>19907</SelStart2><SelEnd2>19907</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\OAD\oad_target.h</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>51</YPos2><SelStart2>2680</SelStart2><SelEnd2>2680</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\Batt\battservice.h</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>172</YPos2><SelStart2>0</SelStart2><SelEnd2>0</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\MemDump\memdump.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>12</YPos2><SelStart2>0</SelStart2><SelEnd2>0</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\MemDump\memdump.h</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>0</YPos2><SelStart2>309</SelStart2><SelEnd2>309</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\hal\target\CC2541ST\hal_sleep.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>361</YPos2><SelStart2>0</SelStart2><SelEnd2>0</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\hal\target\CC2540EB\hal_adc.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>62</YPos2><SelStart2>7498</SelStart2><SelEnd2>7498</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\App\iDo.h</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>45</YPos2><SelStart2>0</SelStart2><SelEnd2>0</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\DataRecorder\recorder.h</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>17</YPos2><SelStart2>819</SelStart2><SelEnd2>819</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\Temperature\SoftwareSPI.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>6</YPos2><SelStart2>662</SelStart2><SelEnd2>662</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\CurrentTime\currenttime.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>105</YPos2><SelStart2>3544</SelStart2><SelEnd2>3544</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\CurrentTime\currenttime.h</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>0</YPos2><SelStart2>0</SelStart2><SelEnd2>0</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\iDo_Stats\statistics.h</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>0</YPos2><SelStart2>0</SelStart2><SelEnd2>0</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\iDo_Stats\statistics.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>12</YPos2><SelStart2>617</SelStart2><SelEnd2>617</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\DataRecorder\recorder.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>394</YPos2><SelStart2>13639</SelStart2><SelEnd2>13639</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\osal\common\OSAL_ClockBLE.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>39</YPos2><SelStart2>2544</SelStart2><SelEnd2>2567</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\Temperature\temperature.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>317</YPos2><SelStart2>9581</SelStart2><SelEnd2>9602</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\DevInfo\devinfoservice.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>399</YPos2><SelStart2>12068</SelStart2><SelEnd2>12068</SelEnd2></Tab><ActiveTab>17</ActiveTab></Pane><ActivePane>0</ActivePane><Sizes><Pane><X>1000000</X><Y>1000000</Y></Pane></Sizes><SplitMode>1</SplitMode></Editor>
     <Positions>
       
       
       
       
       
-    <Top><Row0><Sizes><Toolbar-0136cd98><key>iaridepm.enu1</key></Toolbar-0136cd98></Sizes></Row0></Top><Left><Row0><Sizes><Wnd2><Rect><Top>-2</Top><Left>-2</Left><Bottom>560</Bottom><Right>366</Right><x>-2</x><y>-2</y><xscreen>478</xscreen><yscreen>365</yscreen><sizeHorzCX>373438</sizeHorzCX><sizeHorzCY>504144</sizeHorzCY><sizeVertCX>287500</sizeVertCX><sizeVertCY>776243</sizeVertCY></Rect></Wnd2></Sizes></Row0></Left><Right><Row0><Sizes/></Row0></Right><Bottom><Row0><Sizes><Wnd3><Rect><Top>-2</Top><Left>-2</Left><Bottom>119</Bottom><Right>1282</Right><x>-2</x><y>-2</y><xscreen>1284</xscreen><yscreen>121</yscreen><sizeHorzCX>1003125</sizeHorzCX><sizeHorzCY>167127</sizeHorzCY><sizeVertCX>373438</sizeVertCX><sizeVertCY>504144</sizeVertCY></Rect></Wnd3></Sizes></Row0></Bottom><Float><Sizes/></Float></Positions>
+    <Top><Row0><Sizes><Toolbar-0136d960><key>iaridepm.enu1</key></Toolbar-0136d960></Sizes></Row0></Top><Left><Row0><Sizes><Wnd0><Rect><Top>-2</Top><Left>-2</Left><Bottom>439</Bottom><Right>309</Right><x>-2</x><y>-2</y><xscreen>478</xscreen><yscreen>365</yscreen><sizeHorzCX>373438</sizeHorzCX><sizeHorzCY>504144</sizeHorzCY><sizeVertCX>242969</sizeVertCX><sizeVertCY>609116</sizeVertCY></Rect></Wnd0></Sizes></Row0></Left><Right><Row0><Sizes/></Row0></Right><Bottom><Row0><Sizes><Wnd1><Rect><Top>-2</Top><Left>-2</Left><Bottom>240</Bottom><Right>1282</Right><x>-2</x><y>-2</y><xscreen>1284</xscreen><yscreen>242</yscreen><sizeHorzCX>1003125</sizeHorzCX><sizeHorzCY>334254</sizeHorzCY><sizeVertCX>373438</sizeVertCX><sizeVertCY>504144</sizeVertCY></Rect></Wnd1></Sizes></Row0></Bottom><Float><Sizes/></Float></Positions>
   </Desktop>
 </Workspace>
 

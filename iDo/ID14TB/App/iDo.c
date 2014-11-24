@@ -95,8 +95,8 @@ contact Texas Instruments Incorporated at www.TI.com.
 /*********************************************************************
 * CONSTANTS
 */
-#define TEMP_SAMPLE_PERIOD_FAST      2000
-#define TEMP_SAMPLE_PERIOD_SLOW      10000
+#define TEMP_SAMPLE_PERIOD_FAST     2000
+#define TEMP_SAMPLE_PERIOD_SLOW     10000
 #define TEMP_WAIT_SAMPLE        100
 
 // What is the advertising interval when device is discoverable (units of 625us, 160=100ms)
@@ -171,6 +171,7 @@ static uint32 staleCount = 0;
 static uint8 lastConnAddr[B_ADDR_LEN] = {0xf,0xf,0xf,0xf,0xf,0xe};
 static struct cmd_buffer *lastReadBuffer = NULL;
 static uint8 adtMonitorCnt = 0;
+static uint8 taskInitDone = 0;
 
 #ifdef DEBUG_STATS
 static uint32 adv_begin_stats_tick = 0;
@@ -372,17 +373,12 @@ void iDo_Init( uint8 task_id )
     GGS_AddService( GATT_ALL_SERVICES );            // GAP
     GATTServApp_AddService( GATT_ALL_SERVICES );    // GATT attributes
     Temp_AddService(GATT_ALL_SERVICES);
-    Batt_AddService();
     DevInfo_AddService();
     CurrentTime_AddService(GATT_ALL_SERVICES);
 
 #if defined FEATURE_OAD
     VOID OADTarget_AddService();                    // OAD Profile
 #endif
-    
-#ifdef DEBUG_MEM    
-    MemDump_AddService(GATT_ALL_SERVICES);
-#endif    
         
     // Enable clock divide on halt
     // This reduces active current while radio is active and CC254x MCU
@@ -433,6 +429,15 @@ void iDo_Init( uint8 task_id )
     
         // Initialize custom name
     custom_init();
+    
+    taskInitDone = 1;
+}
+
+void iDo_EnableBattService(void)
+{
+    if (taskInitDone == 1) {
+        osal_set_event(iDo_TaskID, IDO_ENABLE_BATT_SERVICE);
+    }
 }
 
 /*********************************************************************
@@ -469,7 +474,7 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
     }
     
     if ( events & IDO_START_DEVICE_EVT )
-    {
+    {            
         // Start the Device
         VOID GAPRole_StartDevice( &iDo_PeripheralCBs );
         
@@ -543,6 +548,11 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
         return (events ^ IDO_MONITOR_ADT7320);
     }
     
+    if (events & IDO_ENABLE_BATT_SERVICE) {
+        Batt_AddService();
+        osal_stop_timerEx(iDo_TaskID, IDO_ENABLE_BATT_SERVICE);
+        return (events ^ IDO_ENABLE_BATT_SERVICE);
+    }
     // Discard unknown events
     return 0;
 }
@@ -553,7 +563,7 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
 static void iDo_ProcessGattMsg(gattMsgEvent_t *pMsg)
 {    
     int16 temp = 0; 
-    uint8 timeValidFlag = 0;
+    uint8 validFlag = 0;
     UTCTimeStruct tc;
 
     //Measurement Indication Confirmation
@@ -561,7 +571,7 @@ static void iDo_ProcessGattMsg(gattMsgEvent_t *pMsg)
         if (lastReadBuffer != NULL) {
             CBPutBuffer(lastReadBuffer);
             lastReadBuffer = NULL;
-            if (CBGetNextBufferForTX(&temp, &timeValidFlag, &tc) != NULL) {
+            if (CBGetNextBufferForTX(&temp, &validFlag, &tc) != NULL) {
                 iDo_prepare_send_indication();
             }
         }
@@ -692,6 +702,9 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
             s.connected_default_seconds += connected_sec;
         }
 #endif        
+        if (MemDump_ServiceNeedDelete()) {
+            MemDump_DelService();
+        }
         break;
         
     default:
@@ -762,12 +775,14 @@ void tempReadCallback()
     temp_state_update(v);
     recorder_add_temperature(v);
     
-    if ((tempMeasurementSwitch == 1) && temp_state_mesaurement_ready()) {
-        return;
-    }
-        
+
         
     if (gapProfileState == GAPROLE_CONNECTED) {
+        // Skip intermediate report if temperature measurement is turned on
+        if ((tempMeasurementSwitch == 1) && Temp_TM_sending(gapConnHandle) && temp_state_mesaurement_ready()) {
+            return;
+        }   
+        
         if (v & 0x8000) {
             v32 = (int32)v | 0xFFFF0000;
         } else {
@@ -845,61 +860,63 @@ static void iDo_prepare_send_indication()
     int32 temp32_delta = 0;
     uint32 temp32u = 0;
     int32 sign = -4;    
-    uint8 timeValidFlag = 0;
+    uint8 validFlag = 0;
     UTCTimeStruct tc;
     struct temp_measure_with_ts temp_w_ts;
     struct temp_measure_without_ts temp_wo_ts;
     uint8 len = 0;
     
-    osal_memset((void *)&tc, 0, sizeof(tc));
-    lastReadBuffer = CBGetNextBufferForTX(&temp, &timeValidFlag, &tc);
-    if (lastReadBuffer != NULL) {        
-        if (temp & 0x8000) {
-            temp32 = (int32)temp | 0xFFFF0000;
-            temp32 = 0 - temp32;
-            temp32 = temp32 * 625;
-            temp32_delta = (temp32 / 1000) * 1000;
-            temp32_delta = temp32 - temp32_delta;
-            temp32 = (temp32 / 1000) * 1000;
-            if (temp32_delta >= 500) {
-                temp32 += 1000;                
-            }
-            temp32 = 0 - temp32;
-        } else {
-            temp32 = temp;
-            temp32 = temp32 * 625;
-            temp32_delta = (temp32 / 1000) * 1000;
-            temp32_delta = temp32 - temp32_delta;
-            temp32 = (temp32 / 1000) * 1000;
-            if (temp32_delta >= 500) {
-                temp32 += 1000;                
-            }            
-        }        
-        temp32u = (sign << 24) | (temp32 & 0xFFFFFF);
-        
-        if (timeValidFlag == 1) {
-            temp_w_ts.u.temp = temp32u;
-            len = sizeof(temp_w_ts);
-            if (temp_state_is_attached()) {
-                temp_w_ts.flag = 0x06;
-                temp_w_ts.temp_type = 0x02;
+    if (gapProfileState == GAPROLE_CONNECTED) {
+        osal_memset((void *)&tc, 0, sizeof(tc));
+        lastReadBuffer = CBGetNextBufferForTX(&temp, &validFlag, &tc);
+        if (lastReadBuffer != NULL) {        
+            if (temp & 0x8000) {
+                temp32 = (int32)temp | 0xFFFF0000;
+                temp32 = 0 - temp32;
+                temp32 = temp32 * 625;
+                temp32_delta = (temp32 / 1000) * 1000;
+                temp32_delta = temp32 - temp32_delta;
+                temp32 = (temp32 / 1000) * 1000;
+                if (temp32_delta >= 500) {
+                    temp32 += 1000;                
+                }
+                temp32 = 0 - temp32;
             } else {
-                temp_w_ts.flag = 0x02;
-                len--;
-            }
-            VOID osal_memcpy((uint8 *)(&temp_w_ts.year), (uint8 *)&tc, sizeof(tc));
-            Temp_IndicateTemperature(gapConnHandle, (uint8 *)&temp_w_ts, len, iDo_TaskID);
-        } else {
-            temp_wo_ts.u.temp = temp32u;
-            len = sizeof(temp_wo_ts);
-            if (temp_state_is_attached()) {
-                temp_wo_ts.flag = 0x04;                
-                temp_wo_ts.temp_type = 0x02;
+                temp32 = temp;
+                temp32 = temp32 * 625;
+                temp32_delta = (temp32 / 1000) * 1000;
+                temp32_delta = temp32 - temp32_delta;
+                temp32 = (temp32 / 1000) * 1000;
+                if (temp32_delta >= 500) {
+                    temp32 += 1000;                
+                }            
+            }        
+            temp32u = (sign << 24) | (temp32 & 0xFFFFFF);
+            
+            if (validFlag & TIME_VALID_FLAG) {
+                temp_w_ts.u.temp = temp32u;
+                len = sizeof(temp_w_ts);
+                if (validFlag & TYPE_VALID_FLAG) {
+                    temp_w_ts.flag = 0x06;
+                    temp_w_ts.temp_type = 0x02;
+                } else {
+                    temp_w_ts.flag = 0x02;
+                    len--;
+                }
+                VOID osal_memcpy((uint8 *)(&temp_w_ts.year), (uint8 *)&tc, sizeof(tc));
+                Temp_IndicateTemperature(gapConnHandle, (uint8 *)&temp_w_ts, len, iDo_TaskID);
             } else {
-                temp_wo_ts.flag = 0x00;
-                len--;
+                temp_wo_ts.u.temp = temp32u;
+                len = sizeof(temp_wo_ts);
+                if (validFlag & TYPE_VALID_FLAG) {
+                    temp_wo_ts.flag = 0x04;                
+                    temp_wo_ts.temp_type = 0x02;
+                } else {
+                    temp_wo_ts.flag = 0x00;
+                    len--;
+                }
+                Temp_IndicateTemperature(gapConnHandle, (uint8 *)&temp_wo_ts, len, iDo_TaskID);                
             }
-            Temp_IndicateTemperature(gapConnHandle, (uint8 *)&temp_wo_ts, len, iDo_TaskID);                
         }
     }
 }

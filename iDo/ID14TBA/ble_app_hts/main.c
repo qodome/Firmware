@@ -34,7 +34,7 @@
 #include "ble_srv_common.h"
 #include "ble_advdata.h"
 #include "ble_bas.h"
-#include "ble_hts.h"
+#include "ble_ido.h"
 #include "ble_dis.h"
 #include "ble_conn_params.h"
 #include "app_scheduler.h"
@@ -44,70 +44,67 @@
 #include "app_timer.h"
 #include "device_manager.h"
 #include "app_gpiote.h"
-#include "app_button.h"
 #include "ble_error_log.h"
 #include "app_gpiote.h"
 #include "ble_debug_assert_handler.h"
-#include "pstorage.h"
 #include "app_trace.h"
 #include "nrf_sdm.h"
-
 #include "app_util_platform.h"
 #include "spi_master.h"
 #include "nrf_delay.h"
-
+#include "UTCtime_convert.h"
+#include "ble_register_rw.h"
+#include "temp_service.h"
+#include "temp_date_time.h"
+#include "ble_memdump.h"
+#include "temp_state.h"
+#include "cmd_buffer.h"
+#include "ble_radio_notification.h"
+#include "recorder.h"
+#include "flash_helper.h"
+#include "persistent.h"
+#include "battery.h"
+#include "pstorage.h"
+#include "ble_dfu.h"
+#include "dfu_app_handler.h"
 
 //lint -e553
 #ifdef SVCALL_AS_NORMAL_FUNCTION
 #include "ser_phy_debug_app.h"
 #endif
 
+#define FIRMWARE_VERSION					"1.1.0(00)"
+#define SOFTWARE_VERSION					"0.0.0"
 
 #define IS_SRVC_CHANGED_CHARACT_PRESENT      0                                          /**< Include or not the service_changed characteristic. if not enabled, the server's database cannot be changed for the lifetime of the device*/
-
-#define SEND_MEAS_BUTTON_PIN_NO              BUTTON_0                                   /**< Button used for sending a measurement. */
-#define BOND_DELETE_ALL_BUTTON_ID            BUTTON_1                                   /**< Button used for deleting all bonded centrals during startup. */
-
-#define ADVERTISING_LED_PIN_NO               LED_0                                      /**< Is on when device is advertising. */
-#define CONNECTED_LED_PIN_NO                 LED_1                                      /**< Is on when device has connected. */
-#define ASSERT_LED_PIN_NO                    LED_2                                      /**< Is on when application has asserted. */
-
-#define DEVICE_NAME                          "Nordic_HTS"                               /**< Name of device. Will be included in the advertising data. */
-#define MANUFACTURER_NAME                    "NordicSemiconductor"                      /**< Manufacturer. Will be passed to Device Information Service. */
-#define MODEL_NUM                            "NS-HTS-EXAMPLE"                            /**< Model number. Will be passed to Device Information Service. */
-#define MANUFACTURER_ID                      0x1122334455                               /**< Manufacturer ID, part of System ID. Will be passed to Device Information Service. */
-#define ORG_UNIQUE_ID                        0x667788                                   /**< Organizational Unique ID, part of System ID. Will be passed to Device Information Service. */
+#define MANUFACTURER_NAME                    "Qodome Co., Ltd."                      /**< Manufacturer. Will be passed to Device Information Service. */
+#define MODEL_NUM                            "ID14TBA"                            /**< Model number. Will be passed to Device Information Service. */
 
 #define APP_ADV_INTERVAL                     40                                         /**< The advertising interval (in units of 0.625 ms. This value corresponds to 25 ms). */
-#define APP_ADV_TIMEOUT_IN_SECONDS           180                                        /**< The advertising timeout in units of seconds. */
+#define APP_ADV_TIMEOUT_IN_SECONDS           0                                        /**< The advertising timeout in units of seconds. */
 
 #define APP_TIMER_PRESCALER                  0                                          /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_MAX_TIMERS                 4                                          /**< Maximum number of simultaneously created timers. */
-#define APP_TIMER_OP_QUEUE_SIZE              4                                          /**< Size of timer operation queues. */
+#define APP_TIMER_MAX_TIMERS                 8                                          /**< Maximum number of simultaneously created timers. */
+#define APP_TIMER_OP_QUEUE_SIZE              8                                          /**< Size of timer operation queues. */
 
-#define BATTERY_LEVEL_MEAS_INTERVAL          APP_TIMER_TICKS(2000, APP_TIMER_PRESCALER) /**< Battery level measurement interval (ticks). */
-#define MIN_BATTERY_LEVEL                    81                                         /**< Minimum battery level as returned by the simulated measurement function. */
-#define MAX_BATTERY_LEVEL                    100                                        /**< Maximum battery level as returned by the simulated measurement function. */
-#define BATTERY_LEVEL_INCREMENT              1                                          /**< Value by which the battery level is incremented/decremented for each call to the simulated measurement function. */
+// Android parameter
+#define PERIPHERAL_AND_MIN_CONN_INTERVAL            MSEC_TO_UNITS(1000, UNIT_1_25_MS)   /* Minimum acceptable connection interval. */
+#define PERIPHERAL_AND_MAX_CONN_INTERVAL            MSEC_TO_UNITS(1500, UNIT_1_25_MS)   /* Maximum acceptable connection interval. */
+#define PERIPHERAL_AND_SLAVE_LATENCY                1                                	/* Slave latency. */
+#define PERIPHERAL_AND_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(8000, UNIT_10_MS)     /* Connection supervisory timeout. */
+// iOS parameter
+#define PERIPHERAL_IOS_MIN_CONN_INTERVAL            MSEC_TO_UNITS(500, UNIT_1_25_MS)    /* Minimum acceptable connection interval. */
+#define PERIPHERAL_IOS_MAX_CONN_INTERVAL            MSEC_TO_UNITS(1000, UNIT_1_25_MS)   /* Maximum acceptable connection interval. */
+#define PERIPHERAL_IOS_SLAVE_LATENCY                1                                   /* Slave latency. */
+#define PERIPHERAL_IOS_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(6000, UNIT_10_MS)     /* Connection supervisory timeout. */
+// Parameter update
+#define PERIPHERAL_FIRST_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
+#define PERIPHERAL_NEXT_CONN_PARAMS_UPDATE_DELAY    APP_TIMER_TICKS(3000, APP_TIMER_PRESCALER)
+#define PERIPHERAL_MAX_CONN_PARAMS_UPDATE_COUNT     2
 
-#define TEMP_TYPE_AS_CHARACTERISTIC          0                                          /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
-
-#define MIN_CELCIUS_DEGREES                  3688                                       /**< Minimum temperature in celcius for use in the simulated measurement function (multiplied by 100 to avoid floating point arithmetic). */
-#define MAX_CELCIUS_DEGRESS                  3972                                       /**< Maximum temperature in celcius for use in the simulated measurement function (multiplied by 100 to avoid floating point arithmetic). */
-#define CELCIUS_DEGREES_INCREMENT            36                                         /**< Value by which temperature is incremented/decremented for each call to the simulated measurement function (multiplied by 100 to avoid floating point arithmetic). */
-
-#define MIN_CONN_INTERVAL                    MSEC_TO_UNITS(500, UNIT_1_25_MS)           /**< Minimum acceptable connection interval (0.5 seconds) */
-#define MAX_CONN_INTERVAL                    MSEC_TO_UNITS(1000, UNIT_1_25_MS)          /**< Maximum acceptable connection interval (1 second). */
-#define SLAVE_LATENCY                        0                                          /**< Slave latency. */
-#define CONN_SUP_TIMEOUT                     MSEC_TO_UNITS(4000, UNIT_10_MS)            /**< Connection supervisory timeout (4 seconds). */
-
-#define FIRST_CONN_PARAMS_UPDATE_DELAY       APP_TIMER_TICKS(5000, APP_TIMER_PRESCALER) /**< Time from initiating event (connect or start of indication) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
-#define NEXT_CONN_PARAMS_UPDATE_DELAY        APP_TIMER_TICKS(30000, APP_TIMER_PRESCALER)/**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
-#define MAX_CONN_PARAMS_UPDATE_COUNT         3                                          /**< Number of attempts before giving up the connection parameter negotiation. */
+#define BATTERY_LEVEL_MEAS_INTERVAL          		APP_TIMER_TICKS(480000, APP_TIMER_PRESCALER)	// 480 seconds
 
 #define APP_GPIOTE_MAX_USERS                 1                                          /**< Maximum number of users of the GPIOTE handler. */
-
-#define BUTTON_DETECTION_DELAY               APP_TIMER_TICKS(50, APP_TIMER_PRESCALER)   /**< Delay from a GPIOTE event until a button is reported as pushed (in number of timer ticks). */
 
 #define SEC_PARAM_TIMEOUT                    30                                         /**< Timeout for Pairing Request or Security Request (in seconds). */
 #define SEC_PARAM_BOND                       1                                          /**< Perform bonding. */
@@ -119,23 +116,22 @@
 
 #define DEAD_BEEF                            0xDEADBEEF                                 /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
-
 static uint16_t                              m_conn_handle = BLE_CONN_HANDLE_INVALID;   /**< Handle of the current connection. */
 static ble_gap_adv_params_t                  m_adv_params;                              /**< Parameters to be passed to the stack when starting advertising. */
-static ble_bas_t                             m_bas;                                     /**< Structure used to identify the battery service. */
+ble_bas_t                             m_bas;                                     /**< Structure used to identify the battery service. */
 static ble_hts_t                             m_hts;                                     /**< Structure used to identify the health thermometer service. */
+//static ble_reg_t                             m_reg;                                     /**< Structure used to identify the health thermometer service. */
+static ble_time_t                            m_time;                                     /**< Structure used to identify the health thermometer service. */
+static ble_dfu_t							 m_dfu;
 
-static ble_sensorsim_cfg_t                   m_battery_sim_cfg;                         /**< Battery Level sensor simulator configuration. */
-static ble_sensorsim_state_t                 m_battery_sim_state;                       /**< Battery Level sensor simulator state. */
-static bool                                  m_hts_meas_ind_conf_pending = false;       /**< Flag to keep track of when an indication confirmation is pending. */
+static app_timer_id_t						m_battery_timer_id;
+static dm_application_instance_t      		m_app_handle;
 
-static ble_sensorsim_cfg_t                   m_temp_celcius_sim_cfg;                    /**< Temperature simulator configuration. */
-static ble_sensorsim_state_t                 m_temp_celcius_sim_state;                  /**< Temperature simulator state. */
-
-static app_timer_id_t                        m_battery_timer_id;                        /**< Battery timer. */
-static dm_application_instance_t             m_app_handle;                              /**< Application identifier allocated by device manager */
-
-static bool                                  m_memory_access_in_progress = false;       /**< Flag to keep track of ongoing operations on persistent memory. */
+// YOUR_JOB: Modify these according to requirements (e.g. if other event types are to pass through
+//           the scheduler).
+#define SCHED_MAX_EVENT_DATA_SIZE       MAX(APP_TIMER_SCHED_EVT_SIZE,\
+                                          BLE_STACK_HANDLER_SCHED_EVT_SIZE)          /**< Maximum size of scheduler events. */
+#define SCHED_QUEUE_SIZE                10                                          /**< Maximum number of events in the scheduler queue. */
 
 /**@brief Function for error handling, which is called when an error has occurred.
  *
@@ -148,7 +144,6 @@ static bool                                  m_memory_access_in_progress = false
  */
 void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p_file_name)
 {
-    nrf_gpio_pin_set(ASSERT_LED_PIN_NO);
 
     // This call can be used for debug purposes during application development.
     // @note CAUTION: Activating this code will write the stack to flash on an error.
@@ -166,7 +161,6 @@ void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p
     NVIC_SystemReset();
 #endif
 }
-
 
 /**@brief Callback function for asserts in the SoftDevice.
  *
@@ -190,9 +184,7 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 static void battery_level_update(void)
 {
     uint32_t err_code;
-    uint8_t  battery_level;
-
-    battery_level = (uint8_t)ble_sensorsim_measure(&m_battery_sim_state, &m_battery_sim_cfg);
+    uint8_t  battery_level = 0;
 
     err_code = ble_bas_battery_level_update(&m_bas, battery_level);
     if ((err_code != NRF_SUCCESS) &&
@@ -205,86 +197,62 @@ static void battery_level_update(void)
     }
 }
 
-
-/**@brief Function for handling the Battery measurement timer timeout.
- *
- * @details This function will be called each time the battery level measurement timer expires.
- *
- * @param[in]   p_context   Pointer used for passing some arbitrary information (context) from the
- *                          app_start_timer() call to the timeout handler.
- */
-static void battery_level_meas_timeout_handler(void * p_context)
+uint16_t spi_read (uint8_t addr)
 {
-    UNUSED_PARAMETER(p_context);
-    battery_level_update();
+	uint8_t temp_tx_buffer[3] = {0, 0, 0};
+	uint8_t temp_rx_buffer[3] = {0, 0, 0};
+    int16_t ret = 0;
+
+    if (addr > 0x07) {
+      return ret;
+    }
+
+    temp_tx_buffer[0] = ((addr & 0x07) << 3) | 0x40;
+    if (addr == 0x02 || addr >= 0x04) {
+      APP_ERROR_CHECK(spi_master_send_recv(SPI_MASTER_0, temp_tx_buffer, 3,  temp_rx_buffer, 3));
+      ret = ((uint16_t)temp_rx_buffer[1] << 8) | temp_rx_buffer[2];
+    } else {
+      APP_ERROR_CHECK(spi_master_send_recv(SPI_MASTER_0, temp_tx_buffer, 2,  temp_rx_buffer, 2));
+      ret = (uint16_t)temp_rx_buffer[1];
+    }
+
+    return ret;
 }
 
-
-/**@brief Function for populating simulated health thermometer measurement.
- */
-static void hts_sim_measurement(ble_hts_meas_t * p_meas)
+void spi_write (uint8_t addr, uint16_t cmd)
 {
-    static ble_date_time_t time_stamp = { 2012, 12, 5, 11, 50, 0 };
+	uint8_t temp_tx_buffer[3] = {0, 0, 0};
+	uint8_t temp_rx_buffer[3] = {0, 0, 0};
 
-    uint32_t celciusX100;
+    temp_tx_buffer[0] = ((addr & 0x07) << 3) & ~(0x40);
+    if (addr == 0x01 || addr == 0x05) {
+      temp_tx_buffer[1] =(uint8_t)(cmd & 0xFF);
+      APP_ERROR_CHECK(spi_master_send_recv(SPI_MASTER_0, temp_tx_buffer, 2,  temp_rx_buffer, 2));
 
-    p_meas->temp_in_fahr_units = false;
-    p_meas->time_stamp_present = true;
-    p_meas->temp_type_present  = TEMP_TYPE_AS_CHARACTERISTIC ? false : true;
-
-    celciusX100 = ble_sensorsim_measure(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
-
-    p_meas->temp_in_celcius.exponent = -2;
-    p_meas->temp_in_celcius.mantissa = celciusX100;
-    p_meas->temp_in_fahr.exponent    = -2;
-    p_meas->temp_in_fahr.mantissa    = (32 * 100) + ((celciusX100 * 9) / 5);
-    p_meas->time_stamp               = time_stamp;
-    p_meas->temp_type                = BLE_HTS_TEMP_TYPE_FINGER;
-
-    // update simulated time stamp
-    time_stamp.seconds += 27;
-    if (time_stamp.seconds > 59)
-    {
-        time_stamp.seconds -= 60;
-        time_stamp.minutes++;
-        if (time_stamp.minutes > 59)
-        {
-            time_stamp.minutes = 0;
-        }
+    } else  if (addr == 0x04 || addr == 0x06 || addr == 0x07){
+      temp_tx_buffer[1] = (uint8_t)((cmd >> 8) & 0xFF);
+      temp_tx_buffer[2] = (uint8_t)(cmd & 0xFF);
+      APP_ERROR_CHECK(spi_master_send_recv(SPI_MASTER_0, temp_tx_buffer, 3,  temp_rx_buffer, 3));
     }
 }
 
-
-/**@brief Function for the LEDs initialization.
- *
- * @details Initializes all LEDs used by this application.
- */
-static void leds_init(void)
+// Battery measurement shall be synchronized to radio off event
+static void battery_level_meas_timeout_handler(void * p_context)
 {
-    nrf_gpio_cfg_output(ADVERTISING_LED_PIN_NO);
-    nrf_gpio_cfg_output(CONNECTED_LED_PIN_NO);
-    nrf_gpio_cfg_output(ASSERT_LED_PIN_NO);
+    UNUSED_PARAMETER(p_context);
+    battery_request_measure();
 }
 
-
-/**@brief Function for the Timer initialization.
- *
- * @details Initializes the timer module. This creates and starts application timers.
- */
 static void timers_init(void)
 {
-    uint32_t err_code;
-
-    // Initialize timer module.
+	// Initialize timer module.
     APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_MAX_TIMERS, APP_TIMER_OP_QUEUE_SIZE, false);
 
-    // Create timers.
-    err_code = app_timer_create(&m_battery_timer_id,
+    // Create battery timer.
+    APP_ERROR_CHECK(app_timer_create(&m_battery_timer_id,
                                 APP_TIMER_MODE_REPEATED,
-                                battery_level_meas_timeout_handler);
-    APP_ERROR_CHECK(err_code);
+                                battery_level_meas_timeout_handler));
 }
-
 
 /**@brief Function for the GAP initialization.
  *
@@ -296,12 +264,14 @@ static void gap_params_init(void)
     uint32_t                err_code;
     ble_gap_conn_params_t   gap_conn_params;
     ble_gap_conn_sec_mode_t sec_mode;
+    uint8_t					dev_name[21] = {0};
 
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec_mode);
 
+    persistent_get_dev_name(dev_name);
     err_code = sd_ble_gap_device_name_set(&sec_mode,
-                                          (const uint8_t *)DEVICE_NAME,
-                                          strlen(DEVICE_NAME));
+                                          (const uint8_t *)dev_name,
+                                          strlen((char *)dev_name));
     APP_ERROR_CHECK(err_code);
 
     err_code = sd_ble_gap_appearance_set(BLE_APPEARANCE_GENERIC_THERMOMETER);
@@ -309,15 +279,14 @@ static void gap_params_init(void)
 
     memset(&gap_conn_params, 0, sizeof(gap_conn_params));
 
-    gap_conn_params.min_conn_interval = MIN_CONN_INTERVAL;
-    gap_conn_params.max_conn_interval = MAX_CONN_INTERVAL;
-    gap_conn_params.slave_latency     = SLAVE_LATENCY;
-    gap_conn_params.conn_sup_timeout  = CONN_SUP_TIMEOUT;
+    gap_conn_params.min_conn_interval = PERIPHERAL_AND_MIN_CONN_INTERVAL;
+    gap_conn_params.max_conn_interval = PERIPHERAL_AND_MAX_CONN_INTERVAL;
+    gap_conn_params.slave_latency     = PERIPHERAL_AND_SLAVE_LATENCY;
+    gap_conn_params.conn_sup_timeout  = PERIPHERAL_AND_CONN_SUP_TIMEOUT;
 
     err_code = sd_ble_gap_ppcp_set(&gap_conn_params);
     APP_ERROR_CHECK(err_code);
 }
-
 
 /**@brief Function for initializing the Advertising functionality.
  *
@@ -328,26 +297,27 @@ static void advertising_init(void)
 {
     uint32_t      err_code;
     ble_advdata_t advdata;
+    ble_advdata_t rspdata;
     uint8_t       flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
 
     ble_uuid_t adv_uuids[] =
     {
         {BLE_UUID_HEALTH_THERMOMETER_SERVICE, BLE_UUID_TYPE_BLE},
-        {BLE_UUID_BATTERY_SERVICE,            BLE_UUID_TYPE_BLE},
-        {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE}
     };
 
     // Build and set advertising data
     memset(&advdata, 0, sizeof(advdata));
-
-    advdata.name_type               = BLE_ADVDATA_FULL_NAME;
+    advdata.name_type               = BLE_ADVDATA_NO_NAME;
     advdata.include_appearance      = true;
     advdata.flags.size              = sizeof(flags);
     advdata.flags.p_data            = &flags;
     advdata.uuids_complete.uuid_cnt = sizeof(adv_uuids) / sizeof(adv_uuids[0]);
     advdata.uuids_complete.p_uuids  = adv_uuids;
 
-    err_code = ble_advdata_set(&advdata, NULL);
+    memset(&rspdata, 0, sizeof(rspdata));
+    rspdata.name_type               = BLE_ADVDATA_FULL_NAME;
+
+    err_code = ble_advdata_set(&advdata, &rspdata);
     APP_ERROR_CHECK(err_code);
 
     // Initialize advertising parameters (used when starting advertising).
@@ -360,38 +330,6 @@ static void advertising_init(void)
     m_adv_params.timeout     = APP_ADV_TIMEOUT_IN_SECONDS;
 }
 
-
-/**@brief Function for simulating and sending one Temperature Measurement.
- */
-static void temperature_measurement_send(void)
-{
-    ble_hts_meas_t simulated_meas;
-    uint32_t       err_code;
-
-    if (!m_hts_meas_ind_conf_pending)
-    {
-        hts_sim_measurement(&simulated_meas);
-
-        err_code = ble_hts_measurement_send(&m_hts, &simulated_meas);
-        switch (err_code)
-        {
-            case NRF_SUCCESS:
-                // Measurement was successfully sent, wait for confirmation.
-                m_hts_meas_ind_conf_pending = true;
-                break;
-
-            case NRF_ERROR_INVALID_STATE:
-                // Ignore error.
-                break;
-
-            default:
-                APP_ERROR_HANDLER(err_code);
-                break;
-        }
-    }
-}
-
-
 /**@brief Function for handling the Health Thermometer Service events.
  *
  * @details This function will be called for all Health Thermometer Service events which are passed
@@ -402,23 +340,84 @@ static void temperature_measurement_send(void)
  */
 static void on_hts_evt(ble_hts_t * p_hts, ble_hts_evt_t *p_evt)
 {
-    switch (p_evt->evt_type)
-    {
-        case BLE_HTS_EVT_INDICATION_ENABLED:
-            // Indication has been enabled, send a single temperature measurement
-            temperature_measurement_send();
-            break;
+	switch (p_evt->evt_type)
+	{
+	case BLE_HTS_EVT_INDICATION_ENABLED:
+		temp_tm_start();
+		break;
 
-        case BLE_HTS_EVT_INDICATION_CONFIRMED:
-            m_hts_meas_ind_conf_pending = false;
-            break;
+	case BLE_HTS_EVT_INDICATION_DISABLED:
+		temp_tm_stop();
+		break;
 
-        default:
-            // No implementation needed.
-            break;
-    }
+	case BLE_HTS_EVT_INDICATION_CONFIRMED:
+		temp_measurement_confirm();
+		break;
+
+	case BLE_HTS_EVT_NOTIFICATION_ENABLED:
+		temp_it_start();
+		break;
+
+	case BLE_HTS_EVT_NOTIFICATION_DISABLED:
+		temp_it_stop();
+		break;
+
+	default:
+		// No implementation needed.
+		break;
+	}
 }
 
+// Battery service event handler
+static void on_bas_evt(ble_bas_t * p_bas, ble_bas_evt_t *p_evt)
+{
+	switch (p_evt->evt_type) {
+	case BLE_BAS_EVT_NOTIFICATION_ENABLED:
+		// Start battery timer
+		APP_ERROR_CHECK(app_timer_start(m_battery_timer_id, BATTERY_LEVEL_MEAS_INTERVAL, NULL));
+		break;
+
+	case BLE_BAS_EVT_NOTIFICATION_DISABLED:
+		APP_ERROR_CHECK(app_timer_stop(m_battery_timer_id));
+		break;
+
+	default:
+		// No implementation needed.
+		break;
+	}
+}
+
+static uint8_t bin_to_ascii(uint8_t b)
+{
+	uint8_t a = 0;
+
+	if (b > 15) {
+		return ' ';
+	}
+	if (b < 10) {
+		a = '0' + b;
+	} else {
+		a = 'a' + (b - 10);
+	}
+	return a;
+}
+
+static void reset_prepare(void)
+{
+	uint32_t err_code;
+
+	temp_tm_stop();
+	temp_it_stop();
+	spi_write(0x01, 0x60);
+
+	if (m_conn_handle != BLE_CONN_HANDLE_INVALID) {
+		// Disconnect from peer.
+		err_code = sd_ble_gap_disconnect(m_conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+		APP_ERROR_CHECK(err_code);
+	}
+	err_code = ble_conn_params_stop();
+	APP_ERROR_CHECK(err_code);
+}
 
 /**@brief Function for initializing services that will be used by the application.
  *
@@ -428,26 +427,65 @@ static void services_init(void)
 {
     uint32_t         err_code;
     ble_hts_init_t   hts_init;
-    ble_bas_init_t   bas_init;
+    //ble_reg_init_t   reg_init;
+    ble_time_init_t  time_init;
     ble_dis_init_t   dis_init;
-    ble_dis_sys_id_t sys_id;
+	ble_bas_init_t   bas_init;
+	ble_dfu_init_t   dfus_init;
+    static uint8_t	 sn[32] = {0};
+    uint8_t			*p_sn = NULL;
+    uint8_t			 idx = 0;
 
     // Initialize Health Thermometer Service
     memset(&hts_init, 0, sizeof(hts_init));
 
     hts_init.evt_handler                 = on_hts_evt;
-    hts_init.temp_type_as_characteristic = TEMP_TYPE_AS_CHARACTERISTIC;
-    hts_init.temp_type                   = BLE_HTS_TEMP_TYPE_BODY;
-
-    // Here the sec level for the Health Thermometer Service can be changed/increased.
-    BLE_GAP_CONN_SEC_MODE_SET_ENC_NO_MITM(&hts_init.hts_meas_attr_md.cccd_write_perm);
-    BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&hts_init.hts_meas_attr_md.read_perm);
-    BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&hts_init.hts_meas_attr_md.write_perm);
-
-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&hts_init.hts_temp_type_attr_md.read_perm);
-    BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&hts_init.hts_temp_type_attr_md.write_perm);
 
     err_code = ble_hts_init(&m_hts, &hts_init);
+    APP_ERROR_CHECK(err_code);
+
+    // Initialize Device Information Service.
+    memset(&dis_init, 0, sizeof(dis_init));
+
+    ble_srv_ascii_to_utf8(&dis_init.manufact_name_str, MANUFACTURER_NAME);
+    ble_srv_ascii_to_utf8(&dis_init.model_num_str,     MODEL_NUM);
+    p_sn = (uint8_t *)NRF_FICR->DEVICEADDR;
+    // WARNING: do not use sprintf (code size)
+    for (idx = 0; idx < 6; idx++) {
+    	sn[idx * 3] = bin_to_ascii((p_sn[idx] >> 4) & 0x0F);
+    	sn[idx * 3 + 1] = bin_to_ascii(p_sn[idx] & 0x0F);
+    	if (idx == 5) {
+    		sn[idx * 3 + 2] = 0;
+    	} else {
+    		sn[idx * 3 + 2] = ':';
+    	}
+    }
+    ble_srv_ascii_to_utf8(&dis_init.serial_num_str, (char *)sn);
+    ble_srv_ascii_to_utf8(&dis_init.fw_rev_str, 	FIRMWARE_VERSION);
+    ble_srv_ascii_to_utf8(&dis_init.sw_rev_str,		SOFTWARE_VERSION);
+
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&dis_init.dis_attr_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&dis_init.dis_attr_md.write_perm);
+
+    err_code = ble_dis_init(&dis_init);
+    APP_ERROR_CHECK(err_code);
+
+    // Initialize register  Service.
+    //memset(&reg_init, 0, sizeof(reg_init));
+
+    //BLE_GAP_CONN_SEC_MODE_SET_OPEN(&reg_init.reg_type_attr_md.read_perm);
+    //BLE_GAP_CONN_SEC_MODE_SET_OPEN(&reg_init.reg_type_attr_md.write_perm);
+    //reg_init.evt_handler          = NULL;
+    //err_code = ble_reg_init(&m_reg, &reg_init);
+    //APP_ERROR_CHECK(err_code);
+
+    // Initialize date_time  Service.
+    memset(&time_init, 0, sizeof(time_init));
+
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&time_init.time_type_attr_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&time_init.time_type_attr_md.write_perm);
+    time_init.evt_handler          = NULL;
+    err_code = ble_time_init(&m_time, &time_init);
     APP_ERROR_CHECK(err_code);
 
     // Initialize Battery Service.
@@ -458,92 +496,33 @@ static void services_init(void)
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&bas_init.battery_level_char_attr_md.read_perm);
     BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&bas_init.battery_level_char_attr_md.write_perm);
 
-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&bas_init.battery_level_report_read_perm);
+    //BLE_GAP_CONN_SEC_MODE_SET_OPEN(&bas_init.battery_level_report_read_perm);
 
-    bas_init.evt_handler          = NULL;
+    bas_init.evt_handler          = on_bas_evt;
     bas_init.support_notification = true;
     bas_init.p_report_ref         = NULL;
     bas_init.initial_batt_level   = 100;
 
-    err_code = ble_bas_init(&m_bas, &bas_init);
+    APP_ERROR_CHECK(ble_bas_init(&m_bas, &bas_init));
+
+    // Initialize the Device Firmware Update Service.
+    memset(&dfus_init, 0, sizeof(dfus_init));
+    dfus_init.evt_handler = dfu_app_on_dfu_evt;
+    dfus_init.error_handler = NULL; //service_error_handler - Not used as only the switch from app to DFU mode is required and not full dfu service.
+    err_code = ble_dfu_init(&m_dfu, &dfus_init);
     APP_ERROR_CHECK(err_code);
-
-    // Initialize Device Information Service.
-    memset(&dis_init, 0, sizeof(dis_init));
-
-    ble_srv_ascii_to_utf8(&dis_init.manufact_name_str, MANUFACTURER_NAME);
-    ble_srv_ascii_to_utf8(&dis_init.model_num_str,     MODEL_NUM);
-
-    sys_id.manufacturer_id            = MANUFACTURER_ID;
-    sys_id.organizationally_unique_id = ORG_UNIQUE_ID;
-    dis_init.p_sys_id                 = &sys_id;
-
-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&dis_init.dis_attr_md.read_perm);
-    BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&dis_init.dis_attr_md.write_perm);
-
-    err_code = ble_dis_init(&dis_init);
-    APP_ERROR_CHECK(err_code);
+    dfu_app_reset_prepare_set(reset_prepare);
 }
-
-
-/**@brief Function for initializing the sensor simulators.
- */
-static void sensor_sim_init(void)
-{
-    m_battery_sim_cfg.min          = MIN_BATTERY_LEVEL;
-    m_battery_sim_cfg.max          = MAX_BATTERY_LEVEL;
-    m_battery_sim_cfg.incr         = BATTERY_LEVEL_INCREMENT;
-    m_battery_sim_cfg.start_at_max = true;
-
-    ble_sensorsim_init(&m_battery_sim_state, &m_battery_sim_cfg);
-
-    // Temperature is in celcius (it is multiplied by 100 to avoid floating point arithmetic).
-    m_temp_celcius_sim_cfg.min           = MIN_CELCIUS_DEGREES;
-    m_temp_celcius_sim_cfg.max           = MAX_CELCIUS_DEGRESS;
-    m_temp_celcius_sim_cfg.incr          = CELCIUS_DEGREES_INCREMENT;
-    m_temp_celcius_sim_cfg.start_at_max  = false;
-
-    ble_sensorsim_init(&m_temp_celcius_sim_state, &m_temp_celcius_sim_cfg);
-}
-
-
-
-/**@brief Function for starting application timers.
- */
-static void application_timers_start(void)
-{
-    uint32_t err_code;
-
-    // Start application timers.
-    err_code = app_timer_start(m_battery_timer_id, BATTERY_LEVEL_MEAS_INTERVAL, NULL);
-    APP_ERROR_CHECK(err_code);
-}
-
 
 /**@brief Function for starting advertising.
  */
 static void advertising_start(void)
 {
     uint32_t err_code;
-    uint32_t count;
-
-    // Verify if there is any flash access pending, if yes delay starting advertising until 
-    // it's complete.
-    err_code = pstorage_access_status_get(&count);
-    APP_ERROR_CHECK(err_code);
-    
-    if (count != 0)
-    {
-        m_memory_access_in_progress = true;
-        return;
-    }
     
     err_code = sd_ble_gap_adv_start(&m_adv_params);
     APP_ERROR_CHECK(err_code);
-
-    nrf_gpio_pin_set(ADVERTISING_LED_PIN_NO);
 }
-
 
 /**@brief Function for handling the Connection Parameters Module.
  *
@@ -566,7 +545,6 @@ static void on_conn_params_evt(ble_conn_params_evt_t * p_evt)
     }
 }
 
-
 /**@brief Function for handling a Connection Parameters error.
  *
  * @param[in]   nrf_error   Error code containing information about what went wrong.
@@ -575,7 +553,6 @@ static void conn_params_error_handler(uint32_t nrf_error)
 {
     APP_ERROR_HANDLER(nrf_error);
 }
-
 
 /**@brief Function for initializing the Connection Parameters module.
  */
@@ -587,18 +564,22 @@ static void conn_params_init(void)
     memset(&cp_init, 0, sizeof(cp_init));
 
     cp_init.p_conn_params                  = NULL;
-    cp_init.first_conn_params_update_delay = FIRST_CONN_PARAMS_UPDATE_DELAY;
-    cp_init.next_conn_params_update_delay  = NEXT_CONN_PARAMS_UPDATE_DELAY;
-    cp_init.max_conn_params_update_count   = MAX_CONN_PARAMS_UPDATE_COUNT;
+    cp_init.first_conn_params_update_delay = PERIPHERAL_FIRST_CONN_PARAMS_UPDATE_DELAY;
+    cp_init.next_conn_params_update_delay  = PERIPHERAL_NEXT_CONN_PARAMS_UPDATE_DELAY;
+    cp_init.max_conn_params_update_count   = PERIPHERAL_MAX_CONN_PARAMS_UPDATE_COUNT;
     cp_init.start_on_notify_cccd_handle    = BLE_GATT_HANDLE_INVALID;
     cp_init.disconnect_on_fail             = false;
     cp_init.evt_handler                    = on_conn_params_evt;
     cp_init.error_handler                  = conn_params_error_handler;
 
+    cp_init.secondary_min_conn_interval = PERIPHERAL_IOS_MIN_CONN_INTERVAL;
+    cp_init.secondary_max_conn_interval = PERIPHERAL_IOS_MAX_CONN_INTERVAL;
+    cp_init.secondary_slave_latency     = PERIPHERAL_IOS_SLAVE_LATENCY;
+    cp_init.secondary_conn_sup_timeout  = PERIPHERAL_IOS_CONN_SUP_TIMEOUT;
+
     err_code = ble_conn_params_init(&cp_init);
     APP_ERROR_CHECK(err_code);
 }
-
 
 /**@brief Function for handling the Application's BLE Stack events.
  *
@@ -607,47 +588,45 @@ static void conn_params_init(void)
 static void on_ble_evt(ble_evt_t * p_ble_evt)
 {
     uint32_t err_code = NRF_SUCCESS;
+    uint8_t reason = 0;
+    static uint8_t dev_name_check[32] = {0};
+    uint8_t dev_name_new[32] = {0};
+    uint16_t len;
 
     switch (p_ble_evt->header.evt_id)
     {
         case BLE_GAP_EVT_CONNECTED:
-            nrf_gpio_pin_set(CONNECTED_LED_PIN_NO);
-            nrf_gpio_pin_clear(ADVERTISING_LED_PIN_NO);
-
-            // Start detecting button presses.
-            err_code = app_button_enable();
-            APP_ERROR_CHECK(err_code);
-
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
+            APP_ERROR_CHECK(sd_ble_gap_device_name_get(dev_name_check, &len));
+            battery_request_measure();
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
-            nrf_gpio_pin_clear(CONNECTED_LED_PIN_NO);
+        	// If device name get changed, save that in persistent storage
+        	APP_ERROR_CHECK(sd_ble_gap_device_name_get(dev_name_new, &len));
+        	if (strcmp((char *)dev_name_check, (char *)dev_name_new) != 0) {
+        		persistent_set_dev_name(dev_name_new, strlen((char *)dev_name_new));
+        	}
+        	reason = p_ble_evt->evt.gap_evt.params.disconnected.reason;
+        	if (reason != BLE_HCI_CONNECTION_TIMEOUT)
+        	{
+        		temp_tm_stop();
+        		temp_it_stop();
+        	}
+        	m_conn_handle               = BLE_CONN_HANDLE_INVALID;
+        	advertising_start();
 
-            m_conn_handle               = BLE_CONN_HANDLE_INVALID;
-            m_hts_meas_ind_conf_pending = false;
+        	if(memdump_flag_get()) {
+        		NVIC_SystemReset();
+        	}
 
-            // Stop detecting button presses when not connected.
-            err_code = app_button_disable();
-            APP_ERROR_CHECK(err_code);
+        	APP_ERROR_CHECK(app_timer_stop(m_battery_timer_id));
 
-            advertising_start();
             break;
 
         case BLE_GAP_EVT_TIMEOUT:
             if (p_ble_evt->evt.gap_evt.params.timeout.src == BLE_GAP_TIMEOUT_SRC_ADVERTISEMENT)
             {
-                nrf_gpio_pin_clear(ADVERTISING_LED_PIN_NO);
-
-                // Configure buttons with sense level low as wakeup source.
-                nrf_gpio_cfg_sense_input(SEND_MEAS_BUTTON_PIN_NO,
-                                         BUTTON_PULL,
-                                         NRF_GPIO_PIN_SENSE_LOW);
-                
-                nrf_gpio_cfg_sense_input(BOND_DELETE_ALL_BUTTON_ID,
-                                         BUTTON_PULL,
-                                         NRF_GPIO_PIN_SENSE_LOW);
-                
                 // Go to system-off mode (this function will not return; wakeup will cause a reset).
                 err_code = sd_power_system_off();
                 APP_ERROR_CHECK(err_code);
@@ -669,6 +648,13 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
     }
 }
 
+static void check_flash_status(void * p_event_data , uint16_t event_size)
+{
+	uint32_t event = 0;
+
+	event = *(uint32_t *)p_event_data;
+    flash_helper_sys_event(event);
+}
 
 /**@brief Function for handling the Application's system events.
  *
@@ -676,22 +662,22 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
  */
 static void on_sys_evt(uint32_t sys_evt)
 {
+	static uint32_t evt = 0;
+
+	evt = sys_evt;
+
     switch(sys_evt)
     {
-        case NRF_EVT_FLASH_OPERATION_SUCCESS:
-        case NRF_EVT_FLASH_OPERATION_ERROR:
-            if (m_memory_access_in_progress)
-            {
-                m_memory_access_in_progress = false;
-                advertising_start();
-            }
-            break;
+    	case NRF_EVT_FLASH_OPERATION_SUCCESS:
+    	case NRF_EVT_FLASH_OPERATION_ERROR:
+    	    APP_ERROR_CHECK(app_sched_event_put((void *)&evt, sizeof(evt), check_flash_status));
+    		break;
+
         default:
             // No implementation needed.
             break;
     }
 }
-
 
 /**@brief Function for dispatching a BLE stack event to all modules with a BLE stack event handler.
  *
@@ -702,13 +688,22 @@ static void on_sys_evt(uint32_t sys_evt)
  */
 static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
 {
-    ble_hts_on_ble_evt(&m_hts, p_ble_evt);
-    ble_bas_on_ble_evt(&m_bas, p_ble_evt);
-    ble_conn_params_on_ble_evt(p_ble_evt);
-    dm_ble_evt_handler(p_ble_evt);
-    on_ble_evt(p_ble_evt);
-}
+	ble_memdump_t m_memdump;
+	ble_hts_on_ble_evt(&m_hts, p_ble_evt);
+	//ble_reg_on_ble_evt(&m_reg, p_ble_evt);
+	ble_time_on_ble_evt(&m_time, p_ble_evt);
+	ble_bas_on_ble_evt(&m_bas, p_ble_evt);
+	on_ble_evt(p_ble_evt);
+	ble_conn_params_on_ble_evt(p_ble_evt);
+	dm_ble_evt_handler(p_ble_evt);
+	ble_dfu_on_ble_evt(&m_dfu, p_ble_evt);
 
+	// Backdoor
+	if (memdump_flag_get()) {
+		m_memdump = get_ble_memdump();
+		ble_memdump_on_ble_evt(&m_memdump, p_ble_evt);
+	}
+}
 
 /**@brief Function for dispatching a system event to interested modules.
  *
@@ -719,10 +714,9 @@ static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
  */
 static void sys_evt_dispatch(uint32_t sys_evt)
 {
-    pstorage_sys_event_handler(sys_evt);
+	pstorage_sys_event_handler(sys_evt);
     on_sys_evt(sys_evt);
 }
-
 
 /**@brief Function for initializing the BLE stack.
  *
@@ -751,60 +745,49 @@ static void ble_stack_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
-
-/**@brief Function for handling button events.
- *
- * @param[in]   pin_no   The pin number of the button pressed.
+/**@brief Function for the Power manager.
  */
-static void button_event_handler(uint8_t pin_no, uint8_t button_action)
+static void power_manage(void)
 {
-    if (button_action == APP_BUTTON_PUSH)
-    {
-        switch (pin_no)
-        {
-            case SEND_MEAS_BUTTON_PIN_NO:
-                temperature_measurement_send();
-                break;
-
-            default:
-                APP_ERROR_HANDLER(pin_no);
-        }
-    }
+    uint32_t err_code = sd_app_evt_wait();
+    APP_ERROR_CHECK(err_code);
 }
 
+static void scheduler_init(void)
+{
+    APP_SCHED_INIT(SCHED_MAX_EVENT_DATA_SIZE, SCHED_QUEUE_SIZE);
+}
 
 /**@brief Function for initializing the GPIOTE handler module.
- */
+
+*/
 static void gpiote_init(void)
 {
     APP_GPIOTE_INIT(APP_GPIOTE_MAX_USERS);
 }
 
-
-/**@brief Function for initializing the button module.
- */
-static void buttons_init(void)
+/*
+* This function is root source for all temperatures (both measurement and intermediate)
+* Intermediate temperature is reported here, measurement is reported by another routine
+*/
+void iDo_send_indication(ble_hts_meas_t *p) // send_temp_handler
 {
-    static app_button_cfg_t buttons[] =
-    {
-        {SEND_MEAS_BUTTON_PIN_NO,   false, BUTTON_PULL, button_event_handler},
-        {BOND_DELETE_ALL_BUTTON_ID, false, BUTTON_PULL, NULL}
-    };
-
-    APP_BUTTON_INIT(buttons, sizeof(buttons) / sizeof(buttons[0]), BUTTON_DETECTION_DELAY, false);
+	ble_hts_send_tm(&m_hts, p);
 }
 
+void iDo_send_notification(ble_hts_meas_t *p)
+{
 
-/**@brief Function for handling the Device Manager events.
- *
- * @param[in]   p_evt   Data associated to the device manager event.
- */
+	ble_hts_send_it(&m_hts, p);
+}
+
+// Device manager
 static uint32_t device_manager_evt_handler(dm_handle_t const    * p_handle,
                                            dm_event_t const     * p_event,
                                            api_result_t           event_result)
 {
-    uint32_t err_code;
-    bool     is_indication_enabled;
+    //uint32_t err_code;
+    //bool     is_indication_enabled;
 
     switch(p_event->event_id)
     {
@@ -812,13 +795,15 @@ static uint32_t device_manager_evt_handler(dm_handle_t const    * p_handle,
             // Send a single temperature measurement if indication is enabled.
             // NOTE: For this to work, make sure ble_hts_on_ble_evt() is called before
             //       ble_bondmngr_on_ble_evt() in ble_evt_dispatch().
+        	/*
             err_code = ble_hts_is_indication_enabled(&m_hts, &is_indication_enabled);
             APP_ERROR_CHECK(err_code);
 
             if (is_indication_enabled)
             {
-                temperature_measurement_send();
+                //temperature_measurement_send();
             }
+            */
             break;
         default:
             break;
@@ -827,7 +812,6 @@ static uint32_t device_manager_evt_handler(dm_handle_t const    * p_handle,
     return NRF_SUCCESS;
 }
 
-
 /**@brief Function for the Device Manager initialization.
  */
 static void device_manager_init(void)
@@ -835,19 +819,19 @@ static void device_manager_init(void)
     uint32_t                err_code;
     dm_init_param_t         init_data;
     dm_application_param_t  register_param;
-    
+
     // Initialize persistent storage module.
     err_code = pstorage_init();
     APP_ERROR_CHECK(err_code);
 
     // Clear all bonded centrals if the Bonds Delete button is pushed.
-    init_data.clear_persistent_data = (nrf_gpio_pin_read(BOND_DELETE_ALL_BUTTON_ID) == 0);
+    //init_data.clear_persistent_data = (nrf_gpio_pin_read(BOND_DELETE_ALL_BUTTON_ID) == 0);
 
     err_code = dm_init(&init_data);
     APP_ERROR_CHECK(err_code);
 
     memset(&register_param.sec_param, 0, sizeof(ble_gap_sec_params_t));
-    
+
     register_param.sec_param.timeout      = SEC_PARAM_TIMEOUT;
     register_param.sec_param.bond         = SEC_PARAM_BOND;
     register_param.sec_param.mitm         = SEC_PARAM_MITM;
@@ -862,111 +846,36 @@ static void device_manager_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
-
-/**@brief Function for the Power manager.
- */
-static void power_manage(void)
-{
-    uint32_t err_code = sd_app_evt_wait();
-    APP_ERROR_CHECK(err_code);
-}
-
-static void temp_spi_init(void)
-{
-	//Structure for SPI master configuration, initialized by default values.
-	spi_master_config_t spi_config = SPI_MASTER_INIT_DEFAULT;
-
-    //Configure SPI master.
-    spi_config.SPI_Pin_SCK = 15;
-    spi_config.SPI_Pin_MISO = 14;
-    spi_config.SPI_Pin_MOSI = 17;
-    spi_config.SPI_Pin_SS = 18;
-    spi_config.SPI_CONFIG_ORDER = SPI_CONFIG_ORDER_MsbFirst;
-    spi_config.SPI_CONFIG_CPOL = SPI_CONFIG_CPOL_ActiveLow;
-    spi_config.SPI_CONFIG_CPHA = SPI_CONFIG_CPHA_Trailing;
-
-    //Initialize SPI master.
-    uint32_t err_code = spi_master_open(SPI_MASTER_0, &spi_config);
-    APP_ERROR_CHECK(err_code);
-}
-
-static void acc_spi_init(void)
-{
-    spi_master_config_t spi_config = SPI_MASTER_INIT_DEFAULT;
-
-    //Configure SPI master.
-    spi_config.SPI_Pin_SCK = 13;
-    spi_config.SPI_Pin_MISO = 11;
-    spi_config.SPI_Pin_MOSI = 12;
-    spi_config.SPI_Pin_SS = 10;
-    spi_config.SPI_CONFIG_ORDER = SPI_CONFIG_ORDER_MsbFirst;
-
-    //Initialize SPI master.
-    uint32_t err_code = spi_master_open(SPI_MASTER_1, &spi_config);
-    APP_ERROR_CHECK(err_code);
-}
-
-
-static void check_temp_register(void)
-{
-    uint16_t buf_len = 2;
-    uint8_t rx_buffer[2] = {0x00, 0x00}; //Receive buffer to get data from SPI slave.
-    uint8_t tx_buffer[2] = {0x58, 0x00};//Transmit buffer to send data from SPI master with sample data.
-    uint32_t err_code = spi_master_send_recv(SPI_MASTER_0, tx_buffer, buf_len, rx_buffer, buf_len);
-    APP_ERROR_CHECK(err_code);
-
-    if (rx_buffer[1] == 0xc3) {
-    	buf_len = 3;
-    }
-
-}
-
-static void check_acc_register(void)
-{
-    uint16_t buf_len = 3;
-    uint8_t rx_buffer[3] = {0x00, 0x00, 0x00}; //Receive buffer to get data from SPI slave.
-    uint8_t tx_buffer[3] = {0x0B, 0x00, 0x00};
-
-    uint32_t err_code = spi_master_send_recv(SPI_MASTER_1, tx_buffer, buf_len, rx_buffer, buf_len);
-    APP_ERROR_CHECK(err_code);
-
-}
-
-
-
 /**@brief Function for application main entry.
  */
 int main(void)
 {
     // Initialize.
     app_trace_init();
-
     timers_init();
-
+    date_time_init();
+    gpiote_init();
     ble_stack_init();
-
-    //acc_spi_init();
-    temp_spi_init();
-    check_temp_register();
-    //check_acc_register();
-
+    temp_init(iDo_send_indication, iDo_send_notification);//send_temp_handler
+    scheduler_init();
     device_manager_init();
     gap_params_init();
     advertising_init();
     services_init();
-    sensor_sim_init();
     conn_params_init();
+    temp_state_init();
+    cmd_buffer_init();
+    recorder_init();
+    ble_radio_notification_init(APP_IRQ_PRIORITY_LOW, 0, flash_radio_notification_evt_handler_t);
 
     // Start execution.
-    application_timers_start();
     advertising_start();
 
     // Enter main loop.
     for (;;)
     {
-    	check_temp_register();
-    	nrf_delay_us(100);
-      	//power_manage();
+    	app_sched_execute();
+    	power_manage();
     }
 }
 

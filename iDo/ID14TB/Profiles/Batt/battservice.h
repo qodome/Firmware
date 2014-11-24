@@ -190,6 +190,11 @@ extern void Batt_Setup( uint8 adc_ch, uint16 minVal, uint16 maxVal,
  * @return      none
  */
 void Batt_HandleConnStatusCB( uint16 connHandle, uint8 changeType );
+     
+/*
+ * Do the battery level measurement before sleep
+ */
+void battMeasureBeforeSleep(void);
 
 /*********************************************************************
 *********************************************************************/
