@@ -2891,7 +2891,7 @@
       <archiveVersion>1</archiveVersion>
       <data>
         <prebuild></prebuild>
-        <postbuild>"perl" "C:\_Software_\util\combine_hex.pl" "C:\Texas Instruments\BLE-CC254x-1.4.0\Projects\ble\util\BIM_custom_dn\cc254x\CC254xF256\Exe\BIM_CC254xF256.hex" "$PROJ_DIR$\iDo-ImgA-for-flash\Exe\iDo.hex" "$PROJ_DIR$\iDo-ImgA-for-flash\Exe\combo.hex"</postbuild>
+        <postbuild>"perl" "$PROJ_DIR$\..\util\combine_hex.pl" "$PROJ_DIR$\..\BIM_custom_dn\cc254x\CC254xF256\Exe\BIM_CC254xF256.hex" "$PROJ_DIR$\iDo-ImgA-for-flash\Exe\iDo.hex" "$PROJ_DIR$\iDo-ImgA-for-flash\Exe\combo.hex"</postbuild>
       </data>
     </settings>
     <settings>
