@@ -9,7 +9,7 @@ TriggerName=main
 LimitSize=0
 ByteLimit=50
 [DebugChecksum]
-Checksum=185135485
+Checksum=-1031691620
 [Log file]
 LoggingEnabled=_ 0
 LogFile=_ ""

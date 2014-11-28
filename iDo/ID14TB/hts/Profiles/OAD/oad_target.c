@@ -480,13 +480,15 @@ static bStatus_t oadImgBlockWrite( uint16 connHandle, uint8 *pValue )
 #else
         if (checkDL())
         {
-#if !defined HAL_IMAGE_A
-            // The BIM always checks for a valid Image-B before Image-A,
-            // so Image-A never has to invalidate itself.
+//#if !defined HAL_IMAGE_A
+            // We force invalidate both image A && image B
+            // // The BIM always checks for a valid Image-B before Image-A,
+            // // so Image-A never has to invalidate itself.
             uint16 crc[2] = { 0x0000, 0xFFFF };
             uint16 addr = OAD_IMG_R_PAGE * OAD_FLASH_PAGE_MULT + OAD_IMG_CRC_OSET / HAL_FLASH_WORD_SIZE;
+            HalFlashEnableException();
             HalFlashWrite(addr, (uint8 *)crc, 1);
-#endif
+//#endif
             HAL_SYSTEM_RESET();
         }
 #endif 

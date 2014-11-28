@@ -103,13 +103,13 @@ uint32 recorder_get_wd_boot_count(void)
 static uint8 __recorder_get_next_page(uint8 pg_idx)
 {
 #if defined(HAL_IMAGE_A)
-    if (pg_idx == 68) {
+    if (pg_idx >= 68 || pg_idx <= 7) {
         return __recorder_get_first_page();
     }
 #else
-    if (pg_idx == 7) {
+    if (pg_idx >= 7 && pg_idx < 69) {
         return 69;
-    } else if (pg_idx == 122) {
+    } else if (pg_idx >= 122 || pg_idx == 0) {
         return __recorder_get_first_page();
     }
 #endif
