@@ -55,6 +55,7 @@ extern "C"
 #define IDO_DO_SAMPLE_TEMP_EVT                            0x0002
 #define IDO_READ_SAMPLE_TEMP_EVT                          0x0004
 #define IDO_ENABLE_BATT_SERVICE                           0x0008
+#define IDO_ADVERTISE_EVT                                 0x0010
 #define IDO_MEASUREMENT_INDICATION                        0x0020
 #define IDO_SHUTDOWN_ADT7320                              0x0040
 #define IDO_MONITOR_ADT7320                               0x0080

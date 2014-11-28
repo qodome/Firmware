@@ -189,21 +189,6 @@ static uint8 scanRspData[1 + 1 + GAP_DEVICE_NAME_LEN - 1] =
     'i',
     'D',
     'o',
-    
-    /*
-    // connection interval range
-    0x05,   // length of this data
-    GAP_ADTYPE_SLAVE_CONN_INTERVAL_RANGE,
-    LO_UINT16( DEFAULT_DESIRED_MIN_CONN_INTERVAL ),
-    HI_UINT16( DEFAULT_DESIRED_MIN_CONN_INTERVAL ),
-    LO_UINT16( DEFAULT_DESIRED_MAX_CONN_INTERVAL ),
-    HI_UINT16( DEFAULT_DESIRED_MAX_CONN_INTERVAL ),
-    
-    // Tx power level
-    0x02,   // length of this data
-    GAP_ADTYPE_POWER_LEVEL,
-    0       // 0dBm
-    */
 };
 
 // GAP - Advertisement data (max size = 31 bytes, though this is
@@ -229,6 +214,34 @@ static uint8 advertData[] =
     GAP_ADTYPE_16BIT_MORE,   // list of 16-bit UUID's available, but not complete list
     LO_UINT16( TEMP_SERVICE ),        // Health Therometer Service
     HI_UINT16( TEMP_SERVICE ),
+};
+
+static uint8 advertDataWithTemp[] =
+{
+    // Flags; this sets the device to use limited discoverable
+    // mode (advertises for 30 seconds at a time) instead of general
+    // discoverable mode (advertises indefinitely)
+    0x02,   // length of this data
+    GAP_ADTYPE_FLAGS,
+    DEFAULT_DISCOVERABLE_MODE | GAP_ADTYPE_FLAGS_BREDR_NOT_SUPPORTED,
+    
+    // appearance
+    0x03,   // length of this data
+    GAP_ADTYPE_APPEARANCE,
+    LO_UINT16(GAP_APPEARE_GENERIC_THERMOMETER),
+    HI_UINT16(GAP_APPEARE_GENERIC_THERMOMETER),
+    
+    // service UUID, to notify central devices what services are included
+    // in this peripheral
+    0x03,   // length of second data structure (7 bytes excluding length byte)
+    GAP_ADTYPE_16BIT_MORE,   // list of 16-bit UUID's available, but not complete list
+    LO_UINT16( TEMP_SERVICE ),        // Health Therometer Service
+    HI_UINT16( TEMP_SERVICE ),
+    
+    0x07,
+    GAP_ADTYPE_SERVICE_DATA,
+    LO_UINT16(TEMP_SERVICE), HI_UINT16(TEMP_SERVICE),
+    0x00, 0x00, 0x00, 0xFC,
 };
 
 // GAP GATT Attributes
@@ -553,6 +566,25 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
         osal_stop_timerEx(iDo_TaskID, IDO_ENABLE_BATT_SERVICE);
         return (events ^ IDO_ENABLE_BATT_SERVICE);
     }
+    
+    if (events & IDO_ADVERTISE_EVT) {
+        int16 t16 = temp_state_get_last_filtered_temp();
+        int32 t32 = 0;
+        int32 sign = -4;
+        int32 *p32 = (int32 *)&(advertDataWithTemp[15]);
+                
+        if (t16 & 0x8000) {
+            t32 = (int32)t16 | 0xFFFF0000;
+        } else {
+            t32 = t16;
+        }
+        *p32 = (sign << 24) | ((t32 * 625) & 0xFFFFFF);        
+        GAPRole_SetParameter(GAPROLE_ADVERT_DATA, sizeof(advertDataWithTemp), advertDataWithTemp);
+
+        osal_start_timerEx(iDo_TaskID, IDO_ADVERTISE_EVT, 10000);
+        return (events ^ IDO_ADVERTISE_EVT);
+    }
+    
     // Discard unknown events
     return 0;
 }
@@ -655,6 +687,10 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
 	    break;
         
     case GAPROLE_CONNECTED:
+        // Stop advertise timer, set default advertise data
+        osal_stop_timerEx(iDo_TaskID, IDO_ADVERTISE_EVT);
+        GAPRole_SetParameter(GAPROLE_ADVERT_DATA, sizeof(advertData), advertData);
+        
 #ifdef DEBUG_STATS
         s.adv_seconds += (osal_getClock() - adv_begin_stats_tick);
         
@@ -688,8 +724,30 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         iDo_turn_off_measurement_indication();
         iDoTurnOffTemp();
 #endif
+
+#ifdef DEBUG_STATS
+        adv_begin_stats_tick = osal_getClock();
         
-    case GAPROLE_WAITING_AFTER_TIMEOUT:      
+        connected_sec = osal_getClock() - conn_begin_stats_tick;
+        if (conn_parameter_type == 2) {
+            s.connected_android_seconds += connected_sec;
+        } else if (conn_parameter_type == 1) {
+            s.connected_ios_seconds += connected_sec;
+        } else {
+            s.connected_default_seconds += connected_sec;
+        }
+#endif        
+        if (MemDump_ServiceNeedDelete()) {
+            MemDump_DelService();
+        }
+        break;
+        
+    case GAPROLE_WAITING_AFTER_TIMEOUT:
+        // We will send temperature data over advertise scan rsp
+        if (tempIntermediateSwitch != 0 || tempMeasurementSwitch != 0) {
+            osal_set_event(iDo_TaskID, IDO_ADVERTISE_EVT);
+        }
+        
 #ifdef DEBUG_STATS
         adv_begin_stats_tick = osal_getClock();
         
@@ -774,8 +832,6 @@ void tempReadCallback()
     
     temp_state_update(v);
     recorder_add_temperature(v);
-    
-
         
     if (gapProfileState == GAPROLE_CONNECTED) {
         // Skip intermediate report if temperature measurement is turned on
