@@ -116,14 +116,7 @@ void HalFlashRead(uint8 pg, uint16 offset, uint8 *buf, uint16 cnt)
  * @return      None.
  **************************************************************************************************
  */
-uint16 writeExceptionCnt = 0;
-uint8 writeExceptionPg = 0;
-uint16 eraseExceptionCnt = 0;
-uint8 eraseExceptionPg = 0;
 uint8 flashWriteExceptionEnabled = 0;
-uint16 flashWriteAddr = 0;
-uint16 flashWriteCnt = 0;
-uint8 flashWriteBuffer[256] = {0};
 
 void HalFlashEnableException(void)
 {
@@ -161,35 +154,14 @@ static uint8 HalFlashPageValid(uint8 pg)
 extern volatile __code const uint8 savedTxPowerSetting[];
 void HalFlashWrite(uint16 addr, uint8 *buf, uint16 cnt)
 {
-    uint8 pg_begin = 0, pg_end = 0;
+    uint8 pg_begin = 0;
     
     if (addr * 4 != (uint16)&(savedTxPowerSetting[0])) {
-        pg_begin = (uint8)(((addr * 4) / 2048) & 0x00FF);
-        pg_end = (uint8)((((addr + cnt) * 4) / 2048) & 0x00FF);
-        
-        if (((uint16)pg_end) * 2048 == (addr + cnt) * 4) {
-            pg_end--;
-        }
+        pg_begin = (uint8)(addr / 512);
         
         if (!HalFlashPageValid(pg_begin)) {
-            flashWriteAddr = addr;
-            flashWriteCnt = cnt;
-            uint16 idx = 0;
-            
-            for (idx = 0; idx <= 256 && idx <= (cnt *4); idx++) {
-                flashWriteBuffer[idx] = buf[idx];
-            }
-            
-            writeExceptionCnt++;
-            writeExceptionPg = pg_begin;
             return;
         }
-        
-        if (!HalFlashPageValid(pg_end)) {
-            writeExceptionCnt += 0x10000;
-            writeExceptionPg = pg_begin;
-            return;
-        }        
     }
     
 #if (defined HAL_DMA) && (HAL_DMA == TRUE)
@@ -237,8 +209,6 @@ void HalFlashWrite(uint16 addr, uint8 *buf, uint16 cnt)
 void HalFlashErase(uint8 pg)
 {
     if (!HalFlashPageValid(pg)) {
-        eraseExceptionCnt++;
-        eraseExceptionPg = pg;
         return;
     }
     
