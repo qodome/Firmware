@@ -132,7 +132,7 @@ static uint8 HalFlashPageValid(uint8 pg)
     }
     
     // Allow customized section write access
-    if (pg == 123 || pg == 124) {
+    if (pg >= 123 && pg <= 126) {
         return 1;
     }
     

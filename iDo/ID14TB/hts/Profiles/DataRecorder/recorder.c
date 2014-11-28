@@ -19,6 +19,7 @@
      
 /*
  * Notice: page 123, 124 is reserved for custom device name
+ * page 125, 126 are used by osal_snv.c
  */
 
 #if defined(HAL_IMAGE_A) || defined(HAL_IMAGE_B)
