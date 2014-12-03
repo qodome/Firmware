@@ -1,0 +1,883 @@
+################################################################################
+#                                                                              #
+#      IAR Universal Linker V5.4.1.30                                          #
+#                                                                              #
+#           Link time     =  28/Nov/2014  13:57:53                             #
+#           Target CPU    =  x51                                               #
+#           List file     =  "C:\Documents and Settings\Administrator\My Docum #
+#                            ents\GitHub\Firmware\iDo\ID14TB\BIM_custom_dn\cc2 #
+#                            54x\CC254xF256\List\BIM.map"                      #
+#           Output file 1 =  "C:\Documents and Settings\Administrator\My Docum #
+#                            ents\GitHub\Firmware\iDo\ID14TB\BIM_custom_dn\cc2 #
+#                            54x\CC254xF256\Exe\BIM_CC254xF256.hex"            #
+#                            Format: intel-extended                            #
+#           Output file 2 =  "C:\Documents and Settings\Administrator\My Docum #
+#                            ents\GitHub\Firmware\iDo\ID14TB\BIM_custom_dn\cc2 #
+#                            54x\CC254xF256\Exe\BIM.d51"                       #
+#                            Format: debug                                     #
+#                            UBROF version 10.0.6                              #
+#                            Using library modules for C-SPY (-rt)             #
+#           Command line  =  -D_NR_OF_BANKS=0 -D_CODEBANK_END=0                #
+#                            -D_CODEBANK_START=0                               #
+#                            "-IC:\Program Files\IAR Systems\Embedded Workbenc #
+#                            h 6.4\8051\CONFIG\"                               #
+#                            "C:\Documents and Settings\Administrator\My Docum #
+#                            ents\GitHub\Firmware\iDo\ID14TB\BIM_custom_dn\cc2 #
+#                            54x\CC254xF256\Obj\bim_ivec.r51"                  #
+#                            "C:\Documents and Settings\Administrator\My Docum #
+#                            ents\GitHub\Firmware\iDo\ID14TB\BIM_custom_dn\cc2 #
+#                            54x\CC254xF256\Obj\bim_main.r51"                  #
+#                            "C:\Documents and Settings\Administrator\My Docum #
+#                            ents\GitHub\Firmware\iDo\ID14TB\BIM_custom_dn\cc2 #
+#                            54x\CC254xF256\Obj\hal_flash.r51"                 #
+#                            -o                                                #
+#                            "C:\Documents and Settings\Administrator\My Docum #
+#                            ents\GitHub\Firmware\iDo\ID14TB\BIM_custom_dn\cc2 #
+#                            54x\CC254xF256\Exe\BIM.d51"                       #
+#                            -l                                                #
+#                            "C:\Documents and Settings\Administrator\My Docum #
+#                            ents\GitHub\Firmware\iDo\ID14TB\BIM_custom_dn\cc2 #
+#                            54x\CC254xF256\List\BIM.map"                      #
+#                            -xmsn                                             #
+#                            "-IC:\Documents and Settings\Administrator\My Doc #
+#                            uments\GitHub\Firmware\iDo\ID14TB\BIM_custom_dn\c #
+#                            c254x\"                                           #
+#                            -f bim_cc254x.xcl (-D_XDATA_BEG=0x0000            #
+#                            -D_XDATA_END=0x1EFF -D_IDATA_BEG=0x09             #
+#                            -D_IDATA_END=0xFF -D_CODE_BEG=0x0000              #
+#                            -D_CODE_END=0x07FF -D?REGISTER_BANK=0             #
+#                            -D_REGISTER_BANK_BEG=0 -D?PBANK_NUMBER=00         #
+#                            -D_BREG_BEG=0x00 -D?VB=0x20                       #
+#                            -Z(BIT)BREG=_BREG_BEG -Z(BIT)BIT_N=0-7F           #
+#                            -Z(DATA)REGISTERS+8=_REGISTER_BANK_BEG            #
+#                            -Z(DATA)BDATA_Z,BDATA_N,BDATA_I=20-2F             #
+#                            -Z(DATA)VREG+_NR_OF_VIRTUAL_REGISTERS=_IDATA_BEG- #
+#                            7F                                                #
+#                            -Z(DATA)PSP,XSP=_IDATA_BEG-7F                     #
+#                            -Z(DATA)DOVERLAY=_IDATA_BEG-7F                    #
+#                            -Z(DATA)DATA_I,DATA_Z,DATA_N=_IDATA_BEG-7F        #
+#                            -U(IDATA)0-7F=(DATA)0-7F                          #
+#                            -Z(IDATA)IDATA_I,IDATA_Z,IDATA_N=_IDATA_BEG-_IDAT #
+#                            A_END                                             #
+#                            -Z(IDATA)ISTACK+_IDATA_STACK_SIZE#_IDATA_BEG-_IDA #
+#                            TA_END                                            #
+#                            -Z(IDATA)IOVERLAY=_IDATA_BEG-FF                   #
+#                            -Z(CODE)INTVEC=_CODE_BEG                          #
+#                            -Z(CODE)BIT_ID,BDATA_ID,DATA_ID,IDATA_ID,IXDATA_I #
+#                            D,PDATA_ID,XDATA_ID=_CODE_BEG-_CODE_END           #
+#                            -Z(CODE)ALIGNED_CODE|2=_CODE_BEG-_CODE_END        #
+#                            -P(CODE)CSTART,RCODE,DIFUNCT,NEAR_CODE=_CODE_BEG- #
+#                            _CODE_END                                         #
+#                            -Z(XDATA)XSTACK+_XDATA_STACK_SIZE=_XDATA_BEG-_XDA #
+#                            TA_END                                            #
+#                            -Z(XDATA)XDATA_Z,XDATA_I,PDATA_Z=_XDATA_BEG-_XDAT #
+#                            A_END                                             #
+#                            -P(XDATA)XDATA_N=_XDATA_BEG-_XDATA_END -cx51      #
+#                            -HFFFF) -D_NR_OF_VIRTUAL_REGISTERS=10             #
+#                            -D?PBANK=0x93 -e_large_write=_formatted_write     #
+#                            -e_large_read=_formatted_read -rt                 #
+#                            "-Ointel-extended=C:\Documents and Settings\Admin #
+#                            istrator\My Documents\GitHub\Firmware\iDo\ID14TB\ #
+#                            BIM_custom_dn\cc254x\CC254xF256\Exe\BIM_CC254xF25 #
+#                            6.hex"                                            #
+#                            -s __program_start                                #
+#                            "C:\Program Files\IAR Systems\Embedded Workbench  #
+#                            6.4\8051\LIB\CLIB\cl-pli-nlxd-1e16x01.r51"        #
+#                            -D_IDATA_STACK_SIZE=0xC0                          #
+#                            -D_EXTENDED_STACK_START=0x00                      #
+#                            -D_EXTENDED_STACK_SIZE=0x00                       #
+#                            -D_PDATA_STACK_SIZE=0x0                           #
+#                            -D_XDATA_STACK_SIZE=0x180                         #
+#                            -D_XDATA_HEAP_SIZE=0xFF -D_FAR_HEAP_SIZE=0xFFF    #
+#                            -D_HUGE_HEAP_SIZE=0xFFF                           #
+#                            -D_FAR22_HEAP_SIZE=0xFFF                          #
+#                                                                              #
+#                           Copyright (C) 1987-2012 IAR Systems AB.            #
+################################################################################
+
+
+
+
+
+                ****************************************
+                *                                      *
+                *           CROSS REFERENCE            *
+                *                                      *
+                ****************************************
+
+       Program entry at : CODE      000006B2  Relocatable, from module : CSTARTUP
+
+
+
+
+                ****************************************
+                *                                      *
+                *            RUNTIME MODEL             *
+                *                                      *
+                ****************************************
+
+  __SystemLibrary          = CLib
+  __calling_convention     = xdata_reentrant
+  __code_model             = near
+  __core                   = plain
+  __data_model             = large
+  __dptr_size              = 16
+  __extended_stack         = disabled
+  __location_for_constants = data
+  __number_of_dptrs        = 1
+  __rt_version             = 1
+
+                ****************************************
+                *                                      *
+                *    AUTOMATIC SYMBOL REDIRECTIONS     *
+                *                                      *
+                ****************************************
+
+                  There are no automatic symbol redirections.
+
+
+
+                ****************************************
+                *                                      *
+                *              MODULE MAP              *
+                *                                      *
+                ****************************************
+
+
+  DEFINED ABSOLUTE ENTRIES
+  PROGRAM MODULE, NAME : ?ABS_ENTRY_MOD
+
+Absolute parts
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           _FAR22_HEAP_SIZE        00000FFF 
+           _HUGE_HEAP_SIZE         00000FFF 
+           _FAR_HEAP_SIZE          00000FFF 
+           _XDATA_HEAP_SIZE        000000FF 
+           _XDATA_STACK_SIZE       00000180 
+           _PDATA_STACK_SIZE       00000000 
+           _EXTENDED_STACK_SIZE    00000000 
+           _EXTENDED_STACK_START   00000000 
+           _IDATA_STACK_SIZE       000000C0 
+           ?PBANK                  00000093 
+           _NR_OF_VIRTUAL_REGISTERS
+                                   00000010 
+           ?VB                     00000020        ?FUNC_ENTER_XDATA (?FUNC_ENTER_XDATA)
+                                                   ?FUNC_LEAVE_XDATA (?FUNC_LEAVE_XDATA)
+           _BREG_BEG               00000000 
+           ?PBANK_NUMBER           00000000 
+           _REGISTER_BANK_BEG      00000000 
+           ?REGISTER_BANK          00000000        Segment part 6 (CSTARTUP)
+           _CODE_END               000007FF 
+           _CODE_BEG               00000000 
+           _IDATA_END              000000FF 
+           _IDATA_BEG              00000009 
+           _XDATA_END              00001EFF 
+           _XDATA_BEG              00000000 
+           _CODEBANK_START         00000000 
+           _CODEBANK_END           00000000 
+           _NR_OF_BANKS            00000000 
+    *************************************************************************
+
+  FILE NAME : C:\Documents and Settings\Administrator\My Documents\GitHub\Firmware\iDo\ID14TB\BIM_custom_dn\cc254x\CC254xF256\Obj\bim_ivec.r51
+  PROGRAM MODULE, NAME : bim_ivec
+
+  SEGMENTS IN THE MODULE
+  ======================
+INTVEC
+  Common segment, address: CODE 00000000 - 00000090 (0x91 bytes), align: 0
+  Segment part 0. ROOT.
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 0000034A - 00000491 (0x148 bytes), align: 0
+  Segment part 1. ROOT.       Intra module refs:   Absolute parts
+                                                   Segment part 0
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           __ivec_03               0000034A 
+           __ivec_0b               0000035C 
+           __ivec_13               0000036E 
+           __ivec_1b               00000380 
+           __ivec_23               00000392 
+           __ivec_2b               000003A4 
+           __ivec_33               000003B6 
+           __ivec_3b               000003C8 
+           __ivec_43               000003DA 
+           __ivec_4b               000003EC 
+           __ivec_53               000003FE 
+           __ivec_5b               00000410 
+           __ivec_63               00000422 
+           __ivec_6b               00000434 
+           __ivec_73               00000446 
+           __ivec_7b               00000458 
+           __ivec_83               0000046A 
+           __ivec_8b               0000047C 
+           LOCAL                   ADDRESS         
+           =====                   =======         
+           __imgA_03               00000355 
+           __imgA_0b               00000367 
+           __imgA_13               00000379 
+           __imgA_1b               0000038B 
+           __imgA_23               0000039D 
+           __imgA_2b               000003AF 
+           __imgA_33               000003C1 
+           __imgA_3b               000003D3 
+           __imgA_43               000003E5 
+           __imgA_4b               000003F7 
+           __imgA_53               00000409 
+           __imgA_5b               0000041B 
+           __imgA_63               0000042D 
+           __imgA_6b               0000043F 
+           __imgA_73               00000451 
+           __imgA_7b               00000463 
+           __imgA_83               00000475 
+           __imgA_8b               00000487 
+           __relay_err             0000048E 
+
+    *************************************************************************
+
+  FILE NAME : C:\Documents and Settings\Administrator\My Documents\GitHub\Firmware\iDo\ID14TB\BIM_custom_dn\cc254x\CC254xF256\Obj\bim_main.r51
+  PROGRAM MODULE, NAME : bim_main
+
+  SEGMENTS IN THE MODULE
+  ======================
+SFR_AN
+  Relative segment, address: DATA 00000087 - 00000087 (0x1 bytes), align: 0
+  Segment part 1. ROOT.       Intra module refs:   halSleepExec
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           PCON                    00000087 
+    -------------------------------------------------------------------------
+SFR_AN
+  Relative segment, address: DATA 0000009D - 0000009D (0x1 bytes), align: 0
+  Segment part 2. ROOT.       Intra module refs:   crcCheck
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           SLEEPSTA                0000009D 
+    -------------------------------------------------------------------------
+SFR_AN
+  Relative segment, address: DATA 0000009E - 0000009E (0x1 bytes), align: 0
+  Segment part 3. ROOT.       Intra module refs:   crcCheck
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           CLKCONSTA               0000009E 
+    -------------------------------------------------------------------------
+SFR_AN
+  Relative segment, address: DATA 000000A8 - 000000A8 (0x1 bytes), align: 0
+  Segment part 4. ROOT.       Intra module refs:   DMAExecCrc
+                                                   HalFlashRead (hal_flash)
+                                                   crcCheck
+                                                   main
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           _A_IEN0                 000000A8 
+           LOCAL                   ADDRESS         
+           =====                   =======         
+           IEN0                    000000A8 
+    -------------------------------------------------------------------------
+SFR_AN
+  Relative segment, address: DATA 000000B4 - 000000B4 (0x1 bytes), align: 0
+  Segment part 5. ROOT.       Intra module refs:   crcCalcDMA
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ADCCON1                 000000B4 
+    -------------------------------------------------------------------------
+SFR_AN
+  Relative segment, address: DATA 000000BC - 000000BC (0x1 bytes), align: 0
+  Segment part 6. ROOT.       Intra module refs:   crcCalcDMA
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           RNDL                    000000BC 
+    -------------------------------------------------------------------------
+SFR_AN
+  Relative segment, address: DATA 000000BD - 000000BD (0x1 bytes), align: 0
+  Segment part 7. ROOT.       Intra module refs:   crcCalcDMA
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           RNDH                    000000BD 
+    -------------------------------------------------------------------------
+SFR_AN
+  Relative segment, address: DATA 000000BE - 000000BE (0x1 bytes), align: 0
+  Segment part 8. ROOT.       Intra module refs:   crcCheck
+                                                   main
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           SLEEPCMD                000000BE 
+    -------------------------------------------------------------------------
+SFR_AN
+  Relative segment, address: DATA 000000C6 - 000000C6 (0x1 bytes), align: 0
+  Segment part 9. ROOT.       Intra module refs:   crcCheck
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           CLKCONCMD               000000C6 
+    -------------------------------------------------------------------------
+SFR_AN
+  Relative segment, address: DATA 000000C7 - 000000C7 (0x1 bytes), align: 0
+  Segment part 10. ROOT.      Intra module refs:   DMAExecCrc
+                                                   HalFlashRead (hal_flash)
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           MEMCTR                  000000C7 
+    -------------------------------------------------------------------------
+SFR_AN
+  Relative segment, address: DATA 000000C9 - 000000C9 (0x1 bytes), align: 0
+  Segment part 11. ROOT.      Intra module refs:   crcCheck
+                                                   main
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           WDCTL                   000000C9 
+    -------------------------------------------------------------------------
+SFR_AN
+  Relative segment, address: DATA 000000D4 - 000000D4 (0x1 bytes), align: 0
+  Segment part 12. ROOT.      Intra module refs:   DMAExecCrc
+                                                   crcCheck
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           DMA0CFGL                000000D4 
+    -------------------------------------------------------------------------
+SFR_AN
+  Relative segment, address: DATA 000000D5 - 000000D5 (0x1 bytes), align: 0
+  Segment part 13. ROOT.      Intra module refs:   DMAExecCrc
+                                                   crcCheck
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           DMA0CFGH                000000D5 
+    -------------------------------------------------------------------------
+SFR_AN
+  Relative segment, address: DATA 000000D6 - 000000D6 (0x1 bytes), align: 0
+  Segment part 14. ROOT.      Intra module refs:   DMAExecCrc
+                                                   HalFlashWrite (hal_flash)
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           DMAARM                  000000D6 
+    -------------------------------------------------------------------------
+SFR_AN
+  Relative segment, address: DATA 000000D7 - 000000D7 (0x1 bytes), align: 0
+  Segment part 15. ROOT.      Intra module refs:   DMAExecCrc
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           DMAREQ                  000000D7 
+    -------------------------------------------------------------------------
+<XDATA_N> 1 (was XDATA_N)
+  Relative segment, address: XDATA 00000980 - 00000987 (0x8 bytes), align: 0
+  Segment part 22.            Intra module refs:   DMAExecCrc
+                                                   crcCheck
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           dmaCh0                  00000980        HalFlashWrite (hal_flash)
+    -------------------------------------------------------------------------
+<XDATA_N> 1 (was XDATA_N)
+  Relative segment, address: XDATA 00000180 - 0000097F (0x800 bytes), align: 0
+  Segment part 23.            Intra module refs:   crcCalcDMA
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           pgBuf                   00000180 
+    -------------------------------------------------------------------------
+DATA_AN
+  Relative segment, address: DATA 00000009 - 00000009 (0x1 bytes), align: 0
+  Segment part 16. ROOT.      Intra module refs:   main
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           JumpToImageAorB         00000009 
+    -------------------------------------------------------------------------
+ALIGNED_CODE
+  Relative segment, address: CODE 00000094 - 00000098 (0x5 bytes), align: 0
+  Segment part 24.            Intra module refs:   main
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           halSleepExec            00000094 
+               XSTACK = 00000004 ( 00000000 )
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was NEAR_CODE)
+  Relative segment, address: CODE 00000099 - 0000011D (0x85 bytes), align: 0
+  Segment part 25.            Intra module refs:   crcCheck
+           LOCAL                   ADDRESS         
+           =====                   =======         
+           crcCalcDMA              00000099 
+               calls direct
+               XSTACK = 0000000A ( 0000000B )
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was NEAR_CODE)
+  Relative segment, address: CODE 0000011E - 00000122 (0x5 bytes), align: 0
+  Segment part 26.            Intra module refs:   DMAExecCrc
+                                                   crcCalcDMA
+           LOCAL                   ADDRESS         
+           =====                   =======         
+           ?Subroutine0            0000011E 
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was NEAR_CODE)
+  Relative segment, address: CODE 00000123 - 000001C3 (0xa1 bytes), align: 0
+  Segment part 27.            Intra module refs:   main
+           LOCAL                   ADDRESS         
+           =====                   =======         
+           crcCheck                00000123 
+               calls direct
+               XSTACK = 00000004 ( 0000000C )
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was NEAR_CODE)
+  Relative segment, address: CODE 000001C4 - 000002BB (0xf8 bytes), align: 0
+  Segment part 28.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           main                    000001C4        ?call_main (?cmain)
+               calls direct
+               XSTACK = 00000000 ( 00000006 )
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was NEAR_CODE)
+  Relative segment, address: CODE 000002BC - 00000349 (0x8e bytes), align: 0
+  Segment part 29.            Intra module refs:   crcCalcDMA
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           DMAExecCrc              000002BC 
+               XSTACK = 00000009 ( 00000009 )
+
+    *************************************************************************
+
+  FILE NAME : C:\Documents and Settings\Administrator\My Documents\GitHub\Firmware\iDo\ID14TB\BIM_custom_dn\cc254x\CC254xF256\Obj\hal_flash.r51
+  PROGRAM MODULE, NAME : hal_flash
+
+  SEGMENTS IN THE MODULE
+  ======================
+SFR_AN
+  Relative segment, address: DATA 000000D1 - 000000D1 (0x1 bytes), align: 0
+  Segment part 3. ROOT.       Intra module refs:   HalFlashWrite
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           DMAIRQ                  000000D1 
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was NEAR_CODE)
+  Relative segment, address: CODE 00000492 - 00000518 (0x87 bytes), align: 0
+  Segment part 10.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           HalFlashRead            00000492        crcCalcDMA (bim_main)
+                                                   main (bim_main)
+               XSTACK = 00000002 ( 0000000B )
+               ISTACK = 00000000 ( 00000001 )
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was NEAR_CODE)
+  Relative segment, address: CODE 00000519 - 0000057E (0x66 bytes), align: 0
+  Segment part 11.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           HalFlashWrite           00000519        crcCheck (bim_main)
+               XSTACK = 00000002 ( 00000009 )
+
+    *************************************************************************
+
+  FILE NAME : C:\Program Files\IAR Systems\Embedded Workbench 6.4\8051\LIB\CLIB\cl-pli-nlxd-1e16x01.r51
+  LIBRARY MODULE, NAME : ?cexit
+
+  SEGMENTS IN THE MODULE
+  ======================
+<CSTART,NEAR_CODE,RCODE> 1 (was CSTART)
+  Relative segment, address: CODE 000006D8 - 000006DC (0x5 bytes), align: 0
+  Segment part 0.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           exit                    000006D8        ?call_main (?cmain)
+           ?C_EXIT                 000006D8 
+           ?ROM_MONITOR_NOPS       000006D8 
+
+    -------------------------------------------------------------------------
+  LIBRARY MODULE, NAME : ?cmain
+
+  SEGMENTS IN THE MODULE
+  ======================
+<CSTART,NEAR_CODE,RCODE> 1 (was CSTART)
+  Relative segment, address: CODE 000006A3, align: 0
+  Segment part 5.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?cmain                  000006A3        Segment part 13 (CSTARTUP)
+               calls direct
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was CSTART)
+  Relative segment, address: CODE 000006A3 - 000006AB (0x9 bytes), align: 0
+  Segment part 6.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           __low_level_init_call   000006A3        __low_level_init (?low_level_init)
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was CSTART)
+  Relative segment, address: CODE 000006AC, align: 0
+  Segment part 37.            Intra module refs:   __low_level_init_call
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was CSTART)
+  Relative segment, address: CODE 000006AC - 000006B1 (0x6 bytes), align: 0
+  Segment part 38.            Intra module refs:   ?cmain
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?call_main              000006AC 
+
+    -------------------------------------------------------------------------
+  LIBRARY MODULE, NAME : CSTARTUP
+
+  SEGMENTS IN THE MODULE
+  ======================
+REGISTERS
+  Relative segment, address: DATA 00000000, align: 0
+  Segment part 0.             Intra module refs:   Segment part 6
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?REGISTERS              00000000 
+    -------------------------------------------------------------------------
+ISTACK
+  Relative segment, address: IDATA 00000040, align: 0
+  Segment part 1.             Intra module refs:   Segment part 6
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?ISTACK_START           00000040 
+    -------------------------------------------------------------------------
+XSTACK
+  Relative segment, address: XDATA 00000000, align: 0
+  Segment part 3.             Intra module refs:   ?RESET_XSP
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?XSTACK_START           00000000 
+    -------------------------------------------------------------------------
+INTVEC
+  Common segment, address: CODE 00000000 - 00000002 (0x3 bytes), align: 0
+  Segment part 5. ROOT.       Intra module refs:   Segment part 6
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was CSTART)
+  Relative segment, address: CODE 000006B2 - 000006B7 (0x6 bytes), align: 0
+  Segment part 6. ROOT.       Intra module refs:   Segment part 5
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           __program_start         000006B2        Absolute parts (?ABS_ENTRY_MOD)
+           ?RESET_SP               000006B5 
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was CSTART)
+  Relative segment, address: CODE 000006B8 - 000006BD (0x6 bytes), align: 0
+  Segment part 8.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?RESET_XSP              000006B8        ?XSP (VIRTUAL_REGISTERS)
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was CSTART)
+  Relative segment, address: CODE 000006BE - 000006C0 (0x3 bytes), align: 0
+  Segment part 13.            Intra module refs:   Absolute parts
+
+    -------------------------------------------------------------------------
+  LIBRARY MODULE, NAME : VIRTUAL_REGISTERS
+
+  SEGMENTS IN THE MODULE
+  ======================
+BREG
+  Relative segment, address: BIT 00000020.0 - 00000020.7 (0x8 bits), align: 0
+  Segment part 0.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?B0                     00000020.0      Absolute parts (CSTARTUP)
+    -------------------------------------------------------------------------
+VREG
+  Relative segment, address: DATA 0000000A, align: 0
+  Segment part 1.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?V0                     0000000A        ?FUNC_ENTER_XDATA (?FUNC_ENTER_XDATA)
+                                                   ?FUNC_LEAVE_XDATA (?FUNC_LEAVE_XDATA)
+                                                   DMAExecCrc (bim_main)
+                                                   HalFlashRead (hal_flash)
+                                                   HalFlashWrite (hal_flash)
+                                                   crcCalcDMA (bim_main)
+                                                   crcCheck (bim_main)
+                                                   main (bim_main)
+    -------------------------------------------------------------------------
+XSP
+  Relative segment, address: DATA 0000001A - 0000001B (0x2 bytes), align: 0
+  Segment part 3.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?XSP                    0000001A        ?ADD_XSTACK_DISP0_8 (?ADD_XSTACK_DISP8)
+                                                   ?ALLOC_XSTACK8 (?ALLOC_XSTACK8)
+                                                   ?DEALLOC_XSTACK8 (?DEALLOC_XSTACK8)
+                                                   ?FUNC_ENTER_XDATA (?FUNC_ENTER_XDATA)
+                                                   ?FUNC_LEAVE_XDATA (?FUNC_LEAVE_XDATA)
+                                                   ?RESET_XSP (CSTARTUP)
+                                                   ?XSTACK_DISP0_8 (?XSTACK_DISP8)
+                                                   main (bim_main)
+
+    -------------------------------------------------------------------------
+  LIBRARY MODULE, NAME : ?MOVE_LONG8_XDATA_IDATA
+
+  SEGMENTS IN THE MODULE
+  ======================
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 000006C1 - 000006CD (0xd bytes), align: 0
+  Segment part 0.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?MOVE_LONG8_XDATA_IDATA
+                                   000006C1        ?PUSH_XSTACK_I (?PUSH_XSTACK_I)
+
+    -------------------------------------------------------------------------
+  LIBRARY MODULE, NAME : ?US_SHR
+
+  SEGMENTS IN THE MODULE
+  ======================
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 00000694 - 00000696 (0x3 bytes), align: 0
+  Segment part 1.             Intra module refs:   Segment part 2
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?US_SHR                 00000694        HalFlashWrite (hal_flash)
+                                                   crcCalcDMA (bim_main)
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 00000697 - 000006A2 (0xc bytes), align: 0
+  Segment part 2.             Intra module refs:   ?US_SHR
+
+    -------------------------------------------------------------------------
+  LIBRARY MODULE, NAME : ?S_SHL
+
+  SEGMENTS IN THE MODULE
+  ======================
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 00000670 - 00000672 (0x3 bytes), align: 0
+  Segment part 0.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?S_SHL                  00000670        DMAExecCrc (bim_main)
+                                                   HalFlashRead (hal_flash)
+                                                   crcCheck (bim_main)
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 00000673 - 00000675 (0x3 bytes), align: 0
+  Segment part 1.             Intra module refs:   Segment part 2
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?S_SHL_REW              00000673 
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 00000676 - 00000682 (0xd bytes), align: 0
+  Segment part 2.             Intra module refs:   ?S_SHL
+                                                   ?S_SHL_REW
+
+    -------------------------------------------------------------------------
+  LIBRARY MODULE, NAME : ?ALLOC_XSTACK8
+
+  SEGMENTS IN THE MODULE
+  ======================
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 0000065A - 0000066F (0x16 bytes), align: 0
+  Segment part 0.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?ALLOC_XSTACK8          0000065A        main (bim_main)
+
+    -------------------------------------------------------------------------
+  LIBRARY MODULE, NAME : ?DEALLOC_XSTACK8
+
+  SEGMENTS IN THE MODULE
+  ======================
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 00000640 - 00000659 (0x1a bytes), align: 0
+  Segment part 0.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?DEALLOC_XSTACK8        00000640        crcCalcDMA (bim_main)
+                                                   crcCheck (bim_main)
+                                                   main (bim_main)
+
+    -------------------------------------------------------------------------
+  LIBRARY MODULE, NAME : ?ADD_XSTACK_DISP8
+
+  SEGMENTS IN THE MODULE
+  ======================
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 00000625 - 0000063F (0x1b bytes), align: 0
+  Segment part 1.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?ADD_XSTACK_DISP0_8     00000625        ?PUSH_XSTACK_I (?PUSH_XSTACK_I)
+
+    -------------------------------------------------------------------------
+  LIBRARY MODULE, NAME : ?XSTACK_DISP8
+
+  SEGMENTS IN THE MODULE
+  ======================
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 000006CE - 000006D7 (0xa bytes), align: 0
+  Segment part 1.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?XSTACK_DISP0_8         000006CE        HalFlashRead (hal_flash)
+                                                   HalFlashWrite (hal_flash)
+                                                   main (bim_main)
+
+    -------------------------------------------------------------------------
+  LIBRARY MODULE, NAME : ?FUNC_ENTER_XDATA
+
+  SEGMENTS IN THE MODULE
+  ======================
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 0000057F - 000005E4 (0x66 bytes), align: 0
+  Segment part 1.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?FUNC_ENTER_XDATA       0000057F        DMAExecCrc (bim_main)
+                                                   HalFlashRead (hal_flash)
+                                                   HalFlashWrite (hal_flash)
+                                                   crcCalcDMA (bim_main)
+                                                   crcCheck (bim_main)
+
+    -------------------------------------------------------------------------
+  LIBRARY MODULE, NAME : ?FUNC_LEAVE_XDATA
+
+  SEGMENTS IN THE MODULE
+  ======================
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 000005E5 - 00000624 (0x40 bytes), align: 0
+  Segment part 1.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?FUNC_LEAVE_XDATA       000005E5        ?Subroutine0 (bim_main)
+                                                   HalFlashRead (hal_flash)
+                                                   HalFlashWrite (hal_flash)
+                                                   crcCheck (bim_main)
+
+    -------------------------------------------------------------------------
+  LIBRARY MODULE, NAME : ?PUSH_XSTACK_I
+
+  SEGMENTS IN THE MODULE
+  ======================
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 00000683 - 00000686 (0x4 bytes), align: 0
+  Segment part 2.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?PUSH_XSTACK_I_TWO      00000683        crcCalcDMA (bim_main)
+                                                   crcCheck (bim_main)
+                                                   main (bim_main)
+    -------------------------------------------------------------------------
+<CSTART,NEAR_CODE,RCODE> 1 (was RCODE)
+  Relative segment, address: CODE 00000687 - 00000693 (0xd bytes), align: 0
+  Segment part 4.             Intra module refs:   ?PUSH_XSTACK_I_TWO
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           ?PUSH_XSTACK_I          00000687 
+
+    -------------------------------------------------------------------------
+  LIBRARY MODULE, NAME : ?low_level_init
+
+  SEGMENTS IN THE MODULE
+  ======================
+<CSTART,NEAR_CODE,RCODE> 1 (was CSTART)
+  Relative segment, address: CODE 000006DD - 000006DF (0x3 bytes), align: 0
+  Segment part 6. ROOT.
+           ENTRY                   ADDRESS         REF BY
+           =====                   =======         ======
+           __low_level_init        000006DD        __low_level_init_call (?cmain)
+
+    *************************************************************************
+
+  DEFINED ABSOLUTE ENTRIES
+  PROGRAM MODULE, NAME : ?FILLER_BYTES
+
+  SEGMENTS IN THE MODULE
+  ======================
+INTVEC
+  Common segment, address: CODE 00000000 - 00000090 (0x91 bytes), align: 0
+  Segment part 2.
+    -------------------------------------------------------------------------
+?FILL2
+  Relative segment, address: CODE 000006E0 - 000007FF (0x120 bytes), align: 0
+  Segment part 1.
+    -------------------------------------------------------------------------
+?FILL1
+  Relative segment, address: CODE 00000091 - 00000093 (0x3 bytes), align: 0
+  Segment part 0.
+
+
+
+
+                ****************************************
+                *                                      *
+                *            MODULE SUMMARY            *
+                *                                      *
+                ****************************************
+
+Module                    CODE      DATA      XDATA  IDATA    BIT
+------                    ----      ----      -----  -----    ---
+                         (Rel)  (Rel)  (Abs)  (Rel)  (Rel)  (Rel)
+?ADD_XSTACK_DISP8           27
+?ALLOC_XSTACK8              22
+?DEALLOC_XSTACK8            26
+?FILLER_BYTES              291
+  + common                 145
+?FUNC_ENTER_XDATA          102
+?FUNC_LEAVE_XDATA           64
+?MOVE_LONG8_XDATA_IDATA     13
+?PUSH_XSTACK_I              17
+?S_SHL                      19
+?US_SHR                     15
+?XSTACK_DISP8               10
+?cexit                       5
+?cmain                      15
+?low_level_init              3
+CSTARTUP                    15
+  + common                   3
+VIRTUAL_REGISTERS                   2                           8
+bim_ivec                   328
+  + common                 145
+bim_main                   694            13  2 056
+  + shared                                 3
+hal_flash                  237             1
+N/A (command line)                 24           384    192
+N/A (alignment)
+----------               -----     --     --  -----    ---      -
+Total:                   1 903     26     17  2 440    192      8
+  + common                 145
+
+
+                ****************************************
+                *                                      *
+                *      SEGMENTS IN ADDRESS ORDER       *
+                *                                      *
+                ****************************************
+
+
+SEGMENT              SPACE    START ADDRESS   END ADDRESS     SIZE  TYPE  ALIGN
+=======              =====    =============   ===========     ====  ====  =====
+INTVEC               CODE          00000000 - 00000090          91   com    0
+?FILL1               CODE          00000091 - 00000093           3   rel    0
+ALIGNED_CODE         CODE          00000094 - 00000098           5   rel    2
+<CSTART,NEAR_CODE,RCODE> 1
+                     CODE          00000099 - 000006DF         647   rel    0
+?FILL2               CODE          000006E0 - 000007FF         120   rel    0
+REGISTERS            DATA          00000000 - 00000007           8   rel    0
+DATA_AN              DATA          00000009 - 00000009           1   rel    0
+VREG                 DATA          0000000A - 00000019          10   rel    0
+PSP                  DATA               0000001A                     dse    0
+XSP                  DATA          0000001A - 0000001B           2   rel    0
+BREG                 BIT        00000020.0  -  00000020.7        8   rel    0
+SFR_AN               DATA          00000087 - 00000087           1   rel    0
+                     DATA          0000009D - 0000009E           2 
+                     DATA          000000A8 - 000000A8           1 
+                     DATA          000000B4 - 000000B4           1 
+                     DATA          000000BC - 000000BE           3 
+                     DATA          000000C6 - 000000C7           2 
+                     DATA          000000C9 - 000000C9           1 
+                     DATA          000000D1 - 000000D1           1 
+                     DATA          000000D4 - 000000D7           4 
+XSTACK               XDATA         00000000 - 0000017F         180   rel    0
+<XDATA_N> 1          XDATA         00000180 - 00000987         808   rel    0
+ISTACK               IDATA         00000040 - 000000FF          C0   rel    0
+
+                ****************************************
+                *                                      *
+                *        END OF CROSS REFERENCE        *
+                *                                      *
+                ****************************************
+
+ 1 757 bytes of CODE  memory (+             291 range fill )
+    26 bytes of DATA  memory (+ 17 absolute )
+ 2 440 bytes of XDATA memory
+   192 bytes of IDATA memory
+     8 bits  of BIT   memory
+
+Errors: none
+Warnings: none
+
