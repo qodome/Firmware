@@ -21,6 +21,10 @@ iDo/ID14TB/hts/_old_iDo-ImgA-for-flash/*
 iDo/ID14TB/hts/iDo-OAD-ImgA/*
 iDo/ID14TB/hts/iDo-OAD-ImgB/*
 iDo/ID14TB/hts/iDo-ImgA-for-flash/*
+iDo/ID14TB/hts/iDo.dep
+iDo/ID14TB/hts/iDo.ewd
+iDo/ID14TB/hts/iDo.ewp
+iDo/ID14TB/hts/iDo.eww
 iDo/ID14TB/BIM_custom_dn/cc254x/CC254xF256/*
 iDo/ID14TBA/ble_app_hts/gcc/_build/*
 iDo/ID14TBA/ble_app_hts/gcc/Makefile.custom

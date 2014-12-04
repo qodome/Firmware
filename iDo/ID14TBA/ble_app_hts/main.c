@@ -80,12 +80,12 @@
 #define MANUFACTURER_NAME                    "Qodome Co., Ltd."                      /**< Manufacturer. Will be passed to Device Information Service. */
 #define MODEL_NUM                            "ID14TBA"                            /**< Model number. Will be passed to Device Information Service. */
 
-#define APP_ADV_INTERVAL                     40                                         /**< The advertising interval (in units of 0.625 ms. This value corresponds to 25 ms). */
+#define APP_ADV_INTERVAL                     MSEC_TO_UNITS(1285, UNIT_0_625_MS)       /**< The advertising interval (in units of 0.625 ms. This value corresponds to 25 ms). */
 #define APP_ADV_TIMEOUT_IN_SECONDS           0                                        /**< The advertising timeout in units of seconds. */
 
 #define APP_TIMER_PRESCALER                  0                                          /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_MAX_TIMERS                 8                                          /**< Maximum number of simultaneously created timers. */
-#define APP_TIMER_OP_QUEUE_SIZE              8                                          /**< Size of timer operation queues. */
+#define APP_TIMER_MAX_TIMERS                 9                                          /**< Maximum number of simultaneously created timers. */
+#define APP_TIMER_OP_QUEUE_SIZE              9                                          /**< Size of timer operation queues. */
 
 // Android parameter
 #define PERIPHERAL_AND_MIN_CONN_INTERVAL            MSEC_TO_UNITS(1000, UNIT_1_25_MS)   /* Minimum acceptable connection interval. */
@@ -103,6 +103,8 @@
 #define PERIPHERAL_MAX_CONN_PARAMS_UPDATE_COUNT     2
 
 #define BATTERY_LEVEL_MEAS_INTERVAL          		APP_TIMER_TICKS(480000, APP_TIMER_PRESCALER)	// 480 seconds
+#define WATCHDOG_INTERVAL          					APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
+#define ADT_MONITOR_INTERVAL						APP_TIMER_TICKS(300000, APP_TIMER_PRESCALER)
 
 #define APP_GPIOTE_MAX_USERS                 1                                          /**< Maximum number of users of the GPIOTE handler. */
 
@@ -125,6 +127,8 @@ static ble_time_t                            m_time;                            
 static ble_dfu_t							 m_dfu;
 
 static app_timer_id_t						m_battery_timer_id;
+static app_timer_id_t						m_watchdog_timer_id;
+static app_timer_id_t						m_adtmonitor_timer_id;
 static dm_application_instance_t      		m_app_handle;
 
 // YOUR_JOB: Modify these according to requirements (e.g. if other event types are to pass through
@@ -177,7 +181,6 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 {
     app_error_handler(DEAD_BEEF, line_num, p_file_name);
 }
-
 
 /**@brief Function for performing a battery measurement, and update the Battery Level characteristic in the Battery Service.
  */
@@ -243,6 +246,27 @@ static void battery_level_meas_timeout_handler(void * p_context)
     battery_request_measure();
 }
 
+// Battery measurement shall be synchronized to radio off event
+static void watchdog_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+    NRF_WDT->RR[0] = 0x6E524635;  //Reload watchdog register 0
+}
+
+static void adt_monitor_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+    static uint8_t timeout_cnt = 0;
+
+    timeout_cnt++;
+    if (timeout_cnt >= 12) {
+    	timeout_cnt = 0;
+    	if (((uint8_t)spi_read(0x01) & 0x60) == 0x00) {
+    		spi_write(0x01, 0x60);
+    	}
+    }
+}
+
 static void timers_init(void)
 {
 	// Initialize timer module.
@@ -252,6 +276,18 @@ static void timers_init(void)
     APP_ERROR_CHECK(app_timer_create(&m_battery_timer_id,
                                 APP_TIMER_MODE_REPEATED,
                                 battery_level_meas_timeout_handler));
+
+    // Create&&start watchdog timer.
+    APP_ERROR_CHECK(app_timer_create(&m_watchdog_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                watchdog_timeout_handler));
+    APP_ERROR_CHECK(app_timer_start(m_watchdog_timer_id, WATCHDOG_INTERVAL, NULL));
+
+    // Create&&start ADT7320 monitor timer.
+    APP_ERROR_CHECK(app_timer_create(&m_adtmonitor_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                adt_monitor_timeout_handler));
+    APP_ERROR_CHECK(app_timer_start(m_adtmonitor_timer_id, ADT_MONITOR_INTERVAL, NULL));
 }
 
 /**@brief Function for the GAP initialization.
@@ -505,6 +541,10 @@ static void services_init(void)
 
     APP_ERROR_CHECK(ble_bas_init(&m_bas, &bas_init));
 
+#ifdef DEBUG_STATS
+    APP_ERROR_CHECK(ble_memdump_init());
+#endif
+
     // Initialize the Device Firmware Update Service.
     memset(&dfus_init, 0, sizeof(dfus_init));
     dfus_init.evt_handler = dfu_app_on_dfu_evt;
@@ -616,9 +656,11 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
         	m_conn_handle               = BLE_CONN_HANDLE_INVALID;
         	advertising_start();
 
+#ifndef DEBUG_STATS
         	if(memdump_flag_get()) {
         		NVIC_SystemReset();
         	}
+#endif
 
         	APP_ERROR_CHECK(app_timer_stop(m_battery_timer_id));
 
@@ -846,11 +888,21 @@ static void device_manager_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
+static void wdt_init(void)
+{
+	NRF_WDT->CONFIG = (WDT_CONFIG_HALT_Pause << WDT_CONFIG_HALT_Pos) | ( WDT_CONFIG_SLEEP_Run << WDT_CONFIG_SLEEP_Pos);
+	NRF_WDT->CRV = 2*32768;   // 2 seconds timeout period
+	NRF_WDT->RREN |= WDT_RREN_RR0_Msk;  //Enable reload register 0
+	NRF_WDT->TASKS_START = 1;
+}
+
 /**@brief Function for application main entry.
  */
 int main(void)
 {
     // Initialize.
+	wdt_init();
+	persistent_init();
     app_trace_init();
     timers_init();
     date_time_init();

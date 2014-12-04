@@ -165,7 +165,7 @@ uint32_t ble_memdump_init(void)
     {
         return err_code;
     }
-    // Add measurement characteristic
+    // Add memory dump characteristic
     err_code = hts_memdump_char_add(p_memdump);
     memdump_flag = 1;
     if (err_code != NRF_SUCCESS)

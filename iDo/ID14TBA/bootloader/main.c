@@ -56,14 +56,17 @@
 #define APP_GPIOTE_MAX_USERS            1                                                       /**< Number of GPIOTE users in total. Used by button module and dfu_transport_serial module (flow control). */
 
 #define APP_TIMER_PRESCALER             0                                                       /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_MAX_TIMERS            3                                                       /**< Maximum number of simultaneously created timers. */
-#define APP_TIMER_OP_QUEUE_SIZE         4                                                       /**< Size of timer operation queues. */
+#define APP_TIMER_MAX_TIMERS            4                                                       /**< Maximum number of simultaneously created timers. */
+#define APP_TIMER_OP_QUEUE_SIZE         5                                                       /**< Size of timer operation queues. */
 
 #define BUTTON_DETECTION_DELAY          APP_TIMER_TICKS(50, APP_TIMER_PRESCALER)                /**< Delay from a GPIOTE event until a button is reported as pushed (in number of timer ticks). */
 
 #define SCHED_MAX_EVENT_DATA_SIZE       MAX(APP_TIMER_SCHED_EVT_SIZE, 0)                        /**< Maximum size of scheduler events. */
 
 #define SCHED_QUEUE_SIZE                20                                                      /**< Maximum number of events in the scheduler queue. */
+
+#define WATCHDOG_KICK_PERIOD          	APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
+static app_timer_id_t					m_watchdog_timer_id;
 
 /**@brief Function for error handling, which is called when an error has occurred. 
  *
@@ -89,7 +92,6 @@ void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p
     NVIC_SystemReset();
 }
 
-
 /**@brief Callback function for asserts in the SoftDevice.
  *
  * @details This function will be called in case of an assert in the SoftDevice.
@@ -106,12 +108,31 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
     app_error_handler(0xDEADBEEF, line_num, p_file_name);
 }
 
+/*
+ * Watchdog timeout handler
+ */
+static void watchdog_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+    NRF_WDT->RR[0] = 0x6E524635;  //Reload watchdog register 0
+}
+
 /**@brief Function for initializing the timer handler module (app_timer).
  */
 static void timers_init(void)
 {
     // Initialize timer module, making it use the scheduler.
     APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_MAX_TIMERS, APP_TIMER_OP_QUEUE_SIZE, true);
+
+    // Create watchdog timer.
+    APP_ERROR_CHECK(app_timer_create(&m_watchdog_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                watchdog_timeout_handler));
+}
+
+static void watchdog_timer_start(void)
+{
+	APP_ERROR_CHECK(app_timer_start(m_watchdog_timer_id, WATCHDOG_KICK_PERIOD, NULL));
 }
 
 /**@brief Function for dispatching a BLE stack event to all modules with a BLE stack event handler.
@@ -170,6 +191,13 @@ static void scheduler_init(void)
     APP_SCHED_INIT(SCHED_MAX_EVENT_DATA_SIZE, SCHED_QUEUE_SIZE);
 }
 
+static void wdt_init(void)
+{
+	NRF_WDT->CONFIG = (WDT_CONFIG_HALT_Pause << WDT_CONFIG_HALT_Pos) | ( WDT_CONFIG_SLEEP_Run << WDT_CONFIG_SLEEP_Pos);
+	NRF_WDT->CRV = 2*32768;   // 2 seconds timeout period
+	NRF_WDT->RREN |= WDT_RREN_RR0_Msk;  //Enable reload register 0
+	NRF_WDT->TASKS_START = 1;
+}
 
 /**@brief Function for bootloader main entry.
  */
@@ -178,6 +206,8 @@ int main(void)
     uint32_t err_code;
     bool     dfu_start = false;
     bool     app_reset = (NRF_POWER->GPREGRET == BOOTLOADER_DFU_START);
+
+    wdt_init();
 
     // This check ensures that the defined fields in the bootloader corresponds with actual
     // setting in the nRF51 chip.
@@ -195,6 +225,7 @@ int main(void)
 
         ble_stack_init(!app_reset);
         scheduler_init();
+        watchdog_timer_start();
 
         err_code = bootloader_dfu_sd_update_finalize();
         APP_ERROR_CHECK(err_code);
@@ -204,6 +235,7 @@ int main(void)
         // If stack is present then continue initialization of bootloader.
         ble_stack_init(!app_reset);
         scheduler_init();
+        watchdog_timer_start();
     }
 
     dfu_start  = app_reset;
