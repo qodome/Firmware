@@ -45,6 +45,10 @@ static app_timer_id_t                        temp_date_time_id;
 static uint8_t last_st1_h = 0;
 uint32_t second_now = 0;
 
+#ifdef DEBUG_STATS
+uint32_t power_on_seconds = 0;
+#endif
+
 static void recorder_rtc_tick(void * p_context);
 
 
@@ -256,20 +260,30 @@ void date_time_init(void)//send_temp_callback callback
 
 static void recorder_rtc_tick(void * p_context)
 {
-    uint32_t sleepTimeRegister = 0;
+	uint32_t sleepTimeRegister = 0;
 
-    sleepTimeRegister = rtc1_counter_get();
-    if (((uint8_t *)&sleepTimeRegister)[1] & 0x80) {
-        if (last_st1_h != 0x80) {
-            last_st1_h = 0x80;
-            second_now++;
-        }
-    } else {
-        if (last_st1_h == 0x80) {
-            last_st1_h = 0x00;
-            second_now++;
-        }
-    }
+	sleepTimeRegister = rtc1_counter_get();
+	if (((uint8_t *)&sleepTimeRegister)[1] & 0x80) {
+		if (last_st1_h != 0x80) {
+			last_st1_h = 0x80;
+			second_now++;
+
+#ifdef DEBUG_STATS
+			power_on_seconds++;
+#endif
+
+		}
+	} else {
+		if (last_st1_h == 0x80) {
+			last_st1_h = 0x00;
+			second_now++;
+
+#ifdef DEBUG_STATS
+			power_on_seconds++;
+#endif
+
+		}
+	}
 }
 
 uint32_t date_time_get(void)

@@ -131,6 +131,15 @@ static app_timer_id_t						m_watchdog_timer_id;
 static app_timer_id_t						m_adtmonitor_timer_id;
 static dm_application_instance_t      		m_app_handle;
 
+#ifdef DEBUG_STATS
+uint32_t p_ticks_max = 0;
+uint32_t full_power_on_seconds = 0;
+uint32_t abnormal_counts = 0;
+static uint32_t * p_ticks_old;
+static uint32_t * p_ticks_now;
+static uint32_t * p_ticks_diff;
+#endif
+
 // YOUR_JOB: Modify these according to requirements (e.g. if other event types are to pass through
 //           the scheduler).
 #define SCHED_MAX_EVENT_DATA_SIZE       MAX(APP_TIMER_SCHED_EVT_SIZE,\
@@ -255,16 +264,19 @@ static void watchdog_timeout_handler(void * p_context)
 
 static void adt_monitor_timeout_handler(void * p_context)
 {
-    UNUSED_PARAMETER(p_context);
-    static uint8_t timeout_cnt = 0;
+	UNUSED_PARAMETER(p_context);
+	static uint8_t timeout_cnt = 0;
 
-    timeout_cnt++;
-    if (timeout_cnt >= 12) {
-    	timeout_cnt = 0;
-    	if (((uint8_t)spi_read(0x01) & 0x60) == 0x00) {
-    		spi_write(0x01, 0x60);
-    	}
-    }
+	timeout_cnt++;
+	if (timeout_cnt >= 12) {
+		timeout_cnt = 0;
+		if (((uint8_t)spi_read(0x01) & 0x60) == 0x00) {
+			spi_write(0x01, 0x60);
+#ifdef DEBUG_STATS
+			abnormal_counts++;
+#endif
+		}
+	}
 }
 
 static void timers_init(void)
@@ -926,8 +938,25 @@ int main(void)
     // Enter main loop.
     for (;;)
     {
+
+#ifdef DEBUG_STATS
+    	app_timer_cnt_get(p_ticks_old);
+#endif
+
     	app_sched_execute();
+
+#ifdef DEBUG_STATS
+    	app_timer_cnt_get(p_ticks_now);
+    	app_timer_cnt_diff_compute(*p_ticks_now,*p_ticks_old,p_ticks_diff);
+    	if(p_ticks_max < *p_ticks_diff){
+    	p_ticks_max = *p_ticks_diff;
+    	}
+    	full_power_on_seconds += p_ticks_max;
+#endif
+
     	power_manage();
+
+
     }
 }
 
