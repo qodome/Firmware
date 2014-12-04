@@ -6,7 +6,7 @@ include ./Makefile.custom
 C_SOURCE_FILES += main.c
 C_SOURCE_FILES += pstorage.c
 C_SOURCE_FILES += bootloader.c
-C_SOURCE_FILES += dfu_transport_ble.c
+C_SOURCE_FILES += dfu_transport_ble_hts.c
 C_SOURCE_FILES += dfu_dual_bank.c
 C_SOURCE_FILES += app_timer.c
 C_SOURCE_FILES += ble_advdata.c
