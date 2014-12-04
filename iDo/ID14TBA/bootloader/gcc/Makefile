@@ -50,4 +50,4 @@ INCLUDEPATHS += -I"$(SDK_PATH)Include/sd_common"
 INCLUDEPATHS += -I"$(SDK_PATH)Include/sdk"
 INCLUDEPATHS += -I"$(SDK_PATH)Include/bootloader_dfu"
 
-include $(SDK_PATH)Source/templates/gcc/Makefile.common
+include Makefile.common

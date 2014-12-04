@@ -63,7 +63,7 @@ ASSEMBLER_SOURCE_FILES += gcc_startup_$(DEVICESERIES).s
 #LDFLAGS += -L"$(GNU_INSTALL_ROOT)/arm-none-eabi/lib/armv6-m"
 #LDFLAGS += -L"$(GNU_INSTALL_ROOT)/lib/gcc/arm-none-eabi/$(GNU_VERSION)/armv6-m"
 LDFLAGS += -Xlinker -Map=$(LISTING_DIRECTORY)/$(OUTPUT_FILENAME).map
-LDFLAGS += -mcpu=$(CPU) -mthumb -mabi=aapcs -T$(LINKER_SCRIPT) 
+LDFLAGS += -mcpu=$(CPU) -mthumb -mabi=aapcs -L $(TEMPLATE_PATH) -T$(LINKER_SCRIPT) 
 
 # Compiler flags
 CFLAGS += -mcpu=$(CPU) -mthumb -mabi=aapcs -D$(DEVICE) -D$(BOARD) -D$(TARGET_CHIP) --std=gnu99
@@ -105,7 +105,7 @@ vpath %.s $(ASSEMBLER_SOURCE_PATHS)
 ### Targets
 debug:    CFLAGS += -DDEBUG -g3 -O0
 debug:    ASMFLAGS += -DDEBUG -g3 -O0
-#debug:    $(OUTPUT_BINARY_DIRECTORY)/$(OUTPUT_FILENAME).bin $(OUTPUT_BINARY_DIRECTORY)/$(OUTPUT_FILENAME).hex
+debug:    $(OUTPUT_BINARY_DIRECTORY)/$(OUTPUT_FILENAME).bin $(OUTPUT_BINARY_DIRECTORY)/$(OUTPUT_FILENAME).hex
 
 .PHONY: release
 release: clean
