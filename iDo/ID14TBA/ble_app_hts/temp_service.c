@@ -58,6 +58,12 @@ static uint32_t m_it_timeout_ticks = IT_SAMPLE_PERIOD_FAST;
 uint16_t m_tm_interval = MEASUREMENT_INTERVAL_DEFAULT;
 uint32_t m_tm_interval_ticks = APP_TIMER_TICKS(MEASUREMENT_INTERVAL_DEFAULT * 1000, APP_TIMER_PRESCALER);
 
+#ifdef DEBUG_STATS
+uint32_t adt_sample_counts = 0;
+uint32_t p_ticks_2s = 0;
+uint32_t p_ticks_10s = 0;
+#endif
+
 static cmd_buffer_t *lastReadBuffer = NULL;
 
 iDo_send_indication_callback send_indication = NULL;
@@ -255,6 +261,11 @@ static void __sps_timeout_handler(void * p_event_data , uint16_t event_size)
 			if (m_it_enabled == true || m_tm_enabled == true) {
 				APP_ERROR_CHECK(app_timer_stop(m_it_timer_id));
 				APP_ERROR_CHECK(app_timer_start(m_it_timer_id, m_it_timeout_ticks, NULL));
+
+#ifdef DEBUG_STATS
+				p_ticks_2s ++;
+#endif
+
 			}
 		}
 		staleCount = 0;
@@ -266,6 +277,11 @@ static void __sps_timeout_handler(void * p_event_data , uint16_t event_size)
 			if (m_it_enabled == true || m_tm_enabled == true) {
 				APP_ERROR_CHECK(app_timer_stop(m_it_timer_id));
 				APP_ERROR_CHECK(app_timer_start(m_it_timer_id, m_it_timeout_ticks, NULL));
+
+#ifdef DEBUG_STATS
+				p_ticks_10s ++;
+#endif
+
 			}
 		}
 	}
@@ -275,13 +291,17 @@ static void __sps_timeout_handler(void * p_event_data , uint16_t event_size)
 	recorder_add_temperature(result);
 
 	if ((m_it_enabled == true && m_tm_enabled == false) ||
-		(m_it_enabled == true && (!temp_state_mesaurement_ready()))) {
+			(m_it_enabled == true && (!temp_state_mesaurement_ready()))) {
 		__do_send_it(result);
 	}
 
 	if (send_advertise != 0) {
 		send_advertise(result);
 	}
+
+#ifdef DEBUG_STATS
+	adt_sample_counts++;
+#endif
 }
 
 static void sps_timeout_handler(void * p_context)
