@@ -62,6 +62,7 @@ static cmd_buffer_t *lastReadBuffer = NULL;
 
 iDo_send_indication_callback send_indication = NULL;
 iDo_send_notification_callback send_notification = NULL;
+iDo_advertise_callback send_advertise = NULL;
 
 uint16_t temp_service_get_tm_interval()
 {
@@ -272,25 +273,14 @@ static void __sps_timeout_handler(void * p_event_data , uint16_t event_size)
 
 	temp_state_update(result);
 	recorder_add_temperature(result);
-	recorder_add_temperature(result+1);
-	recorder_add_temperature(result+2);
-	recorder_add_temperature(result+3);
-	recorder_add_temperature(result+4);
-	recorder_add_temperature(result+5);
-	recorder_add_temperature(result+6);
-	recorder_add_temperature(result+7);
-	recorder_add_temperature(result+8);
-	recorder_add_temperature(result+9);
-	recorder_add_temperature(result+10);
-	recorder_add_temperature(result+11);
-	recorder_add_temperature(result+12);
-	recorder_add_temperature(result+13);
-	recorder_add_temperature(result+14);
-	recorder_add_temperature(result+15);
 
 	if ((m_it_enabled == true && m_tm_enabled == false) ||
 		(m_it_enabled == true && (!temp_state_mesaurement_ready()))) {
 		__do_send_it(result);
+	}
+
+	if (send_advertise != 0) {
+		send_advertise(result);
 	}
 }
 
@@ -299,12 +289,15 @@ static void sps_timeout_handler(void * p_context)
 	APP_ERROR_CHECK(app_sched_event_put(NULL, 0, __sps_timeout_handler));
 }
 
-void temp_init(iDo_send_indication_callback indication_callback, iDo_send_notification_callback notification_callback)
+void temp_init(iDo_send_indication_callback indication_callback,
+				iDo_send_notification_callback notification_callback,
+				iDo_advertise_callback advertise_callback)
 {
 	uint32_t err_code;
 
 	send_indication = indication_callback;
 	send_notification = notification_callback;
+	send_advertise = advertise_callback;
 
 	//Structure for SPI master configuration, initialized by default values.
 	spi_master_config_t spi_config = SPI_MASTER_INIT_DEFAULT;

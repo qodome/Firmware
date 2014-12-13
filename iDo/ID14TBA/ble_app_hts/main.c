@@ -130,6 +130,7 @@ static app_timer_id_t						m_battery_timer_id;
 static app_timer_id_t						m_watchdog_timer_id;
 static app_timer_id_t						m_adtmonitor_timer_id;
 static dm_application_instance_t      		m_app_handle;
+uint8_t advertise_temp_flag = 0;
 
 // YOUR_JOB: Modify these according to requirements (e.g. if other event types are to pass through
 //           the scheduler).
@@ -329,7 +330,7 @@ static void gap_params_init(void)
  * @details Encodes the required advertising data and passes it to the stack.
  *          Also builds a structure to be passed to the stack when starting advertising.
  */
-static void advertising_init(void)
+static void advertising_default(void)
 {
     uint32_t      err_code;
     ble_advdata_t advdata;
@@ -355,6 +356,11 @@ static void advertising_init(void)
 
     err_code = ble_advdata_set(&advdata, &rspdata);
     APP_ERROR_CHECK(err_code);
+}
+
+static void advertising_init(void)
+{
+	advertising_default();
 
     // Initialize advertising parameters (used when starting advertising).
     memset(&m_adv_params, 0, sizeof(m_adv_params));
@@ -364,6 +370,51 @@ static void advertising_init(void)
     m_adv_params.fp          = BLE_GAP_ADV_FP_ANY;
     m_adv_params.interval    = APP_ADV_INTERVAL;
     m_adv_params.timeout     = APP_ADV_TIMEOUT_IN_SECONDS;
+}
+
+// Set service data into advertising packet when disconnected
+// due to radio signal
+static void advertising_temp(int16_t temp)
+{
+    uint32_t      err_code;
+    ble_advdata_t advdata;
+    ble_advdata_t rspdata;
+    uint8_t       flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
+    ble_advdata_service_data_t temp_service_data;
+    int32_t temp_data;
+    int32_t sign = -4;
+
+    ble_uuid_t adv_uuids[] =
+    {
+        {BLE_UUID_HEALTH_THERMOMETER_SERVICE, BLE_UUID_TYPE_BLE},
+    };
+
+    // Build and set advertising data
+    memset(&advdata, 0, sizeof(advdata));
+    advdata.name_type               = BLE_ADVDATA_NO_NAME;
+    advdata.include_appearance      = true;
+    advdata.flags.size              = sizeof(flags);
+    advdata.flags.p_data            = &flags;
+    advdata.uuids_complete.uuid_cnt = sizeof(adv_uuids) / sizeof(adv_uuids[0]);
+    advdata.uuids_complete.p_uuids  = adv_uuids;
+
+    advdata.service_data_count = 1;
+    temp_service_data.service_uuid = BLE_UUID_HEALTH_THERMOMETER_SERVICE;
+    temp_service_data.data.size = 4;
+    if (temp & 0x8000) {
+    	temp_data = (int32_t)temp | 0xFFFF0000;
+    } else {
+    	temp_data = (int32_t)temp;
+    }
+    temp_data = (sign << 24) | ((temp_data * 625) & 0xFFFFFF);
+    temp_service_data.data.p_data = (uint8_t *)&temp_data;
+    advdata.p_service_data_array = &temp_service_data;
+
+    memset(&rspdata, 0, sizeof(rspdata));
+    rspdata.name_type               = BLE_ADVDATA_FULL_NAME;
+
+    err_code = ble_advdata_set(&advdata, &rspdata);
+    APP_ERROR_CHECK(err_code);
 }
 
 /**@brief Function for handling the Health Thermometer Service events.
@@ -639,6 +690,8 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
             APP_ERROR_CHECK(sd_ble_gap_device_name_get(dev_name_check, &len));
             battery_request_measure();
+            advertising_default();
+            advertise_temp_flag = 0;
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
@@ -652,6 +705,9 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
         	{
         		temp_tm_stop();
         		temp_it_stop();
+        		advertise_temp_flag = 0;
+        	} else {
+        		advertise_temp_flag = 1;
         	}
         	m_conn_handle               = BLE_CONN_HANDLE_INVALID;
         	advertising_start();
@@ -823,6 +879,13 @@ void iDo_send_notification(ble_hts_meas_t *p)
 	ble_hts_send_it(&m_hts, p);
 }
 
+void iDo_advertise_temp(int16_t temp)
+{
+	if (advertise_temp_flag == 1) {
+		advertising_temp(temp);
+	}
+}
+
 // Device manager
 static uint32_t device_manager_evt_handler(dm_handle_t const    * p_handle,
                                            dm_event_t const     * p_event,
@@ -908,7 +971,7 @@ int main(void)
     date_time_init();
     gpiote_init();
     ble_stack_init();
-    temp_init(iDo_send_indication, iDo_send_notification);//send_temp_handler
+    temp_init(iDo_send_indication, iDo_send_notification, iDo_advertise_temp);//send_temp_handler
     scheduler_init();
     device_manager_init();
     gap_params_init();
