@@ -131,7 +131,7 @@ static app_timer_id_t						m_watchdog_timer_id;
 static app_timer_id_t						m_adtmonitor_timer_id;
 static dm_application_instance_t      		m_app_handle;
 uint8_t advertise_temp_flag = 0;
-//int8_t rssi = 0;
+int8_t rssi = 0;
 
 #ifdef DEBUG_STATS
 uint32_t p_ticks_max = 0;
@@ -705,11 +705,11 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             battery_request_measure();
             advertising_default();
             advertise_temp_flag = 0;
-            //sd_ble_gap_rssi_start(m_conn_handle);
+            sd_ble_gap_rssi_start(m_conn_handle);
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
-        	//sd_ble_gap_rssi_stop(m_conn_handle);
+        	sd_ble_gap_rssi_stop(m_conn_handle);
         	// If device name get changed, save that in persistent storage
         	APP_ERROR_CHECK(sd_ble_gap_device_name_get(dev_name_new, &len));
         	if (strcmp((char *)dev_name_check, (char *)dev_name_new) != 0) {
@@ -759,11 +759,9 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             }
             break;
 
-        /*
         case BLE_GAP_EVT_RSSI_CHANGED:
             rssi = p_ble_evt->evt.gap_evt.params.rssi_changed.rssi;
             break;
-         */
 
         default:
             // No implementation needed.
@@ -1009,6 +1007,7 @@ int main(void)
 
     // Start execution.
     advertising_start();
+    //while (sd_ble_gap_tx_power_set(4) != NRF_SUCCESS);
 
     // Enter main loop.
     for (;;)
