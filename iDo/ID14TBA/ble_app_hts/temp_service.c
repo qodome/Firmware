@@ -129,6 +129,15 @@ void temp_it_stop(void)
 	}
 }
 
+uint8_t temp_advertise_temp(void)
+{
+	if (m_tm_enabled == true || m_it_enabled == true) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
 // Do send intermediate temperature update
 static void __do_send_tm(int16_t temp_raw, uint8_t flag, ble_date_time_t *ptc)
 {

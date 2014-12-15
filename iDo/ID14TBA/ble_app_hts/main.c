@@ -131,6 +131,7 @@ static app_timer_id_t						m_watchdog_timer_id;
 static app_timer_id_t						m_adtmonitor_timer_id;
 static dm_application_instance_t      		m_app_handle;
 uint8_t advertise_temp_flag = 0;
+//int8_t rssi = 0;
 
 #ifdef DEBUG_STATS
 uint32_t p_ticks_max = 0;
@@ -704,9 +705,11 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             battery_request_measure();
             advertising_default();
             advertise_temp_flag = 0;
+            //sd_ble_gap_rssi_start(m_conn_handle);
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
+        	//sd_ble_gap_rssi_stop(m_conn_handle);
         	// If device name get changed, save that in persistent storage
         	APP_ERROR_CHECK(sd_ble_gap_device_name_get(dev_name_new, &len));
         	if (strcmp((char *)dev_name_check, (char *)dev_name_new) != 0) {
@@ -719,7 +722,11 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
         		temp_it_stop();
         		advertise_temp_flag = 0;
         	} else {
-        		advertise_temp_flag = 1;
+        		if (temp_advertise_temp() != 0) {
+        			advertise_temp_flag = 1;
+        		} else {
+        			advertise_temp_flag = 0;
+        		}
         	}
         	m_conn_handle               = BLE_CONN_HANDLE_INVALID;
         	advertising_start();
@@ -751,6 +758,12 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
                 APP_ERROR_CHECK(err_code);
             }
             break;
+
+        /*
+        case BLE_GAP_EVT_RSSI_CHANGED:
+            rssi = p_ble_evt->evt.gap_evt.params.rssi_changed.rssi;
+            break;
+         */
 
         default:
             // No implementation needed.
@@ -887,7 +900,6 @@ void iDo_send_indication(ble_hts_meas_t *p) // send_temp_handler
 
 void iDo_send_notification(ble_hts_meas_t *p)
 {
-
 	ble_hts_send_it(&m_hts, p);
 }
 

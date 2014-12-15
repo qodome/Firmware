@@ -24,6 +24,7 @@ void temp_it_start(void);
 void temp_tm_stop(void);
 void temp_it_stop(void);
 void temp_measurement_confirm(void);
+uint8_t temp_advertise_temp(void);
 extern uint16_t spi_read (uint8_t addr);
 extern void spi_write (uint8_t addr, uint16_t cmd);
 
