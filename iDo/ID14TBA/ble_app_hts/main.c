@@ -105,6 +105,7 @@
 #define BATTERY_LEVEL_MEAS_INTERVAL          		APP_TIMER_TICKS(480000, APP_TIMER_PRESCALER)	// 480 seconds
 #define WATCHDOG_INTERVAL          					APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
 #define ADT_MONITOR_INTERVAL						APP_TIMER_TICKS(300000, APP_TIMER_PRESCALER)
+#define TX_POWER_INTERVAL          					APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
 
 #define APP_GPIOTE_MAX_USERS                 1                                          /**< Maximum number of users of the GPIOTE handler. */
 
@@ -129,9 +130,11 @@ static ble_dfu_t							 m_dfu;
 static app_timer_id_t						m_battery_timer_id;
 static app_timer_id_t						m_watchdog_timer_id;
 static app_timer_id_t						m_adtmonitor_timer_id;
+static app_timer_id_t						m_txpower_timer_id;
 static dm_application_instance_t      		m_app_handle;
 uint8_t advertise_temp_flag = 0;
 int8_t rssi = 0;
+int8_t tx_power = 4;
 
 #ifdef DEBUG_STATS
 uint32_t p_ticks_max = 0;
@@ -281,6 +284,15 @@ static void adt_monitor_timeout_handler(void * p_context)
 	}
 }
 
+static void tx_power_timeout_handler(void *p_context)
+{
+	UNUSED_PARAMETER(p_context);
+
+	if (sd_ble_gap_tx_power_set(tx_power) != NRF_SUCCESS) {
+		APP_ERROR_CHECK(app_timer_start(m_txpower_timer_id, TX_POWER_INTERVAL, NULL));
+	}
+}
+
 static void timers_init(void)
 {
 	// Initialize timer module.
@@ -302,6 +314,11 @@ static void timers_init(void)
                                 APP_TIMER_MODE_REPEATED,
                                 adt_monitor_timeout_handler));
     APP_ERROR_CHECK(app_timer_start(m_adtmonitor_timer_id, ADT_MONITOR_INTERVAL, NULL));
+
+    // Create TX power setting timer.
+    APP_ERROR_CHECK(app_timer_create(&m_txpower_timer_id,
+    							APP_TIMER_MODE_SINGLE_SHOT,
+                                tx_power_timeout_handler));
 }
 
 /**@brief Function for the GAP initialization.
@@ -710,6 +727,7 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
 
         case BLE_GAP_EVT_DISCONNECTED:
         	sd_ble_gap_rssi_stop(m_conn_handle);
+        	rssi = 0;
         	// If device name get changed, save that in persistent storage
         	APP_ERROR_CHECK(sd_ble_gap_device_name_get(dev_name_new, &len));
         	if (strcmp((char *)dev_name_check, (char *)dev_name_new) != 0) {
@@ -722,6 +740,11 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
         		temp_it_stop();
         		advertise_temp_flag = 0;
         	} else {
+        		tx_power = 4;
+        		if (sd_ble_gap_tx_power_set(tx_power) != NRF_SUCCESS) {
+        			APP_ERROR_CHECK(app_timer_start(m_txpower_timer_id, TX_POWER_INTERVAL, NULL));
+        		}
+
         		if (temp_advertise_temp() != 0) {
         			advertise_temp_flag = 1;
         		} else {
@@ -1007,7 +1030,7 @@ int main(void)
 
     // Start execution.
     advertising_start();
-    //while (sd_ble_gap_tx_power_set(4) != NRF_SUCCESS);
+    while (sd_ble_gap_tx_power_set(4) != NRF_SUCCESS);
 
     // Enter main loop.
     for (;;)

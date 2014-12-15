@@ -137,7 +137,7 @@ static void on_rw_authorize_request(ble_hts_t * p_hts, ble_gatts_evt_t * p_gatts
 {
 	ble_date_time_t tm;
 	uint8_t result_buf[7] = {0};
-	uint8_t temp_record[12] = {0};
+	uint8_t temp_record[13] = {0};
 	ble_gatts_rw_authorize_reply_params_t   auth_params;
 	ble_gatts_rw_authorize_reply_params_t * p_auth_params = &auth_params;
 	memset((void *)&auth_params, 0, sizeof(auth_params));
@@ -162,11 +162,12 @@ static void on_rw_authorize_request(ble_hts_t * p_hts, ble_gatts_evt_t * p_gatts
         	int16_t temp_raw = 0;
         	int32_t sign = -4;
         	int32_t t32 = 0;
+        	int8_t rssi = 0;
 
         	app_sched_event_put(NULL, 0, _it_read_enable_fast_conn);
 
         	memset((uint8_t *)&tc, 0, sizeof(tc));
-        	temp_raw = recorder_get_temperature(&tc);
+        	temp_raw = recorder_get_temperature(&tc, &rssi);
         	ble_date_time_encode(&tc, result_buf);
             if (temp_raw & 0x8000) {
                 t32 = (int32_t)temp_raw | 0xFFFF0000;
@@ -178,10 +179,11 @@ static void on_rw_authorize_request(ble_hts_t * p_hts, ble_gatts_evt_t * p_gatts
         	temp_record[0] = 0x02;
         	memcpy((temp_record + 1), (uint8_t *)&t32, 4);
         	memcpy((temp_record + 5), result_buf, 7);
+        	temp_record[12] = (uint8_t)rssi;
 
         	auth_params.type = BLE_GATTS_AUTHORIZE_TYPE_READ;
         	auth_params.params.read.p_data = temp_record;
-        	auth_params.params.read.len    = 12;
+        	auth_params.params.read.len    = 13;
         	auth_params.params.read.update = 1;
 
         	APP_ERROR_CHECK(sd_ble_gatts_rw_authorize_reply(p_hts->conn_handle, p_auth_params));

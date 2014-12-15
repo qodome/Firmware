@@ -26,6 +26,7 @@ struct record_entry rec_latest;
 uint32_t latest_sample_unix_ts;
 int16_t latest_sample_temp;
 int8_t rec_latest_entry_idx = -1;
+extern int8_t rssi;
 
 static uint8_t __recorder_get_first_page(void)
 {
@@ -63,7 +64,7 @@ static int8_t __recorder_get_record_buf(uint8_t page_idx, uint8_t record_entry_i
         rec_next_write.record_entry_idx == record_entry_idx) {
         if (rec_latest_entry_idx > data_entry_idx) {
             if (data_entry_idx == -1) {
-                memcpy(buf_out, (uint8_t *)&rec_latest, 6);
+                memcpy(buf_out, (uint8_t *)&rec_latest, REC_DATA_ENTRY_OFFSET);
             } else {
                 memcpy(buf_out, (uint8_t *)&(rec_latest.entries[data_entry_idx]), sizeof(struct data_entry));
             }
@@ -74,13 +75,13 @@ static int8_t __recorder_get_record_buf(uint8_t page_idx, uint8_t record_entry_i
         if (data_entry_idx == -1) {
             HalFlashRead(page_idx, (uint16_t)(record_entry_idx + 1) * sizeof(struct record_entry) - 2, magic, 2);
             if (magic[0] == 0x52 && magic[1] == 0x44) {
-                HalFlashRead(page_idx, (uint16_t)record_entry_idx * sizeof(struct record_entry), buf_out, 6);
+                HalFlashRead(page_idx, (uint16_t)record_entry_idx * sizeof(struct record_entry), buf_out, REC_DATA_ENTRY_OFFSET);
             } else {
                 // magic not found
                 return -1;
             }
         } else {
-            HalFlashRead(page_idx, (uint16_t)record_entry_idx * sizeof(struct record_entry) + REC_DATA_ENTRY_OFFSET + (int16_t)data_entry_idx * sizeof(struct data_entry), 
+            HalFlashRead(page_idx, (uint16_t)record_entry_idx * sizeof(struct record_entry) + REC_DATA_ENTRY_OFFSET + (uint16_t)data_entry_idx * sizeof(struct data_entry),
                         buf_out, sizeof(struct data_entry));
         }
     }
@@ -144,6 +145,8 @@ void recorder_add_temperature(int16_t temp)
     if (rec_latest_entry_idx == -1) {
         rec_latest.unix_time = ts;
         rec_latest.base_temp = temp;
+        rec_latest.rssi = rssi;
+        rec_latest.dummy = 0;
         rec_latest_entry_idx++;
     } else {
         if ((ts - latest_sample_unix_ts) >= 32) {
@@ -168,6 +171,8 @@ void recorder_add_temperature(int16_t temp)
             
             rec_latest.unix_time = ts;
             rec_latest.base_temp = temp;
+            rec_latest.rssi = rssi;
+            rec_latest.dummy = 0;
             rec_latest_entry_idx = 0;            
         } else {
             // Normal record entry
@@ -176,6 +181,7 @@ void recorder_add_temperature(int16_t temp)
                     ((uint8_t)(((temp - latest_sample_temp) >> 8) & 0x07));
             rec_latest.entries[rec_latest_entry_idx].delta_temp_l = 
                 ((uint8_t)((temp - latest_sample_temp) & 0xFF));
+            rec_latest.entries[rec_latest_entry_idx].rssi = rssi;
             
             rec_latest_entry_idx++;
             if (rec_latest_entry_idx >= REC_DATA_PER_ENTRY) {
@@ -213,7 +219,7 @@ void recorder_add_temperature(int16_t temp)
  * if that record looks good, otherwise return
  * 0 temperature and do not touch tc_out
  */
-int16_t recorder_get_temperature(ble_date_time_t *tc_out)
+int16_t recorder_get_temperature(ble_date_time_t *tc_out, int8_t *p_rssi)
 {
     int16_t ret_temp = 0, delta_temp = 0;
     uint8_t buf[16];
@@ -244,7 +250,8 @@ int16_t recorder_get_temperature(ble_date_time_t *tc_out)
             // positive
             delta_temp = ((uint16_t)(buf[0] & 0x07) << 8) | buf[1];
         }
-        ret_temp = rec_read.last_data_entry_temp + delta_temp; 
+        ret_temp = rec_read.last_data_entry_temp + delta_temp;
+        *p_rssi = (int8_t)buf[2];
         
         osal_ConvertUTCTime(tc_out, rec_read.last_data_entry_unix_ts + ((buf[0] >> 3) & 0x1F));
         
@@ -273,6 +280,7 @@ recheck:
         }
         ret_temp = ((uint16_t)buf[5] << 8) | buf[4];
         tmp_ts = (uint32_t)buf[3] << 24 | (uint32_t)buf[2] << 16 | (uint32_t)buf[1] << 8 | (uint32_t)buf[0];
+        *p_rssi = (int8_t)buf[6];
         rec_read.last_data_entry_temp = ret_temp;
         rec_read.last_data_entry_unix_ts = tmp_ts;
         
