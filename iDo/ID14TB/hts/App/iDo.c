@@ -444,6 +444,10 @@ void iDo_Init( uint8 task_id )
     custom_init();
     
     taskInitDone = 1;
+    
+    uint8 cc;
+    LL_EXT_SetTxPower(HCI_EXT_TX_POWER_MINUS_23_DBM, &cc);
+    LL_EXT_SetRxGain(LL_EXT_RX_GAIN_HIGH, &cc);
 }
 
 void iDo_EnableBattService(void)

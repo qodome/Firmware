@@ -396,7 +396,7 @@ static uint32_t hts_intermediate_temp_char_add(ble_hts_t * p_hts)
 
 	memset(&char_md, 0, sizeof(char_md));
 
-	char_md.char_props.indicate = 1;
+	char_md.char_props.notify = 1;
 	char_md.char_props.read 	= 1;
 	char_md.char_props.write 	= 1;
 	char_md.p_char_user_desc    = NULL;

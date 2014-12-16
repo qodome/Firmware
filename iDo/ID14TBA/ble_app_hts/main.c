@@ -84,8 +84,8 @@
 #define APP_ADV_TIMEOUT_IN_SECONDS           0                                        /**< The advertising timeout in units of seconds. */
 
 #define APP_TIMER_PRESCALER                  0                                          /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_MAX_TIMERS                 9                                          /**< Maximum number of simultaneously created timers. */
-#define APP_TIMER_OP_QUEUE_SIZE              9                                          /**< Size of timer operation queues. */
+#define APP_TIMER_MAX_TIMERS                 10                                          /**< Maximum number of simultaneously created timers. */
+#define APP_TIMER_OP_QUEUE_SIZE              10                                          /**< Size of timer operation queues. */
 
 // Android parameter
 #define PERIPHERAL_AND_MIN_CONN_INTERVAL            MSEC_TO_UNITS(1000, UNIT_1_25_MS)   /* Minimum acceptable connection interval. */
@@ -98,8 +98,8 @@
 #define PERIPHERAL_IOS_SLAVE_LATENCY                1                                   /* Slave latency. */
 #define PERIPHERAL_IOS_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(6000, UNIT_10_MS)     /* Connection supervisory timeout. */
 // Parameter update
-#define PERIPHERAL_FIRST_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
-#define PERIPHERAL_NEXT_CONN_PARAMS_UPDATE_DELAY    APP_TIMER_TICKS(3000, APP_TIMER_PRESCALER)
+#define PERIPHERAL_FIRST_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(100, APP_TIMER_PRESCALER)
+#define PERIPHERAL_NEXT_CONN_PARAMS_UPDATE_DELAY    APP_TIMER_TICKS(100, APP_TIMER_PRESCALER)
 #define PERIPHERAL_MAX_CONN_PARAMS_UPDATE_COUNT     2
 
 #define BATTERY_LEVEL_MEAS_INTERVAL          		APP_TIMER_TICKS(480000, APP_TIMER_PRESCALER)	// 480 seconds
@@ -135,6 +135,9 @@ static dm_application_instance_t      		m_app_handle;
 uint8_t advertise_temp_flag = 0;
 int8_t rssi = 0;
 int8_t tx_power = 4;
+uint16_t error_cnt = 0;
+uint32_t last_error_code = 0;
+uint8_t *last_error_file_name = NULL;
 
 #ifdef DEBUG_STATS
 uint32_t ticks_max = 0;
@@ -172,11 +175,14 @@ void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p
     // ble_debug_assert_handler(error_code, line_num, p_file_name);
 
     // On assert, the system can only recover with a reset.
-#if SVCALL_AS_NORMAL_FUNCTION
-    for(;;);
-#else
-    NVIC_SystemReset();
-#endif
+//#if SVCALL_AS_NORMAL_FUNCTION
+//    for(;;);
+//#else
+//    NVIC_SystemReset();
+//#endif
+	error_cnt++;
+	last_error_code = error_code;
+	last_error_file_name = (uint8_t *)p_file_name;
 }
 
 /**@brief Callback function for asserts in the SoftDevice.
@@ -192,7 +198,8 @@ void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p
  */
 void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 {
-    app_error_handler(DEAD_BEEF, line_num, p_file_name);
+    //app_error_handler(DEAD_BEEF, line_num, p_file_name);
+	for(;;);
 }
 
 /**@brief Function for performing a battery measurement, and update the Battery Level characteristic in the Battery Service.
@@ -739,11 +746,6 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
         		temp_it_stop();
         		advertise_temp_flag = 0;
         	} else {
-        		tx_power = 4;
-        		if (sd_ble_gap_tx_power_set(tx_power) != NRF_SUCCESS) {
-        			APP_ERROR_CHECK(app_timer_start(m_txpower_timer_id, TX_POWER_INTERVAL, NULL));
-        		}
-
         		if (temp_advertise_temp() != 0) {
         			advertise_temp_flag = 1;
         		} else {
@@ -1040,9 +1042,10 @@ int main(void)
     recorder_init();
     ble_radio_notification_init(APP_IRQ_PRIORITY_LOW, 0, flash_radio_notification_evt_handler_t);
 
+    while (sd_ble_gap_tx_power_set(4) != NRF_SUCCESS);
+
     // Start execution.
     advertising_start();
-    while (sd_ble_gap_tx_power_set(4) != NRF_SUCCESS);
 
     // Enter main loop.
     for (;;)
