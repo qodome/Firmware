@@ -191,7 +191,7 @@ void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p
 	} else {
 		error_idx = (uint8_t)error_code;
 	}
-	error_info = (line_num & 0x0000FFFF) | ((uint32_t)p_file_name & 0xFFFF0000);
+	error_info = (line_num & 0x0000FFFF) | (((uint32_t)p_file_name & 0x0000FFFF) << 16);
 
 	persistent_record_error(error_idx, error_info);
 }
@@ -210,6 +210,7 @@ void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p
 void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 {
     //app_error_handler(DEAD_BEEF, line_num, p_file_name);
+	persistent_record_error(PERSISTENT_ERROR_DEADBEEF, (uint32_t)line_num);
 	for(;;);
 }
 

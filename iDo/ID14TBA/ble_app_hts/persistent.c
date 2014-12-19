@@ -99,8 +99,8 @@ void persistent_record_error(uint8_t error_idx, uint32_t error_info)
 		return;
 	}
 
+	prcd.error_log[error_idx].error_info[prcd.error_log[error_idx].count % PERSISTENT_ERROR_ENTRY] = error_info;
 	prcd.error_log[error_idx].count++;
-	prcd.error_log[error_idx].error_info[error_idx % PERSISTENT_ERROR_ENTRY] = error_info;
     HalFlashErase(pidx);
     HalFlashWrite((uint32_t *)((uint32_t)pidx * 1024), (uint8_t *)&prcd, sizeof(prcd));
 }

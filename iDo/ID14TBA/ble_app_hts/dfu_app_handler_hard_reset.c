@@ -15,6 +15,10 @@
 #include "nrf.h"
 #include "nrf_sdm.h"
 #include "app_error.h"
+#include "persistent.h"
+#include "flash_helper.h"
+#include <stdlib.h>
+#include <string.h>
 
 #define IRQ_ENABLED             0x01                                            /**< Field identifying if an interrupt is enabled. */
 #define MAX_NUMBER_INTERRUPTS   32                                              /**< Maximum number of interrupts available. */
@@ -53,14 +57,38 @@ static void interrupts_disable(void)
     }        
 }
 
-
 /**@brief Function for preparing the reset, disabling SoftDevice and jump to the bootloader.
  */
 static void bootloader_start(void)
 {
+	uint16_t loop_cnt = 0;
+	uint8_t boot_magic[8] = {'B', 'O', 'O', 'T', 'O', 'A', 'D', 0};
+	uint8_t test_read[8] = {0};
+	uint32_t err_code = 0;
+
+	// Signal bootloader
+	do {
+		err_code = sd_flash_page_erase((uint32_t)persistent_flash_page());
+		APP_ERROR_CHECK(sd_app_evt_wait());
+	} while (err_code == NRF_ERROR_BUSY);
+
+	do {
+		err_code = sd_flash_write((uint32_t *)((uint32_t)persistent_flash_page() * 1024), (uint32_t *)boot_magic, 2);
+	} while (err_code == NRF_ERROR_BUSY);
+
+    loop_cnt = 0;
+    do {
+    	APP_ERROR_CHECK(sd_app_evt_wait());
+    	HalFlashRead(persistent_flash_page(), 0, test_read, 8);
+    	if (memcmp(boot_magic, test_read, 8) == 0) {
+    		break;
+    	}
+    	loop_cnt++;
+    } while (loop_cnt < 100);
+
     m_reset_prepare();
 
-    uint32_t err_code = sd_power_gpregret_set(BOOTLOADER_DFU_START);
+    err_code = sd_power_gpregret_set(BOOTLOADER_DFU_START);
     APP_ERROR_CHECK(err_code);
     
     err_code = sd_softdevice_disable();
@@ -71,7 +99,10 @@ static void bootloader_start(void)
     err_code = sd_softdevice_vector_table_base_set(NRF_UICR->BOOTLOADERADDR);
     APP_ERROR_CHECK(err_code);
 
-    bootloader_util_app_start(NRF_UICR->BOOTLOADERADDR);
+    // Watchdog will knock us down
+    while (1);
+
+    //bootloader_util_app_start(NRF_UICR->BOOTLOADERADDR);
 }
 
 
