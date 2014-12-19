@@ -53,4 +53,7 @@ int16_t recorder_get_temperature(ble_date_time_t *tc_out, int8_t *p_rssi);
 void recorder_touch_wd_page(void);
 uint32_t recorder_get_wd_boot_count(void);
 
+uint8_t recorder_first_page(void);
+uint8_t recorder_last_page(void);
+
 #endif

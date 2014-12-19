@@ -17,6 +17,7 @@ uint32_t memdump_addr = 0;
 //static uint8 deleteService = 0;
 ble_memdump_t  m_memdump;
 uint8_t memdump_flag = 0;
+
 static void on_connect(ble_memdump_t * p_memdump, ble_evt_t * p_ble_evt)
 {
 	p_memdump->conn_handle = p_ble_evt->evt.gatts_evt.conn_handle;
@@ -66,6 +67,7 @@ static void on_rw_authorize_request(ble_memdump_t * p_memdump, ble_evt_t * p_ble
         for (idx = 0; idx < 16; idx++) {
         	mem_v.v[idx] = ((const uint8_t *)memdump_addr)[idx];
         }
+        memdump_addr += 16;
         memset((void *)p_auth_params, 0, sizeof(auth_params));
         auth_params.type =  BLE_GATTS_AUTHORIZE_TYPE_READ;
         auth_params.params.read.p_data = (uint8_t *)&mem_v;

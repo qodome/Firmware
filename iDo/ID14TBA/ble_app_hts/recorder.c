@@ -49,11 +49,21 @@ static uint8_t __recorder_get_next_page(uint8_t pg_idx)
 	uint8_t idx_end;
 
 	idx_end = (uint8_t)((PSTORAGE_DATA_START_ADDR / PSTORAGE_FLASH_PAGE_SIZE) & 0xFF);
-    if (pg_idx == (uint8_t)idx_end) {
+    if (pg_idx >= (idx_end - 1)) {
         return __recorder_get_first_page();
     }
 
     return (pg_idx + 1);
+}
+
+uint8_t recorder_first_page(void)
+{
+	return __recorder_get_first_page();
+}
+
+uint8_t recorder_last_page(void)
+{
+	return (uint8_t)((PSTORAGE_DATA_START_ADDR / PSTORAGE_FLASH_PAGE_SIZE) & 0xFF) - 1;
 }
 
 static int8_t __recorder_get_record_buf(uint8_t page_idx, uint8_t record_entry_idx, int8_t data_entry_idx, uint8_t *buf_out)

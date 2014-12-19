@@ -9,6 +9,7 @@ iMo/IM14BEA/PIC16F1788/ecg_buffer_mgr.X/debug/*
 iMo/IM14BEA/PIC16F1788/ecg_buffer_mgr.X/dist/*
 iMo/IM14BEA/PIC16F1788/ecg_buffer_mgr.X/funclist
 iMo/IM14BEA/PIC16F1788/ecg_buffer_mgr.X/l.obj
+
 iMo/IM14BEA/nRF51822/ble_app_ecg/gcc/_build/*
 iMo/IM14BEA/nRF51822/ble_app_ecg/gcc/Makefile.custom
 iMo/IM14BEA/nRF51822/bootloader/gcc/_build/*
@@ -31,5 +32,10 @@ iDo/ID14TBA/ble_app_hts/gcc/_build/*
 iDo/ID14TBA/ble_app_hts/gcc/Makefile.custom
 iDo/ID14TBA/bootloader/gcc/_build/*
 iDo/ID14TBA/bootloader/gcc/Makefile.custom
+iMo/IM14BEA_dialog/With_PIC/da14580.X/build/*
+iMo/IM14BEA_dialog/With_PIC/da14580.X/debug/*
+iMo/IM14BEA_dialog/With_PIC/da14580.X/dist/*
+iMo/IM14BEA_dialog/With_PIC/da14580.X/funclist
+iMo/IM14BEA_dialog/With_PIC/da14580.X/l.obj
 .gitignore.bak
 *.bak

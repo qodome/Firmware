@@ -85,7 +85,7 @@
 
 #define APP_TIMER_PRESCALER                  0                                          /**< Value of the RTC1 PRESCALER register. */
 #define APP_TIMER_MAX_TIMERS                 10                                          /**< Maximum number of simultaneously created timers. */
-#define APP_TIMER_OP_QUEUE_SIZE              10                                          /**< Size of timer operation queues. */
+#define APP_TIMER_OP_QUEUE_SIZE              8                                          /**< Size of timer operation queues. */
 
 // Android parameter
 #define PERIPHERAL_AND_MIN_CONN_INTERVAL            MSEC_TO_UNITS(1000, UNIT_1_25_MS)   /* Minimum acceptable connection interval. */
@@ -164,6 +164,8 @@ uint32_t notification_counts = 0;
  */
 void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p_file_name)
 {
+	uint8_t error_idx = 0;
+	uint32_t error_info = 0;
 
     // This call can be used for debug purposes during application development.
     // @note CAUTION: Activating this code will write the stack to flash on an error.
@@ -183,6 +185,15 @@ void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p
 	error_cnt++;
 	last_error_code = error_code;
 	last_error_file_name = (uint8_t *)p_file_name;
+
+	if ((uint8_t)error_code >= PERSISTENT_ERROR_SYS_MAX) {
+		error_idx = PERSISTENT_ERROR_SYS_MAX;
+	} else {
+		error_idx = (uint8_t)error_code;
+	}
+	error_info = (line_num & 0x0000FFFF) | ((uint32_t)p_file_name & 0xFFFF0000);
+
+	persistent_record_error(error_idx, error_info);
 }
 
 /**@brief Callback function for asserts in the SoftDevice.
@@ -1013,6 +1024,11 @@ static void wdt_init(void)
 	NRF_WDT->TASKS_START = 1;
 }
 
+void protect_flash(void)
+{
+	APP_ERROR_CHECK(sd_flash_protect(0, 0xFF800000));
+}
+
 /**@brief Function for application main entry.
  */
 int main(void)
@@ -1022,6 +1038,9 @@ int main(void)
 	static uint32_t  ticks_now = 0;
 	static uint32_t  ticks_diff = 0;
 #endif
+	// Protect bootloader/boot_settings/code
+	protect_flash();
+
     // Initialize.
 	wdt_init();
 	persistent_init();

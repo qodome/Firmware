@@ -15,6 +15,7 @@ C_SOURCE_FILES += ble_advdata.c
 C_SOURCE_FILES += ble_conn_params_s130.c
 C_SOURCE_FILES += ble_db_discovery_s130.c
 C_SOURCE_FILES += ble_hts_c.c
+C_SOURCE_FILES += nrf_pwm.c
 
 OUTPUT_FILENAME := s130_demo_app
 

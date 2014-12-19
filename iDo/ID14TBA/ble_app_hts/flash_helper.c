@@ -8,6 +8,8 @@
 #include "nrf_soc.h"
 #include "app_error.h"
 #include "battery.h"
+#include "persistent.h"
+#include "recorder.h"
 
 #define CMD_CONCURRENT_MAX  2
 
@@ -32,6 +34,11 @@ void HalFlashRead(uint8_t page_idx, uint16_t offset, uint8_t *buf, uint16_t len)
 
 void HalFlashErase(uint8_t page_idx)
 {
+	if ((page_idx != persistent_flash_page()) &&
+			(page_idx < recorder_first_page() || page_idx > recorder_last_page())) {
+		persistent_record_error(PERSISTENT_ERROR_FLASH_ERASE, (uint32_t)page_idx);
+		return;
+	}
     if (flash_erase_cnt >= CMD_CONCURRENT_MAX) {
         APP_ERROR_CHECK(NRF_ERROR_INTERNAL);
         return;
@@ -44,6 +51,11 @@ void HalFlashErase(uint8_t page_idx)
 
 void HalFlashWrite(uint32_t *addr, uint8_t *buf, uint16_t len)
 {
+	if (((uint8_t)((uint32_t)addr / 1024) != persistent_flash_page()) &&
+			((uint8_t)((uint32_t)addr / 1024) < recorder_first_page() || (uint8_t)((uint32_t)addr / 1024) > recorder_last_page())) {
+		persistent_record_error(PERSISTENT_ERROR_FLASH_WRITE, (uint32_t)addr);
+		return;
+	}
     if (flash_write_cnt >= CMD_CONCURRENT_MAX) {
         APP_ERROR_CHECK(NRF_ERROR_INTERNAL);
         return;
@@ -59,8 +71,7 @@ void HalFlashWrite(uint32_t *addr, uint8_t *buf, uint16_t len)
         memcpy((uint8_t *)flash_s_buffer, buf, len);
         flash_page_write_buf[flash_write_cnt] = flash_s_buffer;
     } else {
-        APP_ERROR_CHECK(NRF_ERROR_INTERNAL);
-        return;
+    	flash_page_write_buf[flash_write_cnt] = (uint32_t *)buf;
     }
 
     flash_page_write_len[flash_write_cnt] = len;

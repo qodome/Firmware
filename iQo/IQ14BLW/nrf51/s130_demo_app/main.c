@@ -29,6 +29,7 @@
 #include "ble_conn_params.h"
 #include "ble_db_discovery.h"
 #include "ble_hts_c.h"
+#include "nrf_pwm.h"
 
 /* Addresses of peer peripherals that are expeted to run Heart Rate Service. */
 #define NUMBER_OF_PERIPHERALS                   3
@@ -1362,7 +1363,7 @@ static void ble_stack_init(void)
     LOG_DEBUG("%s: Enabling SoftDevice...", __FUNCTION__);
 
     // Initialize the SoftDevice handler module.
-    SOFTDEVICE_HANDLER_INIT(NRF_CLOCK_LFCLKSRC_XTAL_75_PPM, false);
+    SOFTDEVICE_HANDLER_INIT(NRF_CLOCK_LFCLKSRC_XTAL_20_PPM, false);
 
     // Register with the SoftDevice handler module for BLE events.
     err_code = softdevice_ble_evt_handler_set(ble_evt_dispatch);
@@ -1545,6 +1546,11 @@ int main(void)
 
     advertising_start();
     scan_start(); 
+
+    nrf_pwm_init(8, 9, 10, PWM_MODE_LED_255);
+    nrf_pwm_set_value(0, 255);
+    nrf_pwm_set_value(1, 0);
+    nrf_pwm_set_value(2, 0);
 
     //do_work();
     for (;;) {
