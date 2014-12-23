@@ -76,7 +76,8 @@ interrupt void isr(void)
             SSPBUF = adc_buf_read_ptr[adc_buf_ridx++];
         } else {
             switch_to_slow();
-            RC6 = 0;
+            RC4 = 0;
+            RA0 = 0;
         }
     }
 }
@@ -122,8 +123,8 @@ int main(int argc, char** argv)
     ANSC5 = 0;              // MCU_MISO - RC5 digital
     
     SDOSEL = 0;             // SDO RC5
-    SDISEL = 1;             // SDI RB
-    SCKSEL = 1;             // SCK RB
+    SDISEL = 1;             // SDI RB6
+    SCKSEL = 1;             // SCK RB7
     APFCON2bits.SSSEL = 0;  // SS RA5
 
     // SPI pin direction
@@ -133,9 +134,14 @@ int main(int argc, char** argv)
     TRISC5 = 0;
 
     // INT GPIO direction
-    ANSC6 = 0;
-    TRISC6 = 0;             // RC6 output
-    RC6 = 0;
+    // BULK_RDY configured on RC4
+    ANSC4 = 0;
+    TRISC4 = 0;             // RC4 output
+    RC4 = 0;
+    // RA0 for debug
+    ANSA0 = 0;
+    TRISA0 = 0;
+    RA0 = 0;
 
     // User clear error indication bits for SPI
     WCOL = 0;
@@ -219,13 +225,15 @@ int main(int argc, char** argv)
             switch_to_fast();
 
             // Interrupt BLE
-            RC6 = 1;
+            RC4 = 1;
+            RA0 = 1;
 
             adc_buf_widx = 0;
             adc_buf_wptr = (adc_buf_wptr + 1) % 2;
         }
         if (adc_buf_widx == 250) {
-            RC6 = 0;
+            RC4 = 0;
+            RA0 = 0;
         }
     }
     return (EXIT_SUCCESS);
