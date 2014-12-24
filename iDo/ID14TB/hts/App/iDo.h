@@ -54,12 +54,35 @@ extern "C"
 #define IDO_START_DEVICE_EVT                              0x0001
 #define IDO_DO_SAMPLE_TEMP_EVT                            0x0002
 #define IDO_READ_SAMPLE_TEMP_EVT                          0x0004
-#define IDO_ENABLE_BATT_SERVICE                           0x0008
+#define IDO_CHECK_VDD_VOLTAGE                             0x0008
 #define IDO_ADVERTISE_EVT                                 0x0010
 #define IDO_MEASUREMENT_INDICATION                        0x0020
 #define IDO_SHUTDOWN_ADT7320                              0x0040
 #define IDO_MONITOR_ADT7320                               0x0080
 
+// What is the advertising interval when device is discoverable (units of 625us, 160=100ms)
+#define DEFAULT_ADVERTISING_INTERVAL          2056
+    
+// Minimum connection interval (units of 1.25ms, 80=100ms) if automatic parameter update request is enabled
+#define IOS_DEFAULT_DESIRED_MIN_CONN_INTERVAL           400
+#define ANDROID_DEFAULT_DESIRED_MIN_CONN_INTERVAL       800
+#define FAST_READ_DESIRED_MIN_CONN_INTERVAL             8
+
+// Maximum connection interval (units of 1.25ms, 800=1000ms) if automatic parameter update request is enabled
+#define IOS_DEFAULT_DESIRED_MAX_CONN_INTERVAL           800
+#define ANDROID_DEFAULT_DESIRED_MAX_CONN_INTERVAL       1200
+#define FAST_READ_DESIRED_MAX_CONN_INTERVAL             30
+
+// Slave latency to use if automatic parameter update request is enabled
+#define IOS_DEFAULT_DESIRED_SLAVE_LATENCY               1
+#define ANDROID_DEFAULT_DESIRED_SLAVE_LATENCY           1
+#define FAST_READ_DESIRED_SLAVE_LATENCY                 0
+
+// Supervision timeout value (units of 10ms, 1000=10s) if automatic parameter update request is enabled
+#define IOS_DEFAULT_DESIRED_CONN_TIMEOUT                600
+#define ANDROID_DEFAULT_DESIRED_CONN_TIMEOUT            800
+#define FAST_READ_DESIRED_CONN_TIMEOUT                  500
+    
 /*********************************************************************
  * MACROS
  */

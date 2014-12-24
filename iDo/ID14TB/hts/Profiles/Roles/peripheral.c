@@ -895,6 +895,9 @@ static void gapRole_ProcessOSALMsg( osal_event_hdr_t *pMsg )
   }
 }
 
+// External declaration
+extern int iDo_ContinueUpdateConnParameter();
+
 /*********************************************************************
  * @fn      gapRole_ProcessGAPMsg
  *
@@ -1159,6 +1162,13 @@ static void gapRole_ProcessGAPMsg( gapEventHdr_t *pMsg )
               (*pGapRoles_ParamUpdateCB)( gapRole_ConnInterval, 
                                           gapRole_ConnSlaveLatency, 
                                           gapRole_ConnTimeout );
+               
+              // Give app one chance to change update parameter
+              if (iDo_ContinueUpdateConnParameter() == 0) {
+                GAPRole_SendUpdateParam( gapRole_MinConnInterval, gapRole_MaxConnInterval,
+                                         gapRole_SlaveLatency, gapRole_TimeoutMultiplier,
+                                         GAPROLE_NO_ACTION );        
+              }
             }
           }
         }
@@ -1197,9 +1207,6 @@ static void gapRole_SetupGAP( void )
           &gapRole_signCounter );
 }
 
-// External declaration
-extern int iDo_ChangeConnParameter();
-
 /*********************************************************************
  * @fn      gapRole_HandleParamUpdateNoSuccess
  *
@@ -1225,12 +1232,6 @@ static void gapRole_HandleParamUpdateNoSuccess( void )
       break;
 
     case GAPROLE_NO_ACTION:
-      // Give app one chance to change update parameter
-      if (iDo_ChangeConnParameter() == 0) {
-        GAPRole_SendUpdateParam( gapRole_MinConnInterval, gapRole_MaxConnInterval,
-                               gapRole_SlaveLatency, gapRole_TimeoutMultiplier,
-                               GAPROLE_NO_ACTION );        
-      }
       break;
       
     default:

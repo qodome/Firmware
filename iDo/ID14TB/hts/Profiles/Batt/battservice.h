@@ -196,6 +196,13 @@ void Batt_HandleConnStatusCB( uint16 connHandle, uint8 changeType );
  */
 void battMeasureBeforeSleep(void);
 
+/*
+ * Get the battery measure result,
+ * plevel: ptr to voltage measurement
+ * ret: batteryLevelKnown
+ */
+uint8 battGetMeasure(uint16 *plevel);
+
 /*********************************************************************
 *********************************************************************/
 

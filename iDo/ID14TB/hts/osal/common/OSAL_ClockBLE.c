@@ -90,6 +90,7 @@ static uint16 timeMSec = 0;
 // number of seconds since 0 hrs, 0 minutes, 0 seconds, on the
 // 1st of January 2014 UTC
 UTCTime OSAL_timeSeconds = 0;
+UTCTime relative_sec = 0;
 static uint8 osalTimeInitialized = 0;
 
 /*********************************************************************
@@ -179,6 +180,7 @@ static void osalClockUpdate( uint16 elapsedMSec )
   if ( timeMSec >= 1000 )
   {
     OSAL_timeSeconds += timeMSec / 1000;
+    relative_sec += timeMSec / 1000;
     timeMSec = timeMSec % 1000;
   }
 }
@@ -220,6 +222,11 @@ void osal_setClock( UTCTime newTime )
 UTCTime osal_getClock( void )
 {
   return ( OSAL_timeSeconds );
+}
+
+UTCTime osal_getRelativeClock(void)
+{
+    return relative_sec;
 }
 
 /*********************************************************************

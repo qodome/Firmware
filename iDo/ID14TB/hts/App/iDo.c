@@ -87,6 +87,7 @@ contact Texas Instruments Incorporated at www.TI.com.
 #include "OSAL_Clock.h"
 #include "customize.h"
 #include "currenttime.h"
+#include "pwrmgmt.h"
 
 /*********************************************************************
 * MACROS
@@ -99,27 +100,8 @@ contact Texas Instruments Incorporated at www.TI.com.
 #define TEMP_SAMPLE_PERIOD_SLOW     10000
 #define TEMP_WAIT_SAMPLE        100
 
-// What is the advertising interval when device is discoverable (units of 625us, 160=100ms)
-#define DEFAULT_ADVERTISING_INTERVAL          2056
-
 // General discoverable mode advertises indefinitely
 #define DEFAULT_DISCOVERABLE_MODE             GAP_ADTYPE_FLAGS_GENERAL
-
-// Minimum connection interval (units of 1.25ms, 80=100ms) if automatic parameter update request is enabled
-#define IOS_DEFAULT_DESIRED_MIN_CONN_INTERVAL           400
-#define ANDROID_DEFAULT_DESIRED_MIN_CONN_INTERVAL       800
-
-// Maximum connection interval (units of 1.25ms, 800=1000ms) if automatic parameter update request is enabled
-#define IOS_DEFAULT_DESIRED_MAX_CONN_INTERVAL           800
-#define ANDROID_DEFAULT_DESIRED_MAX_CONN_INTERVAL       1200
-
-// Slave latency to use if automatic parameter update request is enabled
-#define IOS_DEFAULT_DESIRED_SLAVE_LATENCY               1
-#define ANDROID_DEFAULT_DESIRED_SLAVE_LATENCY           1
-
-// Supervision timeout value (units of 10ms, 1000=10s) if automatic parameter update request is enabled
-#define IOS_DEFAULT_DESIRED_CONN_TIMEOUT                600
-#define ANDROID_DEFAULT_DESIRED_CONN_TIMEOUT            800
 
 // Whether to enable automatic parameter update request when a connection is formed
 #define DEFAULT_ENABLE_UPDATE_REQUEST         TRUE
@@ -159,7 +141,7 @@ contact Texas Instruments Incorporated at www.TI.com.
 * LOCAL VARIABLES
 */
 static uint8 iDo_TaskID;   // Task ID for internal task/event processing
-static uint8 iDo_CurrentConnParam = 0;          // 0 for android, 1 for ios
+static uint8 iDo_CurrentConnParam = 0;          // 0 for iOS, 1 for Android
 
 static gaprole_States_t gapProfileState = GAPROLE_INIT;
 static uint16 gapConnHandle;
@@ -171,7 +153,6 @@ static uint32 staleCount = 0;
 static uint8 lastConnAddr[B_ADDR_LEN] = {0xf,0xf,0xf,0xf,0xf,0xe};
 static struct cmd_buffer *lastReadBuffer = NULL;
 static uint8 adtMonitorCnt = 0;
-static uint8 taskInitDone = 0;
 
 #ifdef DEBUG_STATS
 static uint32 adv_begin_stats_tick = 0;
@@ -284,12 +265,47 @@ static ggsAppCBs_t iDo_GGSCB =
 */
 void iDo_UpdateFastParameter()
 {
-    GAPRole_SendUpdateParam(8,
-                            30,
-                            0,
-                            500,
+    GAPRole_SendUpdateParam(FAST_READ_DESIRED_MIN_CONN_INTERVAL,
+                            FAST_READ_DESIRED_MAX_CONN_INTERVAL,
+                            FAST_READ_DESIRED_SLAVE_LATENCY,
+                            FAST_READ_DESIRED_CONN_TIMEOUT,
                             GAPROLE_NO_ACTION);
+    
+    pwrmgmt_event(SPEED_HIGH);
 }
+
+/*
+ * Return 0 to continue update
+ */
+int iDo_ContinueUpdateConnParameter()
+{
+    if (iDo_CurrentConnParam == 0) {
+        iDo_CurrentConnParam = 1;
+        return 0;
+    } else {
+        return 1;
+    }
+}
+
+void iDo_ParamUpdateCB(uint16 connInterval,
+                       uint16 connSlaveLatency,
+                       uint16 connTimeout)
+{
+    uint16 desired_min_interval = ANDROID_DEFAULT_DESIRED_MIN_CONN_INTERVAL;
+    uint16 desired_max_interval = ANDROID_DEFAULT_DESIRED_MAX_CONN_INTERVAL;
+    uint16 desired_slave_latency = ANDROID_DEFAULT_DESIRED_SLAVE_LATENCY;
+    uint16 desired_conn_timeout = ANDROID_DEFAULT_DESIRED_CONN_TIMEOUT;
+    
+    if (iDo_CurrentConnParam == 0) {
+        GAPRole_SetParameter( GAPROLE_MIN_CONN_INTERVAL, sizeof( uint16 ), &desired_min_interval );
+        GAPRole_SetParameter( GAPROLE_MAX_CONN_INTERVAL, sizeof( uint16 ), &desired_max_interval );
+        GAPRole_SetParameter( GAPROLE_SLAVE_LATENCY, sizeof( uint16 ), &desired_slave_latency );
+        GAPRole_SetParameter( GAPROLE_TIMEOUT_MULTIPLIER, sizeof( uint16 ), &desired_conn_timeout );
+    }
+    pwrmgmt_set_conn_param(connInterval, connSlaveLatency);
+}
+
+gapRolesParamUpdateCB_t func_param = iDo_ParamUpdateCB;
 
 /*********************************************************************
 * @fn      iDo_Init
@@ -315,7 +331,7 @@ void iDo_Init( uint8 task_id )
     
     // Setup the GAP
     VOID GAP_SetParamValue( TGAP_CONN_PAUSE_PERIPHERAL, DEFAULT_CONN_PAUSE_PERIPHERAL );
-    VOID GAP_SetParamValue( TGAP_CONN_PARAM_TIMEOUT, 2000);
+    VOID GAP_SetParamValue( TGAP_CONN_PARAM_TIMEOUT, 3000);
     
     // Setup the GAP Peripheral Role Profile
     {
@@ -325,12 +341,14 @@ void iDo_Init( uint8 task_id )
         // By setting this to zero, the device will go into the waiting state after
         // being discoverable for 30.72 second, and will not being advertising again
         // until the enabler is set back to TRUE
+        
+        // First apply iOS settings, this should be success; then try apply Android settings
         uint16 gapRole_AdvertOffTime = 0;
         uint8 enable_update_request = DEFAULT_ENABLE_UPDATE_REQUEST;
-        uint16 desired_min_interval = ANDROID_DEFAULT_DESIRED_MIN_CONN_INTERVAL;
-        uint16 desired_max_interval = ANDROID_DEFAULT_DESIRED_MAX_CONN_INTERVAL;
-        uint16 desired_slave_latency = ANDROID_DEFAULT_DESIRED_SLAVE_LATENCY;
-        uint16 desired_conn_timeout = ANDROID_DEFAULT_DESIRED_CONN_TIMEOUT;
+        uint16 desired_min_interval = IOS_DEFAULT_DESIRED_MIN_CONN_INTERVAL;
+        uint16 desired_max_interval = IOS_DEFAULT_DESIRED_MAX_CONN_INTERVAL;
+        uint16 desired_slave_latency = IOS_DEFAULT_DESIRED_SLAVE_LATENCY;
+        uint16 desired_conn_timeout = IOS_DEFAULT_DESIRED_CONN_TIMEOUT;
         
         // Set the GAP Role Parameters
         GAPRole_SetParameter( GAPROLE_ADVERT_ENABLED, sizeof( uint8 ), &initial_advertising_enable );
@@ -388,6 +406,7 @@ void iDo_Init( uint8 task_id )
     Temp_AddService(GATT_ALL_SERVICES);
     DevInfo_AddService();
     CurrentTime_AddService(GATT_ALL_SERVICES);
+    Batt_AddService();
 
 #if defined FEATURE_OAD
     VOID OADTarget_AddService();                    // OAD Profile
@@ -413,6 +432,7 @@ void iDo_Init( uint8 task_id )
     Temp_Init();
 #ifdef DEBUG_STATS
     Stats_Init();
+    MemDump_AddService();
 #endif
     temp_state_init();
     CBInit();
@@ -440,17 +460,17 @@ void iDo_Init( uint8 task_id )
     WDCTL = BV(3);
     WD_KICK();
     
-        // Initialize custom name
+    // Initialize custom name
     custom_init();
-    
-    taskInitDone = 1;
-}
 
-void iDo_EnableBattService(void)
-{
-    if (taskInitDone == 1) {
-        osal_set_event(iDo_TaskID, IDO_ENABLE_BATT_SERVICE);
-    }
+    // Initialize power management module
+    pwrmgmt_init();
+    
+    HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_MINUS_23_DBM);
+    pwrmgmt_event(TX_LOW);
+    
+    HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_STD);
+    pwrmgmt_event(RX_LOW);
 }
 
 /*********************************************************************
@@ -489,13 +509,16 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
     if ( events & IDO_START_DEVICE_EVT )
     {            
         // Start the Device
-        VOID GAPRole_StartDevice( &iDo_PeripheralCBs );
+        VOID GAPRole_StartDevice(&iDo_PeripheralCBs);
         
         // Start Bond Manager
-        VOID GAPBondMgr_Register( &iDo_BondMgrCBs );
+        VOID GAPBondMgr_Register(&iDo_BondMgrCBs);
         
         // Register GGS device name chage callback
         VOID GGS_RegisterAppCBs(&iDo_GGSCB);
+        
+        // Connection parameter update callback
+        VOID GAPRole_RegisterAppCBs(&func_param);
         
         return ( events ^ IDO_START_DEVICE_EVT );
     }
@@ -513,7 +536,8 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
     
     if (events & IDO_READ_SAMPLE_TEMP_EVT) {
         tempReadCallback();
-        osal_start_timerEx(iDo_TaskID, IDO_DO_SAMPLE_TEMP_EVT, tempSampleSleepPeriod);   
+        osal_start_timerEx(iDo_TaskID, IDO_DO_SAMPLE_TEMP_EVT, tempSampleSleepPeriod);
+        pwrmgmt_event(MEASURE_TEMP);   
         return (events ^ IDO_READ_SAMPLE_TEMP_EVT);
     }    
     
@@ -561,14 +585,8 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
         return (events ^ IDO_MONITOR_ADT7320);
     }
     
-    if (events & IDO_ENABLE_BATT_SERVICE) {
-        Batt_AddService();
-        osal_stop_timerEx(iDo_TaskID, IDO_ENABLE_BATT_SERVICE);
-        return (events ^ IDO_ENABLE_BATT_SERVICE);
-    }
-    
     if (events & IDO_ADVERTISE_EVT) {
-        int16 t16 = temp_state_get_last_filtered_temp();
+        int16 t16 = lastTemp;
         int32 t32 = 0;
         int32 sign = -4;
         int32 *p32 = (int32 *)&(advertDataWithTemp[15]);
@@ -585,8 +603,23 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
         return (events ^ IDO_ADVERTISE_EVT);
     }
     
+    if (events & IDO_CHECK_VDD_VOLTAGE) {
+        pwrmgmt_checkvdd_callback();
+        return (events ^ IDO_CHECK_VDD_VOLTAGE);
+    }
+    
     // Discard unknown events
     return 0;
+}
+
+void iDo_ScheduleCheckVDD(uint16 delay)
+{
+    osal_start_timerEx(iDo_TaskID, IDO_CHECK_VDD_VOLTAGE, delay);
+}
+
+void iDo_StopVDDCheck(void)
+{
+    osal_stop_timerEx(iDo_TaskID, IDO_CHECK_VDD_VOLTAGE);
 }
 
 /*********************************************************************
@@ -632,32 +665,6 @@ static void iDo_ProcessOSALMsg(osal_event_hdr_t *pMsg)
     }
 }
 
-int iDo_ChangeConnParameter()
-{
-    uint16 desired_min_interval = IOS_DEFAULT_DESIRED_MIN_CONN_INTERVAL;
-    uint16 desired_max_interval = IOS_DEFAULT_DESIRED_MAX_CONN_INTERVAL;
-    uint16 desired_slave_latency = IOS_DEFAULT_DESIRED_SLAVE_LATENCY;
-    uint16 desired_conn_timeout = IOS_DEFAULT_DESIRED_CONN_TIMEOUT;
-    
-    if (iDo_CurrentConnParam == 0) {
-        GAPRole_SetParameter( GAPROLE_MIN_CONN_INTERVAL, sizeof( uint16 ), &desired_min_interval );
-        GAPRole_SetParameter( GAPROLE_MAX_CONN_INTERVAL, sizeof( uint16 ), &desired_max_interval );
-        GAPRole_SetParameter( GAPROLE_SLAVE_LATENCY, sizeof( uint16 ), &desired_slave_latency );
-        GAPRole_SetParameter( GAPROLE_TIMEOUT_MULTIPLIER, sizeof( uint16 ), &desired_conn_timeout );
-        iDo_CurrentConnParam = 1;
-        
-#ifdef DEBUG_STATS
-        conn_parameter_type = 1;
-#endif        
-        return 0;
-    } else {
-#ifdef DEBUG_STATS
-        conn_parameter_type = 0;
-#endif
-        return 1;
-    }
-}
-
 /*********************************************************************
 * @fn      peripheralStateNotificationCB
 *
@@ -670,10 +677,10 @@ int iDo_ChangeConnParameter()
 static void peripheralStateNotificationCB( gaprole_States_t newState )
 {
     linkDBItem_t  *pItem;    
-    uint16 desired_min_interval = ANDROID_DEFAULT_DESIRED_MIN_CONN_INTERVAL;
-    uint16 desired_max_interval = ANDROID_DEFAULT_DESIRED_MAX_CONN_INTERVAL;
-    uint16 desired_slave_latency = ANDROID_DEFAULT_DESIRED_SLAVE_LATENCY;
-    uint16 desired_conn_timeout = ANDROID_DEFAULT_DESIRED_CONN_TIMEOUT;
+    uint16 desired_min_interval = IOS_DEFAULT_DESIRED_MIN_CONN_INTERVAL;
+    uint16 desired_max_interval = IOS_DEFAULT_DESIRED_MAX_CONN_INTERVAL;
+    uint16 desired_slave_latency = IOS_DEFAULT_DESIRED_SLAVE_LATENCY;
+    uint16 desired_conn_timeout = IOS_DEFAULT_DESIRED_CONN_TIMEOUT;
 #ifdef DEBUG_STATS
     uint32 connected_sec = 0;
 #endif
@@ -687,6 +694,11 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
 	    break;
         
     case GAPROLE_CONNECTED:
+        pwrmgmt_event(CONNECT);
+        
+        HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_0_DBM);
+        pwrmgmt_event(TX_HIGH);
+        
         // Stop advertise timer, set default advertise data
         osal_stop_timerEx(iDo_TaskID, IDO_ADVERTISE_EVT);
         GAPRole_SetParameter(GAPROLE_ADVERT_DATA, sizeof(advertData), advertData);
@@ -719,7 +731,12 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         break;
         
     case GAPROLE_WAITING:
-        // Link terminated intentionally: disable temperature sensor
+        pwrmgmt_event(DISCONNECT);
+        
+        // Link terminated intentionally: disable temperature sensor, lower tx power
+        HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_MINUS_23_DBM);
+        pwrmgmt_event(TX_LOW);
+        
 #ifndef DEBUG_STATS
         iDo_turn_off_measurement_indication();
         iDoTurnOffTemp();
@@ -743,6 +760,11 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         break;
         
     case GAPROLE_WAITING_AFTER_TIMEOUT:
+        pwrmgmt_event(DISCONNECT);
+        
+        HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_0_DBM);
+        pwrmgmt_event(TX_HIGH);
+        
         // We will send temperature data over advertise scan rsp
         if (tempIntermediateSwitch != 0 || tempMeasurementSwitch != 0) {
             osal_set_event(iDo_TaskID, IDO_ADVERTISE_EVT);
