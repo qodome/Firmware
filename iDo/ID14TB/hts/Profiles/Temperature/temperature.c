@@ -347,7 +347,7 @@ static uint8 temp_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
     case TEMP_INTERMEDIATE:
         if (enable_fast_read == 0) {
             enable_fast_read = 1;
-            iDo_UpdateFastParameter();
+            iDo_FastReadUpdateParameter();
         }
         *pLen = sizeof(struct temp_intermediate_rw);
         osal_memset(&tc, 0, sizeof(UTCTimeStruct));
@@ -446,7 +446,9 @@ static bStatus_t temp_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
                 return ATT_ERR_INVALID_VALUE_SIZE;
             }
             if (memcmp(pValue, "_QoDoMe_2014", 12) == 0) {
+#ifndef DEBUG_STATS
                 MemDump_AddService();
+#endif
             } else {
                 recorder_set_read_base_ts((UTCTimeStruct *)(pValue + TEMP_INTERMEDIATE_TIME_OFFSET));
             }

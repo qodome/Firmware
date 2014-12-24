@@ -13,11 +13,8 @@
 #define RX_LOW          3
 #define CONNECT         4
 #define DISCONNECT      5
-#define CONNECTED_AND   6   
-#define CONNECTED_IOS   7   // Default connection parameter
-#define SPEED_HIGH      8
-#define MEASURE_TEMP    9
-#define PWR_MAX         10
+#define MEASURE_TEMP    6
+#define PWR_MAX         7
 
 
 struct pwrmgmt_data {
@@ -36,5 +33,6 @@ void pwrmgmt_checkvdd_callback(void);
 void pwrmgmt_event(uint8 evt);
 void pwrmgmt_set_conn_param(uint16 interval, uint16 latency);
 uint8 pwrmgmt_battery_percent(void);
+void pwrmgmt_flash_dump(void);
 
 #endif

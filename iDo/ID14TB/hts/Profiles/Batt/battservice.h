@@ -203,6 +203,11 @@ void battMeasureBeforeSleep(void);
  */
 uint8 battGetMeasure(uint16 *plevel);
 
+/*
+ * Guess the battery capacity based on voltage
+ */
+uint8 battGuessCapacity(uint16 battV);
+
 /*********************************************************************
 *********************************************************************/
 

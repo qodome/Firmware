@@ -190,7 +190,6 @@ static bStatus_t battWriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
                                  uint8 *pValue, uint8 len, uint16 offset );
 static void battNotifyCB( linkDBItem_t *pLinkItem );
 static void battNotifyLevel( void );
-static uint8 battGuessCapacity(uint16 battV);
 static uint16 _battMeasure( void );
 
 /*********************************************************************
@@ -548,7 +547,7 @@ static uint16 _battMeasure( void )
     return adc;
 }
 
-static uint8 battGuessCapacity(uint16 battV)
+uint8 battGuessCapacity(uint16 battV)
 {
     if (battV >= BATT_ADC_LEVEL_100P) {
         return 100;

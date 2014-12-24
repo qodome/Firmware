@@ -66,22 +66,26 @@ extern "C"
 // Minimum connection interval (units of 1.25ms, 80=100ms) if automatic parameter update request is enabled
 #define IOS_DEFAULT_DESIRED_MIN_CONN_INTERVAL           400
 #define ANDROID_DEFAULT_DESIRED_MIN_CONN_INTERVAL       800
-#define FAST_READ_DESIRED_MIN_CONN_INTERVAL             8
+#define FIRMWARE_UPDATE_DESIRED_MIN_CONN_INTERVAL       8
+#define FAST_READ_DESIRED_MIN_CONN_INTERVAL             80
 
 // Maximum connection interval (units of 1.25ms, 800=1000ms) if automatic parameter update request is enabled
 #define IOS_DEFAULT_DESIRED_MAX_CONN_INTERVAL           800
 #define ANDROID_DEFAULT_DESIRED_MAX_CONN_INTERVAL       1200
-#define FAST_READ_DESIRED_MAX_CONN_INTERVAL             30
+#define FIRMWARE_UPDATE_DESIRED_MAX_CONN_INTERVAL       30
+#define FAST_READ_DESIRED_MAX_CONN_INTERVAL             100
 
 // Slave latency to use if automatic parameter update request is enabled
 #define IOS_DEFAULT_DESIRED_SLAVE_LATENCY               1
 #define ANDROID_DEFAULT_DESIRED_SLAVE_LATENCY           1
-#define FAST_READ_DESIRED_SLAVE_LATENCY                 0
+#define FIRMWARE_UPDATE_DESIRED_SLAVE_LATENCY           0
+#define FAST_READ_DESIRED_SLAVE_LATENCY                 1
 
 // Supervision timeout value (units of 10ms, 1000=10s) if automatic parameter update request is enabled
 #define IOS_DEFAULT_DESIRED_CONN_TIMEOUT                600
 #define ANDROID_DEFAULT_DESIRED_CONN_TIMEOUT            800
-#define FAST_READ_DESIRED_CONN_TIMEOUT                  500
+#define FIRMWARE_UPDATE_DESIRED_CONN_TIMEOUT            500
+#define FAST_READ_DESIRED_CONN_TIMEOUT                  500    
     
 /*********************************************************************
  * MACROS
@@ -110,7 +114,9 @@ extern void iDo_Init( uint8 task_id );
  */
 extern uint16 iDo_ProcessEvent( uint8 task_id, uint16 events );
 
-extern void iDo_UpdateFastParameter();
+extern void iDo_FirmwareUpdateParameter();
+
+extern void iDo_FastReadUpdateParameter();
 
 void tempRead();
 void tempReadCallback();

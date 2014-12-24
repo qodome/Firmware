@@ -58,6 +58,8 @@ contact Texas Instruments Incorporated at www.TI.com.
 #include "oad_target.h"
 #include "OSAL.h"
 #include "recorder.h"
+#include "pwrmgmt.h"
+#include "hci.h"
 
 /*********************************************************************
  * CONSTANTS
@@ -79,7 +81,7 @@ contact Texas Instruments Incorporated at www.TI.com.
 #define OAD_IMAGE_B_USER_ID  {'B', 'B', 'B', 'B'}
 #endif
 
-extern void iDo_UpdateFastParameter();
+extern void iDo_FirmwareUpdateParameter();
 
 /*********************************************************************
  * MACROS
@@ -354,7 +356,11 @@ static bStatus_t oadWriteAttrCB(uint16 connHandle, gattAttribute_t *pAttr,
         // 128-bit UUID
         if (osal_memcmp(pAttr->type.uuid, oadCharUUID[OAD_CHAR_IMG_IDENTIFY], ATT_UUID_SIZE))
         {
-            iDo_UpdateFastParameter();
+            // Set TX power to high
+            HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_0_DBM);
+            pwrmgmt_event(TX_HIGH);
+            
+            iDo_FirmwareUpdateParameter();
             status = oadImgIdentifyWrite( connHandle, pValue );
         }
         else if (osal_memcmp(pAttr->type.uuid, oadCharUUID[OAD_CHAR_IMG_BLOCK], ATT_UUID_SIZE))
