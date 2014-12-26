@@ -214,7 +214,7 @@ int main(int argc, char** argv)
         while (ADIF == 0);
         CCP1IF = 0;
         ADIF = 0;
-        adc_buffer[adc_buf_wptr][adc_buf_widx++] = ((uint16_t)ADRESH << 8) | ADRESL;
+        adc_buffer[adc_buf_wptr][adc_buf_widx++] = ((uint16_t)ADRESL << 8) | ADRESH;
         if (adc_buf_widx >= 500) {
             adc_buf_rptr = adc_buf_wptr;
             adc_buf_ridx = 0;
