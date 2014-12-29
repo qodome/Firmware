@@ -203,10 +203,12 @@ static uint8 wakeForRF;
 static bool halSleepInt = FALSE;
 #endif // HAL_SLEEP_DEBUG_POWER_MODE
 
+/*
 #ifdef DEBUG_STATS
 static uint8 last_tick_init_done = 0;
 static uint32 last_wakeup_tick = 0;
 #endif
+*/
 
 /*******************************************************************************
  * GLOBAL VARIABLES
@@ -382,7 +384,8 @@ void halSleep( uint32 osal_timeout )
       HAL_ENABLE_INTERRUPTS();
 
       WD_KICK();
-      
+
+/*      
 #ifdef DEBUG_STATS
       if (last_tick_init_done == 1) {
           last_tick_init_done = 0;
@@ -401,6 +404,7 @@ void halSleep( uint32 osal_timeout )
       }
       //P0_2 = 1;
 #endif
+*/
       // Disable I2C to avoid driving lines
       //HalI2CDisable();
 
@@ -437,11 +441,13 @@ void halSleep( uint32 osal_timeout )
       //       case it is needed (e.g. the ADC is used by the joystick).
       LL_PowerOnReq( (halPwrMgtMode == CC2540_PM3), wakeForRF );
 
+/*      
 #ifdef DEBUG_STATS      
       //P0_2 = 0;
       last_wakeup_tick = halSleepReadTimer();
       last_tick_init_done = 1;      
 #endif
+*/      
       WD_KICK();
       
 #ifdef HAL_SLEEP_DEBUG_LED

@@ -34,5 +34,7 @@ void pwrmgmt_event(uint8 evt);
 void pwrmgmt_set_conn_param(uint16 interval, uint16 latency);
 uint8 pwrmgmt_battery_percent(void);
 void pwrmgmt_flash_dump(void);
+void pwrmgmt_hb(void);
+void pwrmgmt_timeout(void);
 
 #endif

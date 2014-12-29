@@ -96,8 +96,8 @@ contact Texas Instruments Incorporated at www.TI.com.
 /*********************************************************************
 * CONSTANTS
 */
-#define TEMP_SAMPLE_PERIOD_FAST     2000
-#define TEMP_SAMPLE_PERIOD_SLOW     10000
+#define TEMP_SAMPLE_PERIOD_FAST     20000
+#define TEMP_SAMPLE_PERIOD_SLOW     20000
 #define TEMP_WAIT_SAMPLE            100
 #define ADT_CHECK_PERIOD            300000
 
@@ -156,11 +156,13 @@ static struct cmd_buffer *lastReadBuffer = NULL;
 static uint8 adtMonitorCnt = 0;
 static uint32 lostConnectionTime = 0;
 
+/*
 #ifdef DEBUG_STATS
 static uint32 adv_begin_stats_tick = 0;
 static uint32 conn_begin_stats_tick = 0;
 static uint8 conn_parameter_type = 0;   // 0: default, 1: iOS, 2: android
 #endif
+*/
 
 // GAP - SCAN RSP data (max size = 31 bytes)
 static uint8 scanRspData[1 + 1 + GAP_DEVICE_NAME_LEN - 1] =
@@ -310,13 +312,17 @@ void iDo_ParamUpdateCB(uint16 connInterval,
         GAPRole_SetParameter( GAPROLE_MAX_CONN_INTERVAL, sizeof( uint16 ), &desired_max_interval );
         GAPRole_SetParameter( GAPROLE_SLAVE_LATENCY, sizeof( uint16 ), &desired_slave_latency );
         GAPRole_SetParameter( GAPROLE_TIMEOUT_MULTIPLIER, sizeof( uint16 ), &desired_conn_timeout );
+/*        
 #ifdef DEBUG_STATS        
         conn_parameter_type = 1;
 #endif
+*/
     } else {
+/*
 #ifdef DEBUG_STATS
         conn_parameter_type = 2;
 #endif
+*/
     }
         
     pwrmgmt_set_conn_param(connInterval, connSlaveLatency);
@@ -448,7 +454,7 @@ void iDo_Init( uint8 task_id )
     // Initialize IO to ADT7320
     Temp_Init();
 #ifdef DEBUG_STATS
-    Stats_Init();
+    //Stats_Init();
     MemDump_AddService();
 #endif
     temp_state_init();
@@ -486,8 +492,8 @@ void iDo_Init( uint8 task_id )
     HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_MINUS_23_DBM);
     pwrmgmt_event(TX_LOW);
     
-    HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_HIGH);
-    pwrmgmt_event(RX_HIGH);
+    HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_STD);
+    pwrmgmt_event(RX_LOW);
 }
 
 /*********************************************************************
@@ -543,10 +549,12 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
     if (events & IDO_DO_SAMPLE_TEMP_EVT) {
         if (tempIntermediateSwitch == 1) {
             // Update Temperature value
-            tempRead();  
+            tempRead();
+/*            
 #ifdef DEBUG_STATS
             s.intermediate_cycle++;       
 #endif
+*/
         }
         return (events ^ IDO_DO_SAMPLE_TEMP_EVT);
     }
@@ -570,9 +578,11 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
             CBPushTemp(temp_state_get_last_filtered_temp());
         }
 
+/*        
 #ifdef DEBUG_STATS
         s.temp_measure_cycle++;        
 #endif
+*/        
         iDo_prepare_send_indication();
         
         osal_start_timerEx(iDo_TaskID, IDO_MEASUREMENT_INDICATION, Temp_mill_seconds_before_next_indication());
@@ -597,9 +607,11 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
             if ((Temp_Monitor() & 0x60) == 0x00) {
                 // ADT7320 has been reset? Disable temperature measurement to save power
                 Temp_Disable();
+/*
 #ifdef DEBUG_STATS
                 s.adt_abnormal_cnt++;             
-#endif                
+#endif
+*/                
             }
         }
         osal_start_timerEx(iDo_TaskID, IDO_MONITOR_ADT7320, ADT_CHECK_PERIOD); 
@@ -624,7 +636,10 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
         }
 
         uint32 timeNow = osal_getRelativeClock();
-        if ((timeNow - lostConnectionTime) >= 3600) {
+        /*
+         * If we have been lost connection for 10 minutes, give up retrial and back to low power
+         */
+        if ((timeNow - lostConnectionTime) >= 600) {
             if (tempIntermediateSwitch != 0 || tempMeasurementSwitch != 0) {
                 GAPRole_SetParameter(GAPROLE_ADVERT_DATA, sizeof(advertData), advertData);
             }
@@ -632,6 +647,9 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
             
             HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_MINUS_23_DBM);
             pwrmgmt_event(TX_LOW);
+            
+            HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_STD);
+            pwrmgmt_event(RX_LOW);
         } else {
             osal_start_timerEx(iDo_TaskID, IDO_ADVERTISE_EVT, 10000);            
         }
@@ -642,6 +660,12 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
     if (events & IDO_CHECK_VDD_VOLTAGE) {
         pwrmgmt_checkvdd_callback();
         return (events ^ IDO_CHECK_VDD_VOLTAGE);
+    }
+    
+    if (events & IDO_PWR_HEART_BEAT) {
+        pwrmgmt_hb();
+        osal_start_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT, 60000);
+        return (events ^ IDO_PWR_HEART_BEAT);
     }
     
     // Discard unknown events
@@ -717,9 +741,11 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
     uint16 desired_max_interval = IOS_DEFAULT_DESIRED_MAX_CONN_INTERVAL;
     uint16 desired_slave_latency = IOS_DEFAULT_DESIRED_SLAVE_LATENCY;
     uint16 desired_conn_timeout = IOS_DEFAULT_DESIRED_CONN_TIMEOUT;
+/*
 #ifdef DEBUG_STATS
     uint32 connected_sec = 0;
 #endif
+*/
 
     switch ( newState )
     {
@@ -732,19 +758,28 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
     case GAPROLE_CONNECTED:
         pwrmgmt_event(CONNECT);
         
+        // Set tx/rx power to high once connected
         HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_0_DBM);
         pwrmgmt_event(TX_HIGH);
+        HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_HIGH);
+        pwrmgmt_event(RX_HIGH);
         
         // Stop advertise timer, set default advertise data
         osal_stop_timerEx(iDo_TaskID, IDO_ADVERTISE_EVT);
         GAPRole_SetParameter(GAPROLE_ADVERT_DATA, sizeof(advertData), advertData);
         
+        // Start power management heart beat
+        osal_start_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT, 60000);
+
+/*        
 #ifdef DEBUG_STATS
         s.adv_seconds += (osal_getClock() - adv_begin_stats_tick);
         
         conn_begin_stats_tick = osal_getClock();
         conn_parameter_type = 1;    // The first parameter set is android    
-#endif                
+#endif
+*/
+        
         // Get connection handle
         GAPRole_GetParameter( GAPROLE_CONNHANDLE, &gapConnHandle );
  
@@ -768,17 +803,18 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         break;
         
     case GAPROLE_WAITING:
+        osal_stop_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT);
+        
         pwrmgmt_event(DISCONNECT);
         
         // Link terminated intentionally: disable temperature sensor, lower tx power
         HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_MINUS_23_DBM);
         pwrmgmt_event(TX_LOW);
         
-#ifndef DEBUG_STATS
-        iDo_turn_off_measurement_indication();
-        iDoTurnOffTemp();
-#endif
-
+        HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_STD);
+        pwrmgmt_event(RX_LOW);
+    
+/*
 #ifdef DEBUG_STATS
         adv_begin_stats_tick = osal_getClock();
         
@@ -790,7 +826,8 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         } else {
             s.connected_default_seconds += connected_sec;
         }
-#endif        
+#endif
+*/        
 #ifndef DEBUG_STATS
         if (MemDump_ServiceNeedDelete()) {
             MemDump_DelService();
@@ -799,6 +836,9 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         break;
         
     case GAPROLE_WAITING_AFTER_TIMEOUT:
+        osal_stop_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT);
+        
+        pwrmgmt_timeout();
         pwrmgmt_event(DISCONNECT);
         
         HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_0_DBM);
@@ -809,6 +849,7 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         // Start monitor 
         osal_set_event(iDo_TaskID, IDO_ADVERTISE_EVT);
         
+/*
 #ifdef DEBUG_STATS
         adv_begin_stats_tick = osal_getClock();
         
@@ -821,6 +862,7 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
             s.connected_default_seconds += connected_sec;
         }
 #endif
+*/
 #ifndef DEBUG_STATS        
         if (MemDump_ServiceNeedDelete()) {
             MemDump_DelService();
@@ -922,9 +964,11 @@ void tempReadCallback()
 
 void tempRead()
 {
+/*
 #ifdef DEBUG_STATS
     s.adt_read_count++;
 #endif
+*/
     Temp_Enable();
     osal_start_timerEx(iDo_TaskID, IDO_READ_SAMPLE_TEMP_EVT, TEMP_WAIT_SAMPLE);
 }

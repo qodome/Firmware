@@ -3,6 +3,7 @@
  */
 #ifdef DEBUG_STATS
 
+#if 0
 #include "bcomdef.h"
 #include "OSAL.h"
 #include "linkdb.h"
@@ -34,6 +35,7 @@ void Stats_Init()
     osal_memset((void *)&s, 0, sizeof(struct stats_t));  
 }
 
+#endif
 #endif
 /*********************************************************************
  *********************************************************************/

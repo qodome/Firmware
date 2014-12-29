@@ -59,6 +59,7 @@ extern "C"
 #define IDO_MEASUREMENT_INDICATION                        0x0020
 #define IDO_SHUTDOWN_ADT7320                              0x0040
 #define IDO_MONITOR_ADT7320                               0x0080
+#define IDO_PWR_HEART_BEAT                                0x0100
 
 // What is the advertising interval when device is discoverable (units of 625us, 160=100ms)
 #define DEFAULT_ADVERTISING_INTERVAL          2056

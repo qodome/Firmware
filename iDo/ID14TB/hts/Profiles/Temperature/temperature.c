@@ -121,7 +121,6 @@ static thermometerIRange_t  thermometerIRange = {2, 300};
 // Timestamp related setting
 static uint8 tempTimeProps = GATT_PROP_READ | GATT_PROP_WRITE;
 UTCTimeStruct tempTime;
-static int enable_fast_read = 0;
 
 /*********************************************************************
 * Profile Attributes - Table
@@ -262,7 +261,6 @@ bStatus_t Temp_AddService( uint32 services )
     
     GATTServApp_InitCharCfg( INVALID_CONNHANDLE, valueConfigCoordinates );  
     GATTServApp_InitCharCfg( INVALID_CONNHANDLE, intermediateConfigCoordinates );  
-    enable_fast_read = 0;
     tempInterval = 30;
     
     status = GATTServApp_RegisterService( tempAttrTbl, 
@@ -284,9 +282,11 @@ void Temp_NotifyTemperature(uint16 connHandle, uint8 *bufPtr, uint8 bufLen)
         VOID osal_memcpy((uint8 *)&(tempNotify.value[0]), bufPtr, bufLen);
     
         if (GATT_Notification(connHandle, &tempNotify, FALSE) == SUCCESS) {
+/*
 #ifdef DEBUG_STATS
             s.pkt_count++;
-#endif  
+#endif
+*/  
         }
     }
 }
@@ -303,9 +303,11 @@ void Temp_IndicateTemperature(uint16 connHandle, uint8 *bufPtr, uint8 bufLen, ui
         VOID osal_memcpy((uint8 *)&(tempIndication.value[0]), bufPtr, bufLen);
     
         if (GATT_Indication(connHandle, &tempIndication, FALSE, taskId) == SUCCESS) {
+/*
 #ifdef DEBUG_STATS
             s.pkt_count++;
-#endif     
+#endif
+*/            
         }
     }
 }
@@ -345,10 +347,6 @@ static uint8 temp_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
     switch (uuid) 
     {
     case TEMP_INTERMEDIATE:
-        if (enable_fast_read == 0) {
-            enable_fast_read = 1;
-            iDo_FastReadUpdateParameter();
-        }
         *pLen = sizeof(struct temp_intermediate_rw);
         osal_memset(&tc, 0, sizeof(UTCTimeStruct));
         t_raw = recorder_get_temperature(&tc);
@@ -446,6 +444,7 @@ static bStatus_t temp_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
                 return ATT_ERR_INVALID_VALUE_SIZE;
             }
             if (memcmp(pValue, "_QoDoMe_2014", 12) == 0) {
+                iDo_FastReadUpdateParameter();
 #ifndef DEBUG_STATS
                 MemDump_AddService();
 #endif
@@ -506,7 +505,6 @@ void Temp_HandleConnStatusCB(uint16 connHandle, uint8 changeType)
         {
             GATTServApp_InitCharCfg( connHandle, valueConfigCoordinates );
             GATTServApp_InitCharCfg( connHandle, intermediateConfigCoordinates );
-            enable_fast_read = 0;
         }
     }
 }
