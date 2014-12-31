@@ -94,7 +94,7 @@ uint8 MemDump_ServiceNeedDelete(void)
 
 bStatus_t MemDump_AddService(void)
 {
-    uint8 status = SUCCESS;
+    uint8 status;
     
     status = GATTServApp_RegisterService( memdumpAttrTbl, 
                                          GATT_NUM_ATTRS( memdumpAttrTbl ),
@@ -107,10 +107,10 @@ bStatus_t MemDump_AddService(void)
 
 bStatus_t MemDump_DelService(void)
 {
-    uint8 status = SUCCESS;
-    gattAttribute_t *pServ = NULL;
+    uint8 status;
+    gattAttribute_t *pServ;
     
-    status = GATTServApp_DeregisterService(GATT_SERVICE_HANDLE(memdumpAttrTbl), &pServ );
+    status = GATTServApp_DeregisterService(GATT_SERVICE_HANDLE(memdumpAttrTbl), &pServ);
     if (status == SUCCESS) {
         deleteService = 0;
     }
@@ -124,10 +124,10 @@ static uint8 memdump_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
                             uint8 *pValue, uint8 *pLen, uint16 offset, uint8 maxLen )
 {
     bStatus_t status = SUCCESS;
-    uint16 uuid = 0;
-    uint8 flash_pg = 0;
-    uint16 flash_offset = 0;
-    uint16 ptr = 0;
+    uint16 uuid;
+    uint8 flash_pg;
+    uint16 flash_offset;
+    uint16 ptr;
     
     if (utilExtractUuid16(pAttr,&uuid) == FAILURE)
     {
@@ -204,5 +204,5 @@ static bStatus_t memdump_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
         }
     }
     
-    return ( status );
+    return status;
 }

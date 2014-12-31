@@ -11,6 +11,7 @@
 #include "hal_defs.h"
 #include "tempState.h"
 #include "iDo.h"
+#include "OSAL.h"
 
 #define TEMP_HIST_DEPTH     25
 #define TEMP_HEURISTIC_CNT  20
@@ -184,7 +185,7 @@ static int16 __temp_state_iir_filter(int16 newTemp)
     static float y_n_1 = 0.0;
     static float y_n_2 = 0.0;
     static float y_n_3 = 0.0;
-    float ret_y = 0.0;
+    float ret_y;
 
     const float a_2 = -2.3377, a_3 = 1.8787, a_4 = -0.5091;
     const float b_1 = 0.0558, b_2 = -0.0399, b_3 = -0.0399, b_4 = 0.0558;
@@ -217,13 +218,10 @@ static int16 __temp_state_iir_filter(int16 newTemp)
 // Initialize tempState internal states
 void temp_state_init(void)
 {
-    uint8 idx = 0;
+    uint8 idx;
 
+    osal_memset((uint8 *)&(od_dlist[0]), 0, TEMP_HIST_DEPTH * sizeof(struct temp_hist));
     for (idx = 0; idx < TEMP_HIST_DEPTH; idx++) {
-        od_dlist[idx].temp = 0;
-        od_dlist[idx].idx = 0;
-        od_dlist[idx].prev = NULL;
-        od_dlist[idx].next = NULL;
         od_ptr[idx] = &(od_dlist[idx]);
     }
     od_max.temp = 0;
@@ -250,12 +248,9 @@ void temp_state_init(void)
     tempStateAttachedStatus = 0;
     tempStateLastFilteredTemp = 0;
     tempStateTransit = 0;
-
-    for (idx = 0; idx < TEMP_HEURISTIC_CNT; idx++) {
-        od_events[idx] = 0;
-    }
-    
     tempStateTempValid = 0;
+    
+    osal_memset(&(od_events[0]), 0, TEMP_HEURISTIC_CNT);
 }
 
 // New temperature is logged here, calculated
@@ -270,10 +265,12 @@ void temp_state_update(int16 newTemp)
     }
 }
 
+#ifdef ATTACH_DETECTION
 uint8 temp_state_is_attached(void)
 {
     return tempStateAttachedStatus;
 }
+#endif
 
 int16 temp_state_get_last_filtered_temp(void)
 {
@@ -288,4 +285,3 @@ uint8 temp_state_mesaurement_ready(void)
         return 1;
     }
 }
-

@@ -7,7 +7,7 @@
 
 static uint8 DN_MAGIC[CUSTOM_DN_MAGIC_LEN] = {'D', 'E', 'V', '_', 'N', 'A', 'M', 'E'};
 static uint8 MGMT_MAGIC[MGMT_MAGIC_LEN] = {'M', 'G', 'M', 'T', '_', 'B', 'A', 'T'};
-static uint8 DN_DEFAULT[3] = {'i', 'D', 'o'};
+static uint8 DN_DEFAULT[4] = {'i', 'D', 'o', 0};
 static uint8 current_mgmt_idx = 0xFF;
 
 /*
@@ -19,21 +19,16 @@ void custom_init(void)
 {
     struct pwrmgmt_data mgmt;
     struct persistent_data pdata;
-    uint8 idx = 0;
+    uint8 idx;
 
     HalFlashRead(CUSTOM_DN_PAGE_IDX, 0, (uint8 *)&pdata, sizeof(pdata));
     if (osal_memcmp(pdata.dn_magic, DN_MAGIC, CUSTOM_DN_MAGIC_LEN) != TRUE) {
-        for (idx = 0; idx < CUSTOM_DN_MAGIC_LEN; idx++) {
-            pdata.dn_magic[idx] = 0;
-        }
-        for (idx = 0; idx < CUSTOM_DN_LEN; idx++) {
-            pdata.dn[idx] = 0;
-        }
+        // This should happen only when device first powered up
         osal_memcpy(pdata.dn_magic, DN_MAGIC, CUSTOM_DN_MAGIC_LEN);
-        osal_memcpy(pdata.dn, DN_DEFAULT, 3);
+        osal_memcpy(pdata.dn, DN_DEFAULT, 4);
 
         HalFlashErase(CUSTOM_DN_PAGE_IDX);
-        HalFlashWrite((((uint32)CUSTOM_DN_PAGE_IDX * (uint32)2048) / 4), (uint8 *)&pdata, sizeof(pdata) / 4);
+        HalFlashWrite((((uint32)CUSTOM_DN_PAGE_IDX * (uint32)512)), (uint8 *)&pdata, sizeof(pdata) / 4);
     }
 
     if (osal_memcmp(pdata.mgmt_magic, MGMT_MAGIC, MGMT_MAGIC_LEN) == TRUE) {
@@ -61,19 +56,13 @@ void custom_init(void)
 void custom_get_dn(uint8 *dn)
 {
     struct persistent_data pdata;
-    uint8 idx = 0;
 
     HalFlashRead(CUSTOM_DN_PAGE_IDX, 0, (uint8 *)&pdata, sizeof(pdata));
     if (osal_memcmp(pdata.dn_magic, DN_MAGIC, CUSTOM_DN_MAGIC_LEN) == TRUE) {
-        for (idx = 0; idx < CUSTOM_DN_LEN; idx++) {
-            dn[idx] = pdata.dn[idx];
-        }
+        osal_memcpy(&(dn[0]), &(pdata.dn[0]), CUSTOM_DN_LEN);
         dn[CUSTOM_DN_LEN] = 0;
     } else {
-        dn[0] = 'i';
-        dn[1] = 'D';
-        dn[2] = 'o';
-        dn[3] = 0;
+        osal_memcpy(&(dn[0]), DN_DEFAULT, 4);
     }
 }
 
@@ -81,46 +70,24 @@ void custom_get_dn(uint8 *dn)
 void custom_set_dn(uint8 *dn)
 {
     struct persistent_data pdata;
-    struct pwrmgmt_data mgmt1;
-    struct pwrmgmt_data mgmt2;
-    uint8 idx = 0;
-    uint8 found = 0;
+    struct pwrmgmt_data mgmt;
 
     HalFlashRead(CUSTOM_DN_PAGE_IDX, 0, (uint8 *)&pdata, sizeof(pdata));
 
-    for (idx = 0; idx < CUSTOM_DN_MAGIC_LEN; idx++) {
-        pdata.dn_magic[idx] = 0;
-    }
-    for (idx = 0; idx < CUSTOM_DN_LEN; idx++) {
-        pdata.dn[idx] = 0;
-    }
     dn[CUSTOM_DN_LEN] = 0;
     osal_memcpy(pdata.dn_magic, DN_MAGIC, CUSTOM_DN_MAGIC_LEN);
-    osal_memcpy(pdata.dn, dn, osal_strlen((char *)dn));
+    osal_memcpy(pdata.dn, dn, osal_strlen((char *)dn) + 1);
 
-    for (idx = 0; idx < (MGMT_RCD_CNT - 1); idx++) {
-        HalFlashRead(CUSTOM_DN_PAGE_IDX, (uint16)&(((struct persistent_data_storage *)0)->mgmt[idx]), (uint8 *)&mgmt1, sizeof(mgmt1));
-        HalFlashRead(CUSTOM_DN_PAGE_IDX, (uint16)&(((struct persistent_data_storage *)0)->mgmt[idx + 1]), (uint8 *)&mgmt2, sizeof(mgmt2));
-        if (mgmt1.initial_v_adc == 0xFFFF && mgmt2.initial_v_adc == 0xFFFF) {
-            break;
-        }
-        if (mgmt1.initial_v_adc != 0xFFFF && mgmt2.initial_v_adc == 0xFFFF) {
-            found = 1;
-            break;
-        }
-        if (((idx + 1) == (MGMT_RCD_CNT - 1)) && mgmt2.initial_v_adc != 0xFFFF) {
-            found = 2;
-            break;
-        }
+    if (current_mgmt_idx != 0xFF) {
+        HalFlashRead(CUSTOM_DN_PAGE_IDX, (uint16)&(((struct persistent_data_storage *)0)->mgmt[current_mgmt_idx]), (uint8 *)&mgmt, sizeof(mgmt));
     }
 
     HalFlashErase(CUSTOM_DN_PAGE_IDX);
     HalFlashWrite((((uint32)CUSTOM_DN_PAGE_IDX * (uint32)2048) / 4), (uint8 *)&pdata, sizeof(pdata) / 4);
 
-    if (found == 1) {
-        HalFlashWrite(((((uint32)CUSTOM_DN_PAGE_IDX * (uint32)2048) + (uint32)&(((struct persistent_data_storage *)0)->mgmt[0])) / 4), (uint8 *)&mgmt1, sizeof(mgmt1) / 4);
-    } else if (found == 2) {
-        HalFlashWrite(((((uint32)CUSTOM_DN_PAGE_IDX * (uint32)2048) + (uint32)&(((struct persistent_data_storage *)0)->mgmt[0])) / 4), (uint8 *)&mgmt2, sizeof(mgmt2) / 4);
+    if (current_mgmt_idx != 0xFF) {
+        HalFlashWrite(((((uint32)CUSTOM_DN_PAGE_IDX * (uint32)2048) + (uint32)&(((struct persistent_data_storage *)0)->mgmt[0])) / 4), (uint8 *)&mgmt, sizeof(mgmt) / 4);
+        current_mgmt_idx = 0;
     }
 }
 

@@ -111,8 +111,10 @@ CONST uint8 battLevelUUID[ATT_BT_UUID_SIZE] =
 // Application callback
 static battServiceCB_t battServiceCB;
 
+#ifdef BATTERY_REPORT
 // Critical battery level setting
 static uint8 battCriticalLevel;
+#endif
 
 /*********************************************************************
 * Profile Attributes - variables
@@ -129,9 +131,11 @@ static gattCharCfg_t battLevelClientCharCfg[GATT_MAX_NUM_CONN];
 static uint8 batteryLevelKnown = 0xFF;
 static uint16 batteryLevelLatest = 0xFFFF;
 
+#ifdef BATTERY_REPORT
 // HID Report Reference characteristic descriptor, battery level
 static uint8 hidReportRefBattLevel[HID_REPORT_REF_LEN] =
 { HID_RPT_ID_BATT_LEVEL_IN, HID_REPORT_TYPE_INPUT };
+#endif
 
 /*********************************************************************
 * Profile Attributes - Table
@@ -170,7 +174,8 @@ static gattAttribute_t battAttrTbl[] =
         0,
         (uint8 *) &battLevelClientCharCfg
     },
-    
+
+#ifdef BATTERY_REPORT
     // HID Report Reference characteristic descriptor, batter level input
     {
         { ATT_BT_UUID_SIZE, reportRefUUID },
@@ -178,6 +183,7 @@ static gattAttribute_t battAttrTbl[] =
         0,
         hidReportRefBattLevel
     }
+#endif    
 };
 
 
@@ -253,6 +259,7 @@ extern void Batt_Register( battServiceCB_t pfnServiceCB )
     battServiceCB = pfnServiceCB;
 }
 
+#ifdef BATTERY_REPORT
 /*********************************************************************
 * @fn      Batt_SetParameter
 *
@@ -340,6 +347,7 @@ bStatus_t Batt_GetParameter( uint8 param, void *value )
     
     return ( ret );
 }
+#endif
 
 /*********************************************************************
 * @fn          Batt_MeasLevel
@@ -375,6 +383,7 @@ bStatus_t Batt_MeasLevel( void )
     return SUCCESS;
 }
 
+#ifdef BATTERY_REPORT
 /*********************************************************************
 * @fn      Batt_Setup
 *
@@ -394,6 +403,7 @@ void Batt_Setup( uint8 adc_ch, uint16 minVal, uint16 maxVal,
                 battServiceCalcCB_t cCB )
 {
 }
+#endif
 
 /*********************************************************************
 * @fn          battReadAttrCB
@@ -445,11 +455,13 @@ static uint8 battReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
         *pLen = 1;
         pValue[0] = battLevel;
     }
+#ifdef BATTERY_REPORT
     else if ( uuid == GATT_REPORT_REF_UUID )
     {
         *pLen = HID_REPORT_REF_LEN;
         osal_memcpy( pValue, pAttr->pValue, HID_REPORT_REF_LEN );
     }
+#endif    
     else
     {
         status = ATT_ERR_ATTR_NOT_FOUND;
@@ -631,7 +643,6 @@ void Batt_HandleConnStatusCB( uint16 connHandle, uint8 changeType )
         }
     }
 }
-
 
 /*********************************************************************
 *********************************************************************/

@@ -393,6 +393,7 @@ bStatus_t DevInfo_AddService( void )
 {
     uint8 idx = 0;   
     uint8 *p_sn = NULL;
+    //uint8 str_list[6] = {'1', '.', '0', '.', '0', '('};
     
     p_sn = (uint8 *)0x780E;
     for (idx = 0; idx < 6; idx++) {
@@ -410,6 +411,7 @@ bStatus_t DevInfo_AddService( void )
     devInfoFirmwareRev[3] = '.';
     devInfoFirmwareRev[4] = '0';
     devInfoFirmwareRev[5] = '(';
+    //osal_memcpy(devInfoFirmwareRev, str_list, 6);
     devInfoFirmwareRev[6] = bin_to_ascii((OAD_IMAGE_VERSION >> 4) & 0x0F);
     devInfoFirmwareRev[7] = bin_to_ascii(OAD_IMAGE_VERSION & 0x0F);
 #if defined HAL_IMAGE_A

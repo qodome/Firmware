@@ -4,6 +4,8 @@
 #ifndef __TEMPERATURE__
 #define __TEMPERATURE__
 
+#include "OSAL_Clock.h"
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -21,7 +23,9 @@ extern "C"
 #define TEMP_UUID                   0x2A1C
 #define TEMP_INTERMEDIATE           0x2A1E
 #define TEMP_INTERVAL               0x2A21
+#ifdef PRIVATE_TIME_UUID
 #define TEMP_TIME_UUID              0xAAAA
+#endif
 
 struct temp_measure_without_ts {
     uint8 flag;
@@ -160,6 +164,8 @@ uint32 Temp_mill_seconds_before_next_indication(void);
 uint8 Temp_Monitor(void);
 
 uint8 Temp_TM_sending(uint16 connHandle);
+
+uint8 Temp_FinishPacket(uint8 *ptr, int16 temp, uint8 round, uint8 is_attached, UTCTimeStruct *ptc);
 
 /*********************************************************************
 *********************************************************************/

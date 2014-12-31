@@ -12,12 +12,23 @@
 #define REC_DATA_PER_ENTRY  124
 #define REC_DATA_ENTRY_OFFSET   6
 
+#define RECORDER_ERROR          0
+#define RECORDER_SUCCESS        1
+
 struct record_read_temperature {
-    int8 page_idx;
-    int8 record_entry_idx;
+    uint8 page_idx;
+    uint8 record_entry_idx;
     int8 data_entry_idx;
-    uint32 last_data_entry_unix_ts;
-    int16 last_data_entry_temp;
+    uint32 unix_ts;
+};
+
+struct for_task_param {
+    uint32 ts;
+    struct record_read_temperature *rec_ptr;
+    uint8 search_mode;
+    uint32 last_known_ts;
+    uint32 head_ts;
+    uint32 tail_ts;
 };
 
 struct record_position {
@@ -37,10 +48,34 @@ struct record_entry {
     uint8 magic[2];
 };
 
+#define STATS_MAX               0x10
+#define STATS_MIN               0x20
+#define STATS_AVERAGE           0x40
+#define STATS_DEFAULT           STATS_MAX
+
+struct query_criteria {    
+    uint8 stats_mode;
+    uint8 stats_sample_cnt;
+    uint8 stats_period_0;
+    uint8 stats_period_1;
+    uint8 stats_period_2;
+    UTCTimeStruct tc;
+};
+
+struct query_db {
+    uint8 query_time_interval;
+    uint8 query_time_interval_flag;
+    uint8 query_valid;
+    uint8 query_mode;
+    uint8 query_sample_cnt;
+    uint32 query_period;
+    uint32 query_start_point_ts;
+};
+
 void recorder_init(void);
 void recorder_add_temperature(int16 temp);
-void recorder_set_read_base_ts(UTCTimeStruct *tc);
-int16 recorder_get_temperature(UTCTimeStruct *tc_out);
+void recorder_set_query_criteria(struct query_criteria *query_ptr);
+void recorder_get_query_result(struct query_criteria *query_result);
 
 void recorder_touch_wd_page(void);
 uint32 recorder_get_wd_boot_count(void);

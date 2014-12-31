@@ -96,10 +96,9 @@ contact Texas Instruments Incorporated at www.TI.com.
 /*********************************************************************
 * CONSTANTS
 */
-#define TEMP_SAMPLE_PERIOD_FAST     20000
-#define TEMP_SAMPLE_PERIOD_SLOW     20000
+#define TEMP_SAMPLE_PERIOD_DEFAULT     1000        // FIXME 10000
 #define TEMP_WAIT_SAMPLE            100
-#define ADT_CHECK_PERIOD            300000
+#define ADT_CHECK_PERIOD            10000          // FIXME 300000
 
 // General discoverable mode advertises indefinitely
 #define DEFAULT_DISCOVERABLE_MODE             GAP_ADTYPE_FLAGS_GENERAL
@@ -148,13 +147,25 @@ static gaprole_States_t gapProfileState = GAPROLE_INIT;
 static uint16 gapConnHandle;
 static uint8 tempIntermediateSwitch = 0;
 static uint8 tempMeasurementSwitch = 0;
-static uint32 tempSampleSleepPeriod = TEMP_SAMPLE_PERIOD_FAST;
+uint32 tempSampleSleepPeriod = TEMP_SAMPLE_PERIOD_DEFAULT;
+#ifdef ADVERTISE_TEMP
 static int16 lastTemp = 0;
-static uint32 staleCount = 0;
+#endif
+#ifdef DELETE_INFO_UNKNOWN_PEER
 static uint8 lastConnAddr[B_ADDR_LEN] = {0xf,0xf,0xf,0xf,0xf,0xe};
+#endif
 static struct cmd_buffer *lastReadBuffer = NULL;
 static uint8 adtMonitorCnt = 0;
-static uint32 lostConnectionTime = 0;
+
+uint16 ios_min_interval = IOS_DEFAULT_DESIRED_MIN_CONN_INTERVAL;
+uint16 ios_max_interval = IOS_DEFAULT_DESIRED_MAX_CONN_INTERVAL;
+uint16 ios_slave_latency = IOS_DEFAULT_DESIRED_SLAVE_LATENCY;
+uint16 ios_conn_timeout = IOS_DEFAULT_DESIRED_CONN_TIMEOUT;
+
+uint16 android_min_interval = ANDROID_DEFAULT_DESIRED_MIN_CONN_INTERVAL;
+uint16 android_max_interval = ANDROID_DEFAULT_DESIRED_MAX_CONN_INTERVAL;
+uint16 android_slave_latency = ANDROID_DEFAULT_DESIRED_SLAVE_LATENCY;
+uint16 android_conn_timeout = ANDROID_DEFAULT_DESIRED_CONN_TIMEOUT;
 
 /*
 #ifdef DEBUG_STATS
@@ -201,6 +212,7 @@ static uint8 advertData[] =
     HI_UINT16( TEMP_SERVICE ),
 };
 
+#ifdef ADVERTISE_TEMP
 static uint8 advertDataWithTemp[] =
 {
     // Flags; this sets the device to use limited discoverable
@@ -228,6 +240,7 @@ static uint8 advertDataWithTemp[] =
     LO_UINT16(TEMP_SERVICE), HI_UINT16(TEMP_SERVICE),
     0x00, 0x00, 0x00, 0xFC,
 };
+#endif
 
 // GAP GATT Attributes
 static uint8 attDeviceName[GAP_DEVICE_NAME_LEN] = {0};
@@ -302,16 +315,11 @@ void iDo_ParamUpdateCB(uint16 connInterval,
                        uint16 connSlaveLatency,
                        uint16 connTimeout)
 {
-    uint16 desired_min_interval = ANDROID_DEFAULT_DESIRED_MIN_CONN_INTERVAL;
-    uint16 desired_max_interval = ANDROID_DEFAULT_DESIRED_MAX_CONN_INTERVAL;
-    uint16 desired_slave_latency = ANDROID_DEFAULT_DESIRED_SLAVE_LATENCY;
-    uint16 desired_conn_timeout = ANDROID_DEFAULT_DESIRED_CONN_TIMEOUT;
-    
     if (iDo_CurrentConnParam == 0) {
-        GAPRole_SetParameter( GAPROLE_MIN_CONN_INTERVAL, sizeof( uint16 ), &desired_min_interval );
-        GAPRole_SetParameter( GAPROLE_MAX_CONN_INTERVAL, sizeof( uint16 ), &desired_max_interval );
-        GAPRole_SetParameter( GAPROLE_SLAVE_LATENCY, sizeof( uint16 ), &desired_slave_latency );
-        GAPRole_SetParameter( GAPROLE_TIMEOUT_MULTIPLIER, sizeof( uint16 ), &desired_conn_timeout );
+        GAPRole_SetParameter( GAPROLE_MIN_CONN_INTERVAL, sizeof( uint16 ), &android_min_interval );
+        GAPRole_SetParameter( GAPROLE_MAX_CONN_INTERVAL, sizeof( uint16 ), &android_max_interval );
+        GAPRole_SetParameter( GAPROLE_SLAVE_LATENCY, sizeof( uint16 ), &android_slave_latency );
+        GAPRole_SetParameter( GAPROLE_TIMEOUT_MULTIPLIER, sizeof( uint16 ), &android_conn_timeout );
 /*        
 #ifdef DEBUG_STATS        
         conn_parameter_type = 1;
@@ -348,7 +356,6 @@ void iDo_Init( uint8 task_id )
 {
     uint16 appearance = 768;
     uint8 devNamePermission = GATT_PERMIT_READ | GATT_PERMIT_WRITE;
-    uint16 idx = 0;
     
     iDo_TaskID = task_id;
     
@@ -368,10 +375,6 @@ void iDo_Init( uint8 task_id )
         // First apply iOS settings, this should be success; then try apply Android settings
         uint16 gapRole_AdvertOffTime = 0;
         uint8 enable_update_request = DEFAULT_ENABLE_UPDATE_REQUEST;
-        uint16 desired_min_interval = IOS_DEFAULT_DESIRED_MIN_CONN_INTERVAL;
-        uint16 desired_max_interval = IOS_DEFAULT_DESIRED_MAX_CONN_INTERVAL;
-        uint16 desired_slave_latency = IOS_DEFAULT_DESIRED_SLAVE_LATENCY;
-        uint16 desired_conn_timeout = IOS_DEFAULT_DESIRED_CONN_TIMEOUT;
         
         // Set the GAP Role Parameters
         GAPRole_SetParameter( GAPROLE_ADVERT_ENABLED, sizeof( uint8 ), &initial_advertising_enable );
@@ -380,17 +383,17 @@ void iDo_Init( uint8 task_id )
         GAPRole_SetParameter( GAPROLE_ADVERT_DATA, sizeof( advertData ), advertData );
         
         GAPRole_SetParameter( GAPROLE_PARAM_UPDATE_ENABLE, sizeof( uint8 ), &enable_update_request );
-        GAPRole_SetParameter( GAPROLE_MIN_CONN_INTERVAL, sizeof( uint16 ), &desired_min_interval );
-        GAPRole_SetParameter( GAPROLE_MAX_CONN_INTERVAL, sizeof( uint16 ), &desired_max_interval );
-        GAPRole_SetParameter( GAPROLE_SLAVE_LATENCY, sizeof( uint16 ), &desired_slave_latency );
-        GAPRole_SetParameter( GAPROLE_TIMEOUT_MULTIPLIER, sizeof( uint16 ), &desired_conn_timeout );
+        GAPRole_SetParameter( GAPROLE_MIN_CONN_INTERVAL, sizeof( uint16 ), &ios_min_interval );
+        GAPRole_SetParameter( GAPROLE_MAX_CONN_INTERVAL, sizeof( uint16 ), &ios_max_interval );
+        GAPRole_SetParameter( GAPROLE_SLAVE_LATENCY, sizeof( uint16 ), &ios_slave_latency );
+        GAPRole_SetParameter( GAPROLE_TIMEOUT_MULTIPLIER, sizeof( uint16 ), &ios_conn_timeout );
         
         iDo_CurrentConnParam = 0;
     }
     
     // Set the GAP Characteristics
     custom_get_dn(attDeviceName);
-    for (idx = 0; idx < (GAP_DEVICE_NAME_LEN - 1); idx++) {
+    for (uint8 idx = 0; idx < (GAP_DEVICE_NAME_LEN - 1); idx++) {
         scanRspData[2 + idx] = attDeviceName[idx];
     }
     scanRspData[0] = osal_strlen((char *)attDeviceName) + 1;
@@ -457,6 +460,7 @@ void iDo_Init( uint8 task_id )
     //Stats_Init();
     MemDump_AddService();
 #endif
+    
     temp_state_init();
     CBInit();
     
@@ -466,11 +470,7 @@ void iDo_Init( uint8 task_id )
     osal_start_timerEx(iDo_TaskID, IDO_SHUTDOWN_ADT7320, 1);
     // Schedule ADT7320 monitor
     osal_start_timerEx(iDo_TaskID, IDO_MONITOR_ADT7320, ADT_CHECK_PERIOD);
-    
-    lastReadBuffer = NULL;
-    tempIntermediateSwitch = 0;
-    tempMeasurementSwitch = 0;
-    
+        
     // Setup a delayed profile startup
     osal_set_event(iDo_TaskID, IDO_START_DEVICE_EVT);
     
@@ -598,10 +598,11 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
     
     if (events & IDO_MONITOR_ADT7320) {        
         adtMonitorCnt++;
+        pwrmgmt_flash_dump(); 
         if (adtMonitorCnt >= 12) {
             
             // Trigger power mgmt module dump statistics
-            pwrmgmt_flash_dump();
+            //pwrmgmt_flash_dump();         FIXME
         
             adtMonitorCnt = 0;
             if ((Temp_Monitor() & 0x60) == 0x00) {
@@ -617,12 +618,14 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
         osal_start_timerEx(iDo_TaskID, IDO_MONITOR_ADT7320, ADT_CHECK_PERIOD); 
         return (events ^ IDO_MONITOR_ADT7320);
     }
-    
+
+#ifdef ADVERTISE_TEMP     
     if (events & IDO_ADVERTISE_EVT) {
+       
         // We will send temperature data over advertise scan rsp
         if (tempIntermediateSwitch != 0 || tempMeasurementSwitch != 0) {
             int16 t16 = lastTemp;
-            int32 t32 = 0;
+            int32 t32;
             int32 sign = -4;
             int32 *p32 = (int32 *)&(advertDataWithTemp[15]);
             
@@ -642,7 +645,7 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
         if ((timeNow - lostConnectionTime) >= 600) {
             if (tempIntermediateSwitch != 0 || tempMeasurementSwitch != 0) {
                 GAPRole_SetParameter(GAPROLE_ADVERT_DATA, sizeof(advertData), advertData);
-            }
+            }           
             osal_stop_timerEx(iDo_TaskID, IDO_ADVERTISE_EVT);
             
             HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_MINUS_23_DBM);
@@ -656,6 +659,7 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
         
         return (events ^ IDO_ADVERTISE_EVT);
     }
+#endif
     
     if (events & IDO_CHECK_VDD_VOLTAGE) {
         pwrmgmt_checkvdd_callback();
@@ -663,8 +667,11 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
     }
     
     if (events & IDO_PWR_HEART_BEAT) {
-        pwrmgmt_hb();
-        osal_start_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT, 60000);
+        if (pwrmgmt_hb() == 0) {
+            osal_start_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT, 60000);
+        } else {
+            osal_stop_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT);
+        }
         return (events ^ IDO_PWR_HEART_BEAT);
     }
     
@@ -687,8 +694,8 @@ void iDo_StopVDDCheck(void)
 */
 static void iDo_ProcessGattMsg(gattMsgEvent_t *pMsg)
 {    
-    int16 temp = 0; 
-    uint8 validFlag = 0;
+    int16 temp; 
+    uint8 validFlag;
     UTCTimeStruct tc;
 
     //Measurement Indication Confirmation
@@ -736,11 +743,9 @@ static void iDo_ProcessOSALMsg(osal_event_hdr_t *pMsg)
 */
 static void peripheralStateNotificationCB( gaprole_States_t newState )
 {
-    linkDBItem_t  *pItem;    
-    uint16 desired_min_interval = IOS_DEFAULT_DESIRED_MIN_CONN_INTERVAL;
-    uint16 desired_max_interval = IOS_DEFAULT_DESIRED_MAX_CONN_INTERVAL;
-    uint16 desired_slave_latency = IOS_DEFAULT_DESIRED_SLAVE_LATENCY;
-    uint16 desired_conn_timeout = IOS_DEFAULT_DESIRED_CONN_TIMEOUT;
+#ifdef DELETE_INFO_UNKNOWN_PEER
+    linkDBItem_t  *pItem;
+#endif    
 /*
 #ifdef DEBUG_STATS
     uint32 connected_sec = 0;
@@ -763,10 +768,12 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         pwrmgmt_event(TX_HIGH);
         HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_HIGH);
         pwrmgmt_event(RX_HIGH);
-        
+
+#ifdef ADVERTISE_TEMP
         // Stop advertise timer, set default advertise data
         osal_stop_timerEx(iDo_TaskID, IDO_ADVERTISE_EVT);
         GAPRole_SetParameter(GAPROLE_ADVERT_DATA, sizeof(advertData), advertData);
+#endif
         
         // Start power management heart beat
         osal_start_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT, 60000);
@@ -784,13 +791,13 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         GAPRole_GetParameter( GAPROLE_CONNHANDLE, &gapConnHandle );
  
         // Update connection parameter
-        GAPRole_SetParameter( GAPROLE_MIN_CONN_INTERVAL, sizeof( uint16 ), &desired_min_interval );
-        GAPRole_SetParameter( GAPROLE_MAX_CONN_INTERVAL, sizeof( uint16 ), &desired_max_interval );
-        GAPRole_SetParameter( GAPROLE_SLAVE_LATENCY, sizeof( uint16 ), &desired_slave_latency );
-        GAPRole_SetParameter( GAPROLE_TIMEOUT_MULTIPLIER, sizeof( uint16 ), &desired_conn_timeout );
+        GAPRole_SetParameter( GAPROLE_MIN_CONN_INTERVAL, sizeof( uint16 ), &ios_min_interval );
+        GAPRole_SetParameter( GAPROLE_MAX_CONN_INTERVAL, sizeof( uint16 ), &ios_max_interval );
+        GAPRole_SetParameter( GAPROLE_SLAVE_LATENCY, sizeof( uint16 ), &ios_slave_latency );
+        GAPRole_SetParameter( GAPROLE_TIMEOUT_MULTIPLIER, sizeof( uint16 ), &ios_conn_timeout );
         iDo_CurrentConnParam = 0;  
-        lostConnectionTime = 0;
-            
+
+#ifdef DELETE_INFO_UNKNOWN_PEER
         // Get peer MAC address
         if ((pItem = linkDB_Find(gapConnHandle)) != NULL) {
             if (!osal_memcmp(pItem->addr, lastConnAddr, B_ADDR_LEN) && CBDataAvailable()) {
@@ -799,6 +806,7 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
             }           
         }
         VOID osal_memcpy(lastConnAddr, pItem->addr, B_ADDR_LEN);
+#endif
         
         break;
         
@@ -836,18 +844,19 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         break;
         
     case GAPROLE_WAITING_AFTER_TIMEOUT:
-        osal_stop_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT);
+        // If disconnected due to timeout, do not stop timer
+        //osal_stop_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT);
         
         pwrmgmt_timeout();
         pwrmgmt_event(DISCONNECT);
         
         HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_0_DBM);
         pwrmgmt_event(TX_HIGH);
-        
-        lostConnectionTime = osal_getRelativeClock();
-        
+
+#ifdef ADVERTISE_TEMP        
         // Start monitor 
         osal_set_event(iDo_TaskID, IDO_ADVERTISE_EVT);
+#endif
         
 /*
 #ifdef DEBUG_STATS
@@ -879,12 +888,10 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
 
 static void ggsValueChangeCB(uint8 attrId)
 {
-    uint16 idx = 0;
-    
     GGS_GetParameter(GGS_DEVICE_NAME_ATT, attDeviceName);
     custom_set_dn(attDeviceName);
     
-    for (idx = 0; idx < (GAP_DEVICE_NAME_LEN - 1); idx++) {
+    for (uint8 idx = 0; idx < (GAP_DEVICE_NAME_LEN - 1); idx++) {
         scanRspData[2 + idx] = attDeviceName[idx];
     }
     scanRspData[0] = osal_strlen((char *)attDeviceName) + 1;
@@ -905,11 +912,9 @@ int8 iDo_Connected(void)
 */
 void tempReadCallback()
 {
-    struct temp_intermediate_notify t;
-    int16 v = 0;
-    int32 v32 = 0;
-    int32 sign = -4;
-    uint8 len = 0;
+    int16 v;
+    uint8 buf[20];
+    uint8 len;
     
     Temp_Disable();
     v = spi_read(0x02);
@@ -923,17 +928,9 @@ void tempReadCallback()
         v &= 0x1FFF;
     }
     
-    if (((v - lastTemp) >= 2) || ((lastTemp - v) >= 2)) {
-        staleCount = 0;
-        tempSampleSleepPeriod = TEMP_SAMPLE_PERIOD_FAST;
-    } else {
-        staleCount++;
-        if (staleCount >= 10) {
-            staleCount = 0;
-            tempSampleSleepPeriod = TEMP_SAMPLE_PERIOD_SLOW;
-        }
-    }
+#ifdef ADVERTISE_TEMP
     lastTemp = v;
+#endif
     
     temp_state_update(v);
     recorder_add_temperature(v);
@@ -944,21 +941,12 @@ void tempReadCallback()
             return;
         }   
         
-        if (v & 0x8000) {
-            v32 = (int32)v | 0xFFFF0000;
-        } else {
-            v32 = v;
-        }
-        t.u.temp = (sign << 24) | ((v32 * 625) & 0xFFFFFF);
-        len = sizeof(t);
-        if (temp_state_is_attached()) {
-            t.flag = 0x04;            
-            t.temp_type = 0x02;
-        } else {
-            t.flag = 0x00;            
-            len--;
-        }
-        Temp_NotifyTemperature(gapConnHandle, (uint8 *)&t, len);
+#ifdef ATTACH_DETECTION
+        len = Temp_FinishPacket(buf, v, 0, temp_state_is_attached(), NULL);
+#else
+        len = Temp_FinishPacket(buf, v, 0, 0, NULL);
+#endif
+        Temp_NotifyTemperature(gapConnHandle, buf, len);
     }   
 }
 
@@ -977,9 +965,9 @@ void iDoTurnOnTemp(void)
 {
     if (tempIntermediateSwitch == 0) {
         tempIntermediateSwitch = 1;
-        tempSampleSleepPeriod = TEMP_SAMPLE_PERIOD_FAST;
+#ifdef ADVERTISE_TEMP
         lastTemp = 0;
-        staleCount = 0;
+#endif
         osal_start_timerEx(iDo_TaskID, IDO_DO_SAMPLE_TEMP_EVT, tempSampleSleepPeriod);
     }
 }
@@ -1018,68 +1006,22 @@ void iDo_indicate_measurement_ready(void)
 
 static void iDo_prepare_send_indication()
 {    
-    int16 temp = 0;
-    int32 temp32 = 0;
-    int32 temp32_delta = 0;
-    uint32 temp32u = 0;
-    int32 sign = -4;    
-    uint8 validFlag = 0;
+    int16 temp;
     UTCTimeStruct tc;
-    struct temp_measure_with_ts temp_w_ts;
-    struct temp_measure_without_ts temp_wo_ts;
-    uint8 len = 0;
+    uint8 buf[20];
+    uint8 len;
+    uint8 validFlag;
     
     if (gapProfileState == GAPROLE_CONNECTED) {
         osal_memset((void *)&tc, 0, sizeof(tc));
         lastReadBuffer = CBGetNextBufferForTX(&temp, &validFlag, &tc);
-        if (lastReadBuffer != NULL) {        
-            if (temp & 0x8000) {
-                temp32 = (int32)temp | 0xFFFF0000;
-                temp32 = 0 - temp32;
-                temp32 = temp32 * 625;
-                temp32_delta = (temp32 / 1000) * 1000;
-                temp32_delta = temp32 - temp32_delta;
-                temp32 = (temp32 / 1000) * 1000;
-                if (temp32_delta >= 500) {
-                    temp32 += 1000;                
-                }
-                temp32 = 0 - temp32;
-            } else {
-                temp32 = temp;
-                temp32 = temp32 * 625;
-                temp32_delta = (temp32 / 1000) * 1000;
-                temp32_delta = temp32 - temp32_delta;
-                temp32 = (temp32 / 1000) * 1000;
-                if (temp32_delta >= 500) {
-                    temp32 += 1000;                
-                }            
-            }        
-            temp32u = (sign << 24) | (temp32 & 0xFFFFFF);
-            
-            if (validFlag & TIME_VALID_FLAG) {
-                temp_w_ts.u.temp = temp32u;
-                len = sizeof(temp_w_ts);
-                if (validFlag & TYPE_VALID_FLAG) {
-                    temp_w_ts.flag = 0x06;
-                    temp_w_ts.temp_type = 0x02;
-                } else {
-                    temp_w_ts.flag = 0x02;
-                    len--;
-                }
-                VOID osal_memcpy((uint8 *)(&temp_w_ts.year), (uint8 *)&tc, sizeof(tc));
-                Temp_IndicateTemperature(gapConnHandle, (uint8 *)&temp_w_ts, len, iDo_TaskID);
-            } else {
-                temp_wo_ts.u.temp = temp32u;
-                len = sizeof(temp_wo_ts);
-                if (validFlag & TYPE_VALID_FLAG) {
-                    temp_wo_ts.flag = 0x04;                
-                    temp_wo_ts.temp_type = 0x02;
-                } else {
-                    temp_wo_ts.flag = 0x00;
-                    len--;
-                }
-                Temp_IndicateTemperature(gapConnHandle, (uint8 *)&temp_wo_ts, len, iDo_TaskID);                
-            }
+        if (lastReadBuffer != NULL) {
+#ifdef ATTACH_DETECTION   
+            len = Temp_FinishPacket(buf, temp, 1, (validFlag & TYPE_VALID_FLAG), &tc);
+#else
+            len = Temp_FinishPacket(buf, temp, 1, 0, &tc);
+#endif
+            Temp_IndicateTemperature(gapConnHandle, buf, len, iDo_TaskID);
         }
     }
 }

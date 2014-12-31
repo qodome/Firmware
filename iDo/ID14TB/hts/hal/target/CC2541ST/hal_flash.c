@@ -154,7 +154,7 @@ static uint8 HalFlashPageValid(uint8 pg)
 extern volatile __code const uint8 savedTxPowerSetting[];
 void HalFlashWrite(uint16 addr, uint8 *buf, uint16 cnt)
 {
-    uint8 pg_begin = 0;
+    uint8 pg_begin;
     
     if (addr * 4 != (uint16)&(savedTxPowerSetting[0])) {
         pg_begin = (uint8)(addr / 512);

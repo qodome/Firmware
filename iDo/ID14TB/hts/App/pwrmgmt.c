@@ -44,6 +44,9 @@ static uint32 pwr_timeout_ts[PWR_TIMEOUT_RCD_MAX] = {0};
  */
 static uint32 conn_interval = 0;
 static uint32 conn_latency = 0;
+static uint32 adv_param = ((uint32)DEFAULT_ADVERTISING_INTERVAL * (uint32)625) / (uint32)1000;
+
+static uint32 lostConnectionTime = 0;
 
 extern void iDo_ScheduleCheckVDD(uint16 delay);
 extern void iDo_StopVDDCheck(void);
@@ -79,15 +82,11 @@ void pwrmgmt_init(void)
         iDo_ScheduleCheckVDD(10000);
     }
     ptlast = osal_getRelativeClock();
-    
-    for (uint8 idx = 0; idx < PWR_TIMEOUT_RCD_MAX; idx++) {
-        pwr_timeout_ts[idx] = 0;
-    }
 }
 
 void pwrmgmt_checkvdd_callback(void)
 {
-    uint16 v = 0;
+    uint16 v;
 
     if (battGetMeasure(&v) == 1) {
         pvsum += v;
@@ -110,12 +109,10 @@ static void pwrmgmt_glean_stats(void)
 {
     uint32 now = osal_getRelativeClock();
     uint32 delta = now - ptlast;
-    uint32 pkt_cnt = 0;
-    uint32 tmp = 0;
+    uint32 pkt_cnt;
 
     if (pconn_status == 0) {
-        tmp = ((uint32)DEFAULT_ADVERTISING_INTERVAL * (uint32)625) / (uint32)1000;
-        pkt_cnt = (delta * (uint32)1000) / tmp;
+        pkt_cnt = (delta * (uint32)1000) / adv_param;
         if (ptxmode == 1) {
             pkt_cnt = (uint32)((float)pkt_cnt * (float)PWR_TX_HIGH_FACTOR);
         }
@@ -171,7 +168,7 @@ void pwrmgmt_rx_low(void)
 }
 
 void pwrmgmt_connect(void)
-{
+{               
     pwrmgmt_glean_stats();
     pd.connect_cnt++;
     if (ptxmode == 1) {
@@ -179,7 +176,8 @@ void pwrmgmt_connect(void)
     } else {
         pd.connected_pkt_cnt += PWR_CONNECT_DUMMY_TX_N;
     }
-    pconn_status = 1;
+    pconn_status = 1;    
+    lostConnectionTime = 0;
 }
 
 void pwrmgmt_disconnect(void)
@@ -213,7 +211,7 @@ void pwrmgmt_set_conn_param(uint16 interval, uint16 latency)
 uint8 pwrmgmt_battery_usage(void)
 {
     uint8 percent = 0;
-    uint32 tmp = 0;
+    uint32 tmp;
 
     if ((pd.adv_pkt_cnt + pd.connected_pkt_cnt) > 0) {
         tmp = PWR_BATTERY_LIFE_PKT_CNT / (pd.adv_pkt_cnt + pd.connected_pkt_cnt);
@@ -229,9 +227,9 @@ uint8 pwrmgmt_battery_usage(void)
 
 uint8 pwrmgmt_battery_percent(void)
 {
-    uint8 base_capacity = 0, guess_capacity = 0, calculated_capacity = 0;
-    uint8 usage = 0, ret = 0;
-    uint16 voltage_lvl = 0;
+    uint8 base_capacity, guess_capacity, calculated_capacity;
+    uint8 usage, ret;
+    uint16 voltage_lvl;
 
     if (pinit == 0) {
         return 0xFF;
@@ -250,13 +248,13 @@ uint8 pwrmgmt_battery_percent(void)
         if (ret == 1) {
             guess_capacity = battGuessCapacity(voltage_lvl);
             if ((guess_capacity == 100) && (calculated_capacity < 40)) {
+                osal_memset((uint8 *)&pd, 0, sizeof(pd));
                 pd.initial_v_adc = voltage_lvl;
-                pd.adv_pkt_cnt = 0;
-                pd.connect_cnt = 0;
-                pd.connected_pkt_cnt = 0;
-                pd.temp_sample_cnt = 0;
                 custom_mgmt_set(&pd);
                 calculated_capacity = 100;
+            } else if ((guess_capacity <= 20) && (calculated_capacity > guess_capacity)) {
+                // In case battery voltage is *VERY LOW*, trust guess result
+                calculated_capacity = guess_capacity;
             }
         }
         return calculated_capacity;
@@ -277,12 +275,12 @@ void pwrmgmt_flash_dump(void)
 // Rule of thumb is: 
 // if no more than PWR_TIMEOUT_RCD_MAX timeout happened during last hour,
 // set rx power to normal in this callback
-void pwrmgmt_hb(void)
+uint8 pwrmgmt_hb(void)
 {
     uint32 ts_threshold = osal_getRelativeClock() - PWR_TIMEOUT_CHECK_PERIOD;
-    uint8 cnt = 0, idx = 0;
+    uint8 cnt = 0;
     
-    for (idx = 0; idx < PWR_TIMEOUT_RCD_MAX; idx++) {
+    for (uint8 idx = 0; idx < PWR_TIMEOUT_RCD_MAX; idx++) {
         if (pwr_timeout_ts[idx] >= ts_threshold) {
            cnt++;
         } 
@@ -291,19 +289,32 @@ void pwrmgmt_hb(void)
         HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_STD);
         pwrmgmt_event(RX_LOW);
     }
+
+    // If disconnected due to timeout after 10 minutes, lower tx/rx power
+    if ((lostConnectionTime != 0) && (osal_getRelativeClock() - lostConnectionTime) >= 600) {        
+        HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_MINUS_23_DBM);
+        pwrmgmt_event(TX_LOW);
+        HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_STD);
+        pwrmgmt_event(RX_LOW);        
+        return 1;       // stop me!
+    }
+    
+    return 0;   // continue
 }
 
 void pwrmgmt_timeout(void)
 {
     uint32 min_ts = 0xFFFFFFFF;
-    uint8 idx = 0, min_idx = 0;
+    uint8 min_idx = 0;
     
-    for (idx = 0; idx < PWR_TIMEOUT_RCD_MAX; idx++) {
+    for (uint8 idx = 0; idx < PWR_TIMEOUT_RCD_MAX; idx++) {
         if (pwr_timeout_ts[idx] < min_ts) {
             min_idx = idx;
             min_ts = pwr_timeout_ts[idx];
         }
     }
     pwr_timeout_ts[min_idx] = osal_getRelativeClock();
+    
+    lostConnectionTime = osal_getRelativeClock();
 }
 

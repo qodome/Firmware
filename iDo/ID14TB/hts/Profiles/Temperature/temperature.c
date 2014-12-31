@@ -78,10 +78,12 @@ CONST uint8 thermometerIRangeUUID[ATT_BT_UUID_SIZE] =
   LO_UINT16(GATT_VALID_RANGE_UUID), HI_UINT16(GATT_VALID_RANGE_UUID)
 };
 
+#ifdef PRIVATE_TIME_UUID
 CONST uint8 tempTimeUUID[ATT_BT_UUID_SIZE] =
 {
     LO_UINT16(TEMP_TIME_UUID), HI_UINT16(TEMP_TIME_UUID)
 };
+#endif
 
 /*********************************************************************
 * EXTERNAL VARIABLES
@@ -118,9 +120,11 @@ static uint16 tempInterval = 30;
 // Measurement Interval Range
 static thermometerIRange_t  thermometerIRange = {2, 300};
 
+#ifdef PRIVATE_TIME_UUID
 // Timestamp related setting
 static uint8 tempTimeProps = GATT_PROP_READ | GATT_PROP_WRITE;
 UTCTimeStruct tempTime;
+#endif
 
 /*********************************************************************
 * Profile Attributes - Table
@@ -203,6 +207,7 @@ static gattAttribute_t tempAttrTbl[] =
       (uint8 *)&thermometerIRange 
     },
     
+#ifdef PRIVATE_TIME_UUID
     // Initialize UNIX Time Property Declaration
     { 
         { ATT_BT_UUID_SIZE, characterUUID },
@@ -218,6 +223,7 @@ static gattAttribute_t tempAttrTbl[] =
         0, 
         (unsigned char *)&tempTime 
     },
+#endif
 };
 
 /*********************************************************************
@@ -330,12 +336,11 @@ static uint8 temp_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
                              uint8 *pValue, uint8 *pLen, uint16 offset, uint8 maxLen )
 {
     bStatus_t status = SUCCESS;
-    uint16 uuid = 0;
+    uint16 uuid;
+#ifdef PRIVATE_TIME_UUID
     UTCTimeStruct tc;
-    int16 t_raw;
-    int32 t32 = 0;
-    struct temp_intermediate_rw t;
-    int32 sign = -4;    
+#endif
+    struct query_criteria q;    
     
     if (utilExtractUuid16(pAttr,&uuid) == FAILURE)
     {
@@ -347,18 +352,9 @@ static uint8 temp_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
     switch (uuid) 
     {
     case TEMP_INTERMEDIATE:
-        *pLen = sizeof(struct temp_intermediate_rw);
-        osal_memset(&tc, 0, sizeof(UTCTimeStruct));
-        t_raw = recorder_get_temperature(&tc);
-        VOID osal_memcpy(((uint8 *)&t + TEMP_INTERMEDIATE_TIME_OFFSET), (uint8 *)&tc, sizeof(UTCTimeStruct));
-        t.flag = 0x02;
-        if (t_raw & 0x8000) {
-            t32 = (int32)t_raw | 0xFFFF0000;
-        } else {
-            t32 = t_raw;
-        }
-        t.u.temp = (sign << 24) | ((t32 * 625) & 0xFFFFFF);
-        VOID osal_memcpy(pValue, (uint8 *)&t, sizeof(struct temp_intermediate_rw));
+        *pLen = sizeof(struct query_criteria);
+        recorder_get_query_result(&q);
+        VOID osal_memcpy(pValue, (uint8 *)&q, sizeof(struct query_criteria));
         break;
     
     case TEMP_INTERVAL:
@@ -366,6 +362,7 @@ static uint8 temp_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
         VOID osal_memcpy(pValue, (void *)&tempInterval, sizeof(tempInterval));
         break;
         
+#ifdef PRIVATE_TIME_UUID
     case TEMP_TIME_UUID:
         osal_memset((void *)&tc, 0, sizeof(UTCTimeStruct));
         if (osal_TimeInitialized()) {
@@ -374,6 +371,7 @@ static uint8 temp_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
         *pLen = sizeof(UTCTimeStruct);
         VOID osal_memcpy(pValue, (void *)&tc, sizeof(UTCTimeStruct));
         break;
+#endif
         
     default:
         *pLen = 0;
@@ -402,7 +400,7 @@ static uint8 temp_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
 static bStatus_t temp_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
                                   uint8 *pValue, uint8 len, uint16 offset )
 {
-    uint16 newInterval = 0;
+    uint16 newInterval;
     bStatus_t status = ATT_ERR_ATTR_NOT_FOUND;
     
     if ( pAttr->type.len == ATT_BT_UUID_SIZE )
@@ -440,16 +438,16 @@ static bStatus_t temp_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
             break;
             
         case TEMP_INTERMEDIATE:
-            if (len != sizeof(struct temp_intermediate_rw)) {
+            if (len != sizeof(struct query_criteria)) {
                 return ATT_ERR_INVALID_VALUE_SIZE;
             }
-            if (memcmp(pValue, "_QoDoMe_2014", 12) == 0) {
+            if (osal_memcmp(pValue, "_QoDoMe_2014", 12) == TRUE) {
                 iDo_FastReadUpdateParameter();
 #ifndef DEBUG_STATS
                 MemDump_AddService();
 #endif
             } else {
-                recorder_set_read_base_ts((UTCTimeStruct *)(pValue + TEMP_INTERMEDIATE_TIME_OFFSET));
+                recorder_set_query_criteria((struct query_criteria *)pValue);
             }
             status = SUCCESS;
             break;
@@ -467,6 +465,7 @@ static bStatus_t temp_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
             }
             break;
             
+#ifdef PRIVATE_TIME_UUID
         case TEMP_TIME_UUID:
             if (len != sizeof(UTCTimeStruct)) {
                 return ATT_ERR_INVALID_VALUE_SIZE;
@@ -475,6 +474,7 @@ static bStatus_t temp_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
             osal_setClock(osal_ConvertUTCSecs((UTCTimeStruct *)pValue));
             status = SUCCESS;
             break;
+#endif
             
         default:
             status = ATT_ERR_ATTR_NOT_FOUND;
@@ -545,5 +545,67 @@ uint8 Temp_TM_sending(uint16 connHandle)
         return 0;
     }
 }
+
+uint8 Temp_FinishPacket(uint8 *ptr, int16 temp, uint8 round, uint8 is_attached, UTCTimeStruct *ptc)
+{
+    int32 temp32;
+    int32 temp32_delta;
+    uint32 temp32u;
+    int32 sign = -4;    
+    uint8 negative;
+    uint8 len;
+    
+    if (temp & 0x8000) {
+        negative = 1;
+        temp32 = (int32)temp | 0xFFFF0000;
+        if (round == 1) {
+            temp32 = 0 - temp32;
+        }
+    } else {
+        negative = 0;
+        temp32 = temp;           
+    }        
+
+    temp32 = temp32 * 625;    
+    if (round == 1) {
+        temp32_delta = (temp32 / 1000) * 1000;
+        temp32_delta = temp32 - temp32_delta;
+        temp32 = (temp32 / 1000) * 1000;
+        if (temp32_delta >= 500) {
+            temp32 += 1000;                
+        }
+        if (negative == 1) {
+            temp32 = 0 - temp32;
+        }
+    }
+        
+    temp32u = (sign << 24) | (temp32 & 0xFFFFFF);
+    
+    ptr[0] = 0x00;
+    len = 5;
+#ifdef ATTACH_DETECTION
+    if (is_attached) {
+        ptr[0] |= 0x04;
+        len += 1;
+    }
+#endif
+    if (ptc != NULL) {
+        ptr[0] |= 0x02;
+        len += 7;
+    }
+    osal_memcpy(&(ptr[1]), (uint8 *)&temp32u, sizeof(temp32u));
+    if (ptc != NULL) {
+        osal_memcpy(&(ptr[5]), (uint8 *)ptc, sizeof(UTCTimeStruct));
+#ifdef ATTACH_DETECTION
+        if (is_attached) {
+            ptr[12] = 0x02;
+        }
+    } else if (is_attached) {
+        ptr[5] = 0x02;
+#endif
+    }
+    return len;
+}
+
 /*********************************************************************
 *********************************************************************/

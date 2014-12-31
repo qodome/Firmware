@@ -117,9 +117,11 @@ void CBPushTemp (int16 temp)
 		__cb[__cb_push_idx].t_buf.validFlag |= TIME_VALID_FLAG;
         osal_memcpy((void *)&(__cb[__cb_push_idx].t_buf.timeTick), (void *)&utc, sizeof(utc));
 	}
+#ifdef ATTACH_DETECTION
 	if (temp_state_is_attached()) {
 		__cb[__cb_push_idx].t_buf.validFlag |= TYPE_VALID_FLAG;
 	}    
+#endif
     
     __cb[__cb_push_idx].t_buf.tempValue = temp;
     __cb[__cb_push_idx].status_flag |= CB_WRITE_DONE;

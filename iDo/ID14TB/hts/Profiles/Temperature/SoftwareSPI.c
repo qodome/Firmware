@@ -96,11 +96,9 @@ void softwareSPIInit (void)
 
 void SPI_intf_reset (void)
 {
-    uint8 i = 0;
-    
     CS_LOW();
     
-    for (i=0; i<34; i++)    // at least 32
+    for (uint8 i=0; i<34; i++)    // at least 32
     {
         SCK_LOW();
         MO_HIGH();
@@ -114,31 +112,25 @@ void SPI_intf_reset (void)
 
 static uint8 SPI_rcvb (void)
 {
-    uint8 i = 0, inData = 0;
-    for(i=0; i<8; i++)
-    {
-      SCK_LOW();
-      delay_L();
-      SCK_HIGH();
-      inData <<= 1;
-      inData |= READ_MI();
-      delay_L();
+    uint8 inData = 0;
+    for(uint8 i = 0; i < 8; i++) {
+        SCK_LOW();
+        delay_L();
+        SCK_HIGH();
+        inData <<= 1;
+        inData |= READ_MI();
+        delay_L();
     }
     return(inData);
 }
 
 static void SPI_sendb (uint8 outData)
 {
-    uint8 i = 0;
-    for (i=0; i<8; i++)
-    {
+    for (uint8 i = 0; i < 8; i++) {
         SCK_LOW();
-        if((outData<<i)&0x80)
-        {
+        if ((outData << i) & 0x80) {
             MO_HIGH();
-        }
-        else
-        {
+        } else {
             MO_LOW();
         }
         delay_L();
@@ -149,9 +141,10 @@ static void SPI_sendb (uint8 outData)
 
 uint16 spi_read (uint8 addr)
 {
-    uint16 ret = 0;
+    uint16 ret;
+
     if (addr > 0x07) {
-      return ret;
+      return 0;
     }
     
     //PMUX = 0x00;

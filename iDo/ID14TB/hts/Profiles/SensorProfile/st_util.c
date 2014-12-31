@@ -61,8 +61,6 @@
  */
 bStatus_t utilExtractUuid16(gattAttribute_t *pAttr, uint16 *pUuid)
 {
-  bStatus_t status = SUCCESS;
-
   if ( pAttr->type.len == ATT_BT_UUID_SIZE )
   {
     // 16-bit UUID direct
@@ -76,10 +74,10 @@ bStatus_t utilExtractUuid16(gattAttribute_t *pAttr, uint16 *pUuid)
 #endif
   } else {
     *pUuid = 0xFFFF;
-    status = FAILURE;
+    return FAILURE;
   }
 
-  return status;
+  return SUCCESS;
 }
 
 /*********************************************************************
