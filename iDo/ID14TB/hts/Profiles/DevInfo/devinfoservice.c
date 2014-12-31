@@ -393,7 +393,6 @@ bStatus_t DevInfo_AddService( void )
 {
     uint8 idx = 0;   
     uint8 *p_sn = NULL;
-    //uint8 str_list[6] = {'1', '.', '0', '.', '0', '('};
     
     p_sn = (uint8 *)0x780E;
     for (idx = 0; idx < 6; idx++) {
@@ -535,6 +534,23 @@ bStatus_t DevInfo_GetParameter( uint8 param, void *value )
 }
 */
 
+/*
+void devInfo_Util(uint8 *pValue, uint8 *pLen, uint16 offset, uint8 maxLen, 
+                         uint8 *ptr, uint16 size, bStatus_t *pstatus)
+{
+    // verify offset
+    if (offset >= (size - 1)) {
+        *pstatus = ATT_ERR_INVALID_OFFSET;
+    } else {
+        // determine read length (exclude null terminating character)
+        *pLen = MIN(maxLen, ((size - 1) - offset));
+        
+        // copy data
+        osal_memcpy(pValue, &ptr[offset], *pLen);
+    }
+}
+*/
+      
 /*********************************************************************
  * @fn          devInfo_ReadAttrCB
  *
@@ -576,52 +592,22 @@ static uint8 devInfo_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
       */
 
     case MODEL_NUMBER_UUID:
-      // verify offset
-      if (offset >= (sizeof(devInfoModelNumber) - 1))
-      {
-        status = ATT_ERR_INVALID_OFFSET;
-      }
-      else
-      {
-        // determine read length (exclude null terminating character)
-        *pLen = MIN(maxLen, ((sizeof(devInfoModelNumber) - 1) - offset));
-
+        *pLen = sizeof(devInfoModelNumber) - 1;
         // copy data
-        osal_memcpy(pValue, &devInfoModelNumber[offset], *pLen);
-      }
-      break;
+        osal_memcpy(pValue, &devInfoModelNumber[0], *pLen);
+        break;
 
     case SERIAL_NUMBER_UUID:
-      // verify offset
-      if (offset >= (sizeof(devInfoSerialNumber) - 1))
-      {
-        status = ATT_ERR_INVALID_OFFSET;
-      }
-      else
-      {
-        // determine read length (exclude null terminating character)
-        *pLen = MIN(maxLen, ((sizeof(devInfoSerialNumber) - 1) - offset));
-
+        *pLen = sizeof(devInfoSerialNumber) - 1;
         // copy data
-        osal_memcpy(pValue, &devInfoSerialNumber[offset], *pLen);
-      }
-      break;
+        osal_memcpy(pValue, &devInfoSerialNumber[0], *pLen);
+        break;
 
     case FIRMWARE_REV_UUID:
-      // verify offset
-      if (offset >= (sizeof(devInfoFirmwareRev) - 1))
-      {
-        status = ATT_ERR_INVALID_OFFSET;
-      }
-      else
-      {
-        // determine read length (exclude null terminating character)
-        *pLen = MIN(maxLen, ((sizeof(devInfoFirmwareRev) - 1) - offset));
-        
+        *pLen = sizeof(devInfoFirmwareRev) - 1;       
         // copy data
-        osal_memcpy(pValue, &devInfoFirmwareRev[offset], *pLen);
-      }
-      break;
+        osal_memcpy(pValue, &devInfoFirmwareRev[0], *pLen);
+        break;
 
       /*
     case HARDWARE_REV_UUID:
@@ -642,36 +628,16 @@ static uint8 devInfo_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
       */
 
     case SOFTWARE_REV_UUID:
-      // verify offset
-      if (offset >= (sizeof(devInfoSoftwareRev) - 1))
-      {
-        status = ATT_ERR_INVALID_OFFSET;
-      }
-      else
-      {
-        // determine read length (exclude null terminating character)
-        *pLen = MIN(maxLen, ((sizeof(devInfoSoftwareRev) - 1) - offset));
-        
+        *pLen = sizeof(devInfoSoftwareRev) - 1;    
         // copy data
-        osal_memcpy(pValue, &devInfoSoftwareRev[offset], *pLen);
-      }
-      break;
+        osal_memcpy(pValue, &devInfoSoftwareRev[0], *pLen);
+        break;
 
     case MANUFACTURER_NAME_UUID:
-      // verify offset
-      if (offset >= (sizeof(devInfoMfrName) - 1))
-      {
-        status = ATT_ERR_INVALID_OFFSET;
-      }
-      else
-      {
-        // determine read length (exclude null terminating character)
-        *pLen = MIN(maxLen, ((sizeof(devInfoMfrName) - 1) - offset));
-        
+        *pLen = sizeof(devInfoMfrName) - 1; 
         // copy data
-        osal_memcpy(pValue, &devInfoMfrName[offset], *pLen);
-      }
-      break;
+        osal_memcpy(pValue, &devInfoMfrName[0], *pLen);
+        break;
 
       /*
     case IEEE_11073_CERT_DATA_UUID:

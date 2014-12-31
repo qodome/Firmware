@@ -32,6 +32,7 @@ struct record_entry rec_latest;
 uint32 latest_sample_unix_ts;
 int16 latest_sample_temp;
 int8 rec_latest_entry_idx = -1;
+uint8 all_ff[4] = {0xff, 0xff, 0xff, 0xff};
 
 struct record_read_temperature rec_read;
 struct query_db qdb;
@@ -139,20 +140,20 @@ static uint8 __recorder_get_next_page(uint8 pg_idx)
  */
 void recorder_init(void)
 {
-    int available_page_idx = -1;
+    uint8 available_page_idx = 0;
     uint8 buf[4];
-    int page_idx = __recorder_get_first_page();
+    uint8 page_idx = __recorder_get_first_page();
     
     do {
        HalFlashRead(page_idx, 0, buf, 4);
-       if (buf[0] == 0xFF && buf[1] == 0xFF && buf[2] == 0xFF && buf[3] == 0xFF) {
+       if (osal_memcmp(buf, all_ff, 4) == TRUE) {
            available_page_idx = page_idx;
            break;
        }        
        page_idx = __recorder_get_next_page(page_idx);
     } while (page_idx != __recorder_get_first_page());
     
-    if (available_page_idx == -1) {
+    if (available_page_idx == 0) {
         available_page_idx = __recorder_get_first_page();
     }
     
@@ -284,7 +285,7 @@ static uint8 __recorder_get_sample_info(uint8 pg_idx, uint8 rec_idx, int8 entry_
     if ((pg_idx_util == pg_idx) && (rec_idx_util == rec_idx) && (rec_valid_flag_util == 1)) {
         // Fall through
     } else {
-        // read flash block
+        // Read flash block
         rec_valid_flag_util = 0;
         pg_idx_util = pg_idx;
         rec_idx_util = rec_idx;
@@ -350,23 +351,22 @@ static uint8 __recorder_get_current_next_info(uint8 pg_idx, uint8 rec_idx, int8 
     // In case we need current sample info
     if (temp_ptr != NULL || ts_ptr != NULL) {
         if (__recorder_get_sample_info(pg_idx, rec_idx, entry_idx, temp_ptr, ts_ptr) != RECORDER_SUCCESS) {
-            // Restore IDX
-            *npg_ptr = pg_idx;
-            *nrec_ptr = rec_idx;
-            *nentry_ptr = entry_idx;
-            return RECORDER_ERROR;
+            goto error;
         }
     }
     
     if (__recorder_get_sample_info(*npg_ptr, *nrec_ptr, *nentry_ptr, ntemp_ptr, nts_ptr) != RECORDER_SUCCESS) {
-        // Restore IDX
-        *npg_ptr = pg_idx;
-        *nrec_ptr = rec_idx;
-        *nentry_ptr = entry_idx;
-        return RECORDER_ERROR;
+        goto error;
     } else {
         return RECORDER_SUCCESS;
     }
+
+error:
+    // Restore IDX
+    *npg_ptr = pg_idx;
+    *nrec_ptr = rec_idx;
+    *nentry_ptr = entry_idx;
+    return RECORDER_ERROR;
 }
 
 /*
@@ -476,7 +476,7 @@ uint8 __recorder_get_boundary_unix_time_callback(uint8 pg_idx, uint8 rec_idx, ui
                 p_head_ts = head_ts;
                 do {
                     if (__recorder_get_current_next_info(pg_idx, rec_idx, (REC_DATA_PER_ENTRY - 1), &current_temp, &current_ts, &npage_idx, &nrec_idx, &nentry_idx, &next_temp, &next_ts) == RECORDER_SUCCESS) {
-                        if ((next_ts == 0) || (next_ts <= p_head_ts) || ((next_ts - p_head_ts) > ((uint32)(tempSampleSleepPeriod / 1000 + 1)) * (uint32)REC_DATA_PER_ENTRY)) {       // FIXME
+                        if ((next_ts == 0) || (next_ts <= p_head_ts) || ((next_ts - p_head_ts) > 1860)) {      // FIXME: hard code
                             // We got the target, page_idx/rec_idx is the last block
                             task_param->tail_ts = current_ts;
                             *cb_ret_ptr = RECORDER_SUCCESS;
@@ -633,7 +633,7 @@ void recorder_get_query_result(struct query_criteria *query_result)
             if (__recorder_get_current_next_info(rec_read.page_idx, rec_read.record_entry_idx, rec_read.data_entry_idx, &current_temp, &current_ts, &(rec_read.page_idx), &(rec_read.record_entry_idx), &(rec_read.data_entry_idx), &next_temp, &next_ts) != RECORDER_SUCCESS) {
                 return;
             }
-            if ((current_ts >= next_ts) || ((next_ts - current_ts) > (tempSampleSleepPeriod * 2 / 1000 + 2))) {
+            if ((current_ts >= next_ts) || ((next_ts - current_ts) > 20)) { // FIXME: hard code sample period
                 // Do not allow time rollback, time jump etc.
                 rec_read.page_idx = pg_backup;
                 rec_read.record_entry_idx = rec_backup;
@@ -646,7 +646,11 @@ void recorder_get_query_result(struct query_criteria *query_result)
             if (qdb.query_period == 0 && qdb.query_sample_cnt == 0) {
                 // Send back result one by one
                 osal_ConvertUTCTime(&tm, current_ts);
+#ifdef ATTACH_DETECTION                
                 Temp_FinishPacket((uint8 *)query_result, current_temp, 0, 0, &tm);
+#else
+                Temp_FinishPacket((uint8 *)query_result, current_temp, 0, &tm);
+#endif
                 return;
             } 
             
@@ -690,7 +694,17 @@ void recorder_get_query_result(struct query_criteria *query_result)
         }
         
         osal_ConvertUTCTime(&tm, result_ts);
+#ifdef ATTACH_DETECTION        
         Temp_FinishPacket((uint8 *)query_result, result_temp, 0, 0, &tm);
+#else
+        Temp_FinishPacket((uint8 *)query_result, result_temp, 0, &tm);
+#endif
+
+        if (qdb.query_period != 0) {
+            osal_ConvertUTCTime(&tm, (qdb.query_start_point_ts + qdb.query_period));
+            qdb.query_valid = __recorder_find_ts(&tm, &rec_read);
+            qdb.query_start_point_ts = rec_read.unix_ts;
+        }
         return;
     }
 }

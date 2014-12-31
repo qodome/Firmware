@@ -96,9 +96,9 @@ contact Texas Instruments Incorporated at www.TI.com.
 /*********************************************************************
 * CONSTANTS
 */
-#define TEMP_SAMPLE_PERIOD_DEFAULT     1000        // FIXME 10000
+#define TEMP_SAMPLE_PERIOD_DEFAULT     10000
 #define TEMP_WAIT_SAMPLE            100
-#define ADT_CHECK_PERIOD            10000          // FIXME 300000
+#define ADT_CHECK_PERIOD            300000
 
 // General discoverable mode advertises indefinitely
 #define DEFAULT_DISCOVERABLE_MODE             GAP_ADTYPE_FLAGS_GENERAL
@@ -598,11 +598,10 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
     
     if (events & IDO_MONITOR_ADT7320) {        
         adtMonitorCnt++;
-        pwrmgmt_flash_dump(); 
         if (adtMonitorCnt >= 12) {
             
             // Trigger power mgmt module dump statistics
-            //pwrmgmt_flash_dump();         FIXME
+            pwrmgmt_flash_dump();
         
             adtMonitorCnt = 0;
             if ((Temp_Monitor() & 0x60) == 0x00) {
@@ -811,16 +810,30 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         break;
         
     case GAPROLE_WAITING:
-        osal_stop_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT);
-        
+    case GAPROLE_WAITING_AFTER_TIMEOUT:        
         pwrmgmt_event(DISCONNECT);
+                
+        if (newState == GAPROLE_WAITING) {
+            osal_stop_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT);
+        } else {
+            pwrmgmt_timeout();            
+        }
         
-        // Link terminated intentionally: disable temperature sensor, lower tx power
-        HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_MINUS_23_DBM);
-        pwrmgmt_event(TX_LOW);
-        
-        HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_STD);
-        pwrmgmt_event(RX_LOW);
+        if (newState == GAPROLE_WAITING) {
+            // Link terminated intentionally: disable temperature sensor, lower tx power
+            HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_MINUS_23_DBM);
+            pwrmgmt_event(TX_LOW);
+            
+            HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_STD);
+            pwrmgmt_event(RX_LOW);
+        } else {
+            
+            HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_0_DBM);
+            pwrmgmt_event(TX_HIGH);    
+            
+            HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_HIGH);
+            pwrmgmt_event(RX_HIGH);   
+        }
     
 /*
 #ifdef DEBUG_STATS
@@ -843,6 +856,7 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
 #endif
         break;
         
+#if 0
     case GAPROLE_WAITING_AFTER_TIMEOUT:
         // If disconnected due to timeout, do not stop timer
         //osal_stop_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT);
@@ -878,6 +892,7 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         }
 #endif
         break;
+#endif
         
     default:
 	    break;
@@ -944,7 +959,7 @@ void tempReadCallback()
 #ifdef ATTACH_DETECTION
         len = Temp_FinishPacket(buf, v, 0, temp_state_is_attached(), NULL);
 #else
-        len = Temp_FinishPacket(buf, v, 0, 0, NULL);
+        len = Temp_FinishPacket(buf, v, 0, NULL);
 #endif
         Temp_NotifyTemperature(gapConnHandle, buf, len);
     }   
@@ -1013,13 +1028,13 @@ static void iDo_prepare_send_indication()
     uint8 validFlag;
     
     if (gapProfileState == GAPROLE_CONNECTED) {
-        osal_memset((void *)&tc, 0, sizeof(tc));
         lastReadBuffer = CBGetNextBufferForTX(&temp, &validFlag, &tc);
         if (lastReadBuffer != NULL) {
 #ifdef ATTACH_DETECTION   
             len = Temp_FinishPacket(buf, temp, 1, (validFlag & TYPE_VALID_FLAG), &tc);
 #else
-            len = Temp_FinishPacket(buf, temp, 1, 0, &tc);
+            len = Temp_FinishPacket(buf, temp, 1, (validFlag & TIME_VALID_FLAG) ? &tc : NULL);
+            
 #endif
             Temp_IndicateTemperature(gapConnHandle, buf, len, iDo_TaskID);
         }

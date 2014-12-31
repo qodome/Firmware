@@ -165,20 +165,25 @@ uint16 spi_read (uint8 addr)
     return ret;
 }
 
+// FIXME: spi_write only writes to 0x01!
 void spi_write (uint8 addr, uint16 val)
 {
   //PMUX = 0x00;
   //P1_0 = 0;
    
   CS_LOW();
+#if 0
   if (addr == 0x01 || addr == 0x05) {
+#endif
     SPI_sendb(((addr & 0x07) << 3) & ~(0x40));
     SPI_sendb((uint8)(val & 0xFF));
+#if 0
   } else if (addr == 0x04 || addr == 0x06 || addr == 0x07) {
     SPI_sendb(((addr & 0x07) << 3) & ~(0x40));
     SPI_sendb((uint8)((val >> 8) & 0xFF));    
     SPI_sendb((uint8)(val & 0xFF));
   }
+#endif
   CS_HIGH();
     
   //PMUX = 0x08;

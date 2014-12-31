@@ -42,10 +42,12 @@ struct cmd_buffer_stats {
  */
 void CBInit(void);
 
+#ifdef DELETE_INFO_UNKNOWN_PEER
 /*
  * Do cleanup when new peer connected
  */
 void CBCleanup(void);
+#endif
 
 /*
  * Invoked by USB TX to get the next cmd buffer

@@ -35,6 +35,7 @@ void CBInit (void)
     __cb_pop_idx = -1;
 }
 
+#ifdef DELETE_INFO_UNKNOWN_PEER
 // The cleanup routine is invoked by iDo when connected to new device
 void CBCleanup(void)
 {
@@ -48,6 +49,7 @@ void CBCleanup(void)
     
     HAL_EXIT_CRITICAL_SECTION(intState);    
 }
+#endif
 
 /*
  * Get the next Temperature Measurement

@@ -139,10 +139,7 @@ static uint8 memdump_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
     switch (uuid) {
     case MEMDUMP_BYTES:
         *pLen = 20;
-        memdumpBytes[0] = (uint8)((memPtr >> 24) & 0xFF);
-        memdumpBytes[1] = (uint8)((memPtr >> 16) & 0xFF);
-        memdumpBytes[2] = (uint8)((memPtr >> 8) & 0xFF);
-        memdumpBytes[3] = (uint8)(memPtr & 0xFF);
+        osal_memcpy(memdumpBytes, (uint8 *)&memPtr, 4);
         ptr = (uint16)memPtr;
         if (memFlash == 0) {
             osal_memcpy(&(memdumpBytes[4]), (void *)ptr, 16);

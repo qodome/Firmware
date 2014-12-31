@@ -32,7 +32,7 @@
             <Factory>Workspace</Factory>
             <Session>
               
-            <NodeDict><ExpandedNode>iDo</ExpandedNode><ExpandedNode>iDo/APP</ExpandedNode><ExpandedNode>iDo/HAL</ExpandedNode><ExpandedNode>iDo/NPI</ExpandedNode><ExpandedNode>iDo/OSAL</ExpandedNode><ExpandedNode>iDo/PROFILES</ExpandedNode></NodeDict></Session>
+            <NodeDict><ExpandedNode>iDo</ExpandedNode><ExpandedNode>iDo/APP</ExpandedNode><ExpandedNode>iDo/HAL</ExpandedNode><ExpandedNode>iDo/HAL/Target</ExpandedNode><ExpandedNode>iDo/NPI</ExpandedNode><ExpandedNode>iDo/OSAL</ExpandedNode><ExpandedNode>iDo/PROFILES</ExpandedNode></NodeDict></Session>
           </Tab>
         </Tabs>
         
@@ -52,14 +52,14 @@
       
       
       
-    <Pane><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\DataRecorder\recorder.h</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>12</YPos2><SelStart2>301</SelStart2><SelEnd2>315</SelEnd2></Tab><ActiveTab>0</ActiveTab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\osal\common\OSAL_ClockBLE.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>317</YPos2><SelStart2>10386</SelStart2><SelEnd2>10386</SelEnd2></Tab></Pane><ActivePane>0</ActivePane><Sizes><Pane><X>1000000</X><Y>1000000</Y></Pane></Sizes><SplitMode>1</SplitMode></Editor>
+    <Pane><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\Temperature\temperature.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>589</YPos2><SelStart2>18037</SelStart2><SelEnd2>18037</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\DataRecorder\recorder.h</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>42</YPos2><SelStart2>352</SelStart2><SelEnd2>352</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\App\pwrmgmt.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>236</YPos2><SelStart2>895</SelStart2><SelEnd2>895</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\Profiles\Batt\battservice.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>61</YPos2><SelStart2>3070</SelStart2><SelEnd2>3074</SelEnd2></Tab><Tab><Factory>TextEditor</Factory><Filename>$WS_DIR$\App\iDo.c</Filename><XPos>0</XPos><YPos>0</YPos><SelStart>0</SelStart><SelEnd>0</SelEnd><XPos2>0</XPos2><YPos2>587</YPos2><SelStart2>21000</SelStart2><SelEnd2>21000</SelEnd2></Tab><ActiveTab>4</ActiveTab></Pane><ActivePane>0</ActivePane><Sizes><Pane><X>1000000</X><Y>1000000</Y></Pane></Sizes><SplitMode>1</SplitMode></Editor>
     <Positions>
       
       
       
       
       
-    <Top><Row0><Sizes><Toolbar-0136d960><key>iaridepm.enu1</key></Toolbar-0136d960></Sizes></Row0></Top><Left><Row0><Sizes><Wnd0><Rect><Top>-2</Top><Left>-2</Left><Bottom>508</Bottom><Right>309</Right><x>-2</x><y>-2</y><xscreen>478</xscreen><yscreen>365</yscreen><sizeHorzCX>373438</sizeHorzCX><sizeHorzCY>504144</sizeHorzCY><sizeVertCX>242969</sizeVertCX><sizeVertCY>704420</sizeVertCY></Rect></Wnd0></Sizes></Row0></Left><Right><Row0><Sizes/></Row0></Right><Bottom><Row0><Sizes><Wnd1><Rect><Top>-2</Top><Left>-2</Left><Bottom>171</Bottom><Right>1282</Right><x>-2</x><y>-2</y><xscreen>1284</xscreen><yscreen>173</yscreen><sizeHorzCX>1003125</sizeHorzCX><sizeHorzCY>238950</sizeHorzCY><sizeVertCX>373438</sizeVertCX><sizeVertCY>504144</sizeVertCY></Rect></Wnd1></Sizes></Row0></Bottom><Float><Sizes/></Float></Positions>
+    <Top><Row0><Sizes><Toolbar-0136d960><key>iaridepm.enu1</key></Toolbar-0136d960></Sizes></Row0></Top><Left><Row0><Sizes><Wnd0><Rect><Top>-2</Top><Left>-2</Left><Bottom>463</Bottom><Right>309</Right><x>-2</x><y>-2</y><xscreen>478</xscreen><yscreen>365</yscreen><sizeHorzCX>373438</sizeHorzCX><sizeHorzCY>504144</sizeHorzCY><sizeVertCX>242969</sizeVertCX><sizeVertCY>642265</sizeVertCY></Rect></Wnd0></Sizes></Row0></Left><Right><Row0><Sizes/></Row0></Right><Bottom><Row0><Sizes><Wnd1><Rect><Top>-2</Top><Left>-2</Left><Bottom>216</Bottom><Right>1282</Right><x>-2</x><y>-2</y><xscreen>1284</xscreen><yscreen>218</yscreen><sizeHorzCX>1003125</sizeHorzCX><sizeHorzCY>301105</sizeHorzCY><sizeVertCX>373438</sizeVertCX><sizeVertCY>504144</sizeVertCY></Rect></Wnd1></Sizes></Row0></Bottom><Float><Sizes/></Float></Positions>
   </Desktop>
 </Workspace>
 

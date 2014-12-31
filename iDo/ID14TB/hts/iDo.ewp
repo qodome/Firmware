@@ -279,7 +279,6 @@
           <state>HAL_LED=FALSE</state>
           <state>HAL_I2C=FALSE</state>
           <state>HAL_ADC=TRUE</state>
-          <state>DEBUG_STATS=TRUE</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -1363,7 +1362,6 @@
           <state>HAL_LED=FALSE</state>
           <state>HAL_I2C=FALSE</state>
           <state>HAL_ADC=TRUE</state>
-          <state>DEBUG_STATS=TRUE</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -2447,7 +2445,6 @@
           <state>HAL_LED=FALSE</state>
           <state>HAL_I2C=FALSE</state>
           <state>HAL_ADC=TRUE</state>
-          <state>DEBUG_STATS=TRUE</state>
         </option>
         <option>
           <name>CCPreprocFile</name>

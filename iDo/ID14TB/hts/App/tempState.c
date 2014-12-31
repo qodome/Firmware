@@ -191,7 +191,6 @@ static int16 __temp_state_iir_filter(int16 newTemp)
     const float b_1 = 0.0558, b_2 = -0.0399, b_3 = -0.0399, b_4 = 0.0558;
 
     x_n = (float)newTemp;
-    // FIXME
     if (firstSample == 1) {
         firstSample = 0;
         x_n_1 = x_n;

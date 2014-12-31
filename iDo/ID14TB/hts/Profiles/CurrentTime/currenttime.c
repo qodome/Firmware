@@ -85,14 +85,10 @@ CONST gattServiceCBs_t timeCBs =
 * PUBLIC FUNCTIONS
 */
 bStatus_t CurrentTime_AddService(uint32 services)
-{
-    uint8 status = SUCCESS;
-    
-    status = GATTServApp_RegisterService( timeAttrTbl, 
+{    
+    return GATTServApp_RegisterService( timeAttrTbl, 
                                          GATT_NUM_ATTRS( timeAttrTbl ),
                                          &timeCBs );
-    
-    return ( status );
 }
 
 /*
@@ -102,7 +98,7 @@ static uint8 time_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
                             uint8 *pValue, uint8 *pLen, uint16 offset, uint8 maxLen )
 {
     bStatus_t status = SUCCESS;
-    uint16 uuid = 0;
+    uint16 uuid;
     
     if (utilExtractUuid16(pAttr,&uuid) == FAILURE)
     {
@@ -113,9 +109,10 @@ static uint8 time_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
     
     switch (uuid) {
     case DATE_TIME_UUID:
-        osal_memset((void *)&timeNow, 0, sizeof(UTCTimeStruct));
         if (osal_TimeInitialized()) {
             osal_ConvertUTCTime(&timeNow, osal_getClock());                    
+        } else {
+            osal_memset((void *)&timeNow, 0, sizeof(UTCTimeStruct));
         }
         *pLen = sizeof(UTCTimeStruct);
         VOID osal_memcpy(pValue, pAttr->pValue, 7);

@@ -421,9 +421,7 @@ void Batt_Setup( uint8 adc_ch, uint16 minVal, uint16 maxVal,
 */
 static uint8 battReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
                             uint8 *pValue, uint8 *pLen, uint16 offset, uint8 maxLen )
-{
-    bStatus_t status = SUCCESS;
-    
+{    
     // Make sure it's not a blob operation (no attributes in the profile are long)
     if ( offset > 0 )
     {
@@ -464,10 +462,10 @@ static uint8 battReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
 #endif    
     else
     {
-        status = ATT_ERR_ATTR_NOT_FOUND;
+        return ATT_ERR_ATTR_NOT_FOUND;
     }
     
-    return ( status );
+    return SUCCESS;
 }
 
 /*********************************************************************
