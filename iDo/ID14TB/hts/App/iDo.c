@@ -934,8 +934,7 @@ void tempReadCallback()
     Temp_Disable();
     v = spi_read(0x02);
     v = v >> 3;    
-    v &= 0x1FFF;
-    if (v & 0x2000) {
+    if (v & 0x1000) {
         // negative
         v |= 0xE000;
     }
