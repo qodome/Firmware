@@ -957,9 +957,9 @@ void tempReadCallback()
         }   
         
 #ifdef ATTACH_DETECTION
-        len = Temp_FinishPacket(buf, v, 0, temp_state_is_attached(), NULL);
+        len = Temp_FinishPacket(buf, v, temp_state_is_attached(), NULL);
 #else
-        len = Temp_FinishPacket(buf, v, 0, NULL);
+        len = Temp_FinishPacket(buf, v, NULL);
 #endif
         Temp_NotifyTemperature(gapConnHandle, buf, len);
     }   
@@ -1031,9 +1031,9 @@ static void iDo_prepare_send_indication()
         lastReadBuffer = CBGetNextBufferForTX(&temp, &validFlag, &tc);
         if (lastReadBuffer != NULL) {
 #ifdef ATTACH_DETECTION   
-            len = Temp_FinishPacket(buf, temp, 1, (validFlag & TYPE_VALID_FLAG), &tc);
+            len = Temp_FinishPacket(buf, temp, (validFlag & TYPE_VALID_FLAG), &tc);
 #else
-            len = Temp_FinishPacket(buf, temp, 1, (validFlag & TIME_VALID_FLAG) ? &tc : NULL);
+            len = Temp_FinishPacket(buf, temp, (validFlag & TIME_VALID_FLAG) ? &tc : NULL);
             
 #endif
             Temp_IndicateTemperature(gapConnHandle, buf, len, iDo_TaskID);

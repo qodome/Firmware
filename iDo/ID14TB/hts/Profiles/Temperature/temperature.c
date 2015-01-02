@@ -547,41 +547,22 @@ uint8 Temp_TM_sending(uint16 connHandle)
 }
 
 #ifdef ATTACH_DETECTION
-uint8 Temp_FinishPacket(uint8 *ptr, int16 temp, uint8 round, uint8 is_attached, UTCTimeStruct *ptc)
+uint8 Temp_FinishPacket(uint8 *ptr, int16 temp, uint8 is_attached, UTCTimeStruct *ptc)
 #else
-uint8 Temp_FinishPacket(uint8 *ptr, int16 temp, uint8 round, UTCTimeStruct *ptc)
+uint8 Temp_FinishPacket(uint8 *ptr, int16 temp, UTCTimeStruct *ptc)
 #endif
 {
     int32 temp32;
-    int32 temp32_delta;
     uint32 temp32u;  
-    uint8 negative;
     uint8 len;
     
     if (temp & 0x8000) {
-        negative = 1;
         temp32 = (int32)temp | 0xFFFF0000;
-        if (round == 1) {
-            temp32 = 0 - temp32;
-        }
     } else {
-        negative = 0;
         temp32 = temp;           
     }        
 
-    temp32 = temp32 * 625;    
-    if (round == 1) {
-        temp32_delta = (temp32 / 1000) * 1000;
-        temp32_delta = temp32 - temp32_delta;
-        temp32 = (temp32 / 1000) * 1000;
-        if (temp32_delta >= 500) {
-            temp32 += 1000;                
-        }
-        if (negative == 1) {
-            temp32 = 0 - temp32;
-        }
-    }
-        
+    temp32 = temp32 * 625;            
     temp32u = temp32 & 0xFFFFFF;
     ((uint8 *)&temp32u)[3] = 0xFC;
     

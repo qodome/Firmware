@@ -166,9 +166,9 @@ uint8 Temp_Monitor(void);
 uint8 Temp_TM_sending(uint16 connHandle);
 
 #ifdef ATTACH_DETECTION
-uint8 Temp_FinishPacket(uint8 *ptr, int16 temp, uint8 round, uint8 is_attached, UTCTimeStruct *ptc);
+uint8 Temp_FinishPacket(uint8 *ptr, int16 temp, uint8 is_attached, UTCTimeStruct *ptc);
 #else
-uint8 Temp_FinishPacket(uint8 *ptr, int16 temp, uint8 round, UTCTimeStruct *ptc);
+uint8 Temp_FinishPacket(uint8 *ptr, int16 temp, UTCTimeStruct *ptc);
 #endif
 /*********************************************************************
 *********************************************************************/

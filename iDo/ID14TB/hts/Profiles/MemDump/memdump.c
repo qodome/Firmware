@@ -123,7 +123,6 @@ bStatus_t MemDump_DelService(void)
 static uint8 memdump_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr, 
                             uint8 *pValue, uint8 *pLen, uint16 offset, uint8 maxLen )
 {
-    bStatus_t status = SUCCESS;
     uint16 uuid;
     uint8 flash_pg;
     uint16 flash_offset;
@@ -158,11 +157,10 @@ static uint8 memdump_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
         
     default:
         *pLen = 0;
-        status = ATT_ERR_ATTR_NOT_FOUND;
-        break;
+        return ATT_ERR_ATTR_NOT_FOUND;
     }
     
-    return ( status );
+    return SUCCESS;
 }
 
 /*
@@ -190,7 +188,10 @@ static bStatus_t memdump_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
                 } else {
                     memFlash = 0;
                 }
-                memPtr = (uint32)((((uint32)pValue[0] << 24) | ((uint32)pValue[1] << 16) | ((uint32)pValue[2] << 8) | (uint32)pValue[3]) & 0x3FFFFFFF);
+                ((uint8 *)&memPtr)[0] = pValue[3];
+                ((uint8 *)&memPtr)[1] = pValue[2];
+                ((uint8 *)&memPtr)[2] = pValue[1];
+                ((uint8 *)&memPtr)[3] = pValue[0] & 0x3F;
             } else {
                 status = ATT_ERR_ATTR_NOT_LONG;
             }

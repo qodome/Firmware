@@ -59,9 +59,11 @@
 // so: (13105 * 5) + 7 <= 65535
 #define MAXCALCTICKS  ((uint16)(13105))
 
-#define	BEGYEAR	        2014     // UTC started at 00:00:00 January 1, 2014
+#define	BEGYEAR	        2015     // UTC started at 00:00:00 January 1, 2015
 
 #define	DAY             86400UL  // 24 hours * 60 minutes * 60 seconds
+
+#define MAX_TIME_JUMP       255  // We shall smooth the time jump within 300 seconds
 
 /*********************************************************************
  * TYPEDEFS
@@ -90,6 +92,8 @@ static uint16 timeMSec = 0;
 // number of seconds since 0 hrs, 0 minutes, 0 seconds, on the
 // 1st of January 2014 UTC
 UTCTime OSAL_timeSeconds = 0;
+uint8   OSAL_deltaSeconds = 0;
+uint8   OSAL_deltaDir = 0;          // 1: need to go faster, 2: need to go slower
 UTCTime relative_sec = 0;
 static uint8 osalTimeInitialized = 0;
 
@@ -173,16 +177,33 @@ void osalTimeUpdate( void )
  */
 static void osalClockUpdate( uint16 elapsedMSec )
 {
-  // Add elapsed milliseconds to the saved millisecond portion of time
-  timeMSec += elapsedMSec;
-
-  // Roll up milliseconds to the number of seconds
-  if ( timeMSec >= 1000 )
-  {
-    OSAL_timeSeconds += timeMSec / 1000;
-    relative_sec += timeMSec / 1000;
-    timeMSec = timeMSec % 1000;
-  }
+    // Add elapsed milliseconds to the saved millisecond portion of time
+    timeMSec += elapsedMSec;
+    
+    // Roll up milliseconds to the number of seconds
+    if ( timeMSec >= 2000 )
+    {
+        uint16 tt = (timeMSec / 2000) * 2;
+        
+        if (OSAL_deltaDir != 0) {
+            if (OSAL_deltaDir == 1) {           // Time need to go faster
+                tt++;
+                OSAL_deltaSeconds--;
+                if (OSAL_deltaSeconds == 0) {
+                    OSAL_deltaDir = 0;
+                }
+            } else if (OSAL_deltaDir == 2) {    // Time need to go slower
+                tt--;
+                OSAL_deltaSeconds--;
+                if (OSAL_deltaSeconds == 0) {
+                    OSAL_deltaDir = 0;
+                }            
+            }
+        }
+        OSAL_timeSeconds += tt;
+        relative_sec += tt;
+        timeMSec = timeMSec % 2000;
+    }
 }
 
 uint8 osal_TimeInitialized(void)
@@ -203,8 +224,22 @@ uint8 osal_TimeInitialized(void)
  */
 void osal_setClock( UTCTime newTime )
 {
-  osalTimeInitialized = 1;  
-  OSAL_timeSeconds = newTime;
+    if (osalTimeInitialized == 1) {
+        if ((newTime > OSAL_timeSeconds) && ((newTime - OSAL_timeSeconds) <= MAX_TIME_JUMP)) {
+            OSAL_deltaSeconds = (uint8)(newTime - OSAL_timeSeconds);
+            OSAL_deltaDir = 1;
+        } else if ((newTime < OSAL_timeSeconds) && ((OSAL_timeSeconds - newTime) <= MAX_TIME_JUMP)) {
+            OSAL_deltaSeconds = (uint8)(OSAL_timeSeconds - newTime);
+            OSAL_deltaDir = 2;
+        } else {
+            OSAL_timeSeconds = newTime;
+            OSAL_deltaDir = 0;
+        }
+    } else {
+        osalTimeInitialized = 1;  
+        OSAL_timeSeconds = newTime;
+        OSAL_deltaDir = 0;
+    }
 }
 
 /*********************************************************************

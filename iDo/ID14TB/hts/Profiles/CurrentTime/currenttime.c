@@ -97,7 +97,6 @@ bStatus_t CurrentTime_AddService(uint32 services)
 static uint8 time_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr, 
                             uint8 *pValue, uint8 *pLen, uint16 offset, uint8 maxLen )
 {
-    bStatus_t status = SUCCESS;
     uint16 uuid;
     
     if (utilExtractUuid16(pAttr,&uuid) == FAILURE)
@@ -120,11 +119,10 @@ static uint8 time_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
         
     default:
         *pLen = 0;
-        status = ATT_ERR_ATTR_NOT_FOUND;
-        break;
+        return ATT_ERR_ATTR_NOT_FOUND;
     }
     
-    return ( status );
+    return SUCCESS;
 }
 
 /*
@@ -132,9 +130,7 @@ static uint8 time_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
  */
 static bStatus_t time_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
                                  uint8 *pValue, uint8 len, uint16 offset )
-{
-    bStatus_t status = SUCCESS;
-    
+{    
     if ( pAttr->type.len == ATT_BT_UUID_SIZE )
     {
         uint16 uuid = BUILD_UINT16( pAttr->type.uuid[0], pAttr->type.uuid[1]);
@@ -144,15 +140,15 @@ static bStatus_t time_WriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
             if (len == 7) {
                 osal_setClock(osal_ConvertUTCSecs((UTCTimeStruct *)pValue));
             } else {
-                status = ATT_ERR_ATTR_NOT_LONG;
+                return ATT_ERR_ATTR_NOT_LONG;
             }
             break;        
             
         default:
-            status = ATT_ERR_ATTR_NOT_FOUND;
+            return ATT_ERR_ATTR_NOT_FOUND;
         }
     }
     
-    return ( status );
+    return SUCCESS;
 }
 

@@ -102,24 +102,16 @@ static void __OD_insert_node(struct temp_hist *t_node)
             ptr = ptr->next;
         }
     }
-    if (ptr == &od_min) {
-        // insert t_node before od_min
-        t_node->prev = od_min.prev;
-        t_node->next = &od_min;
-        od_min.prev->next = t_node;
-        od_min.prev = t_node;
-    } else {
-        // insert t_node before ptr
-        t_node->prev = ptr->prev;
-        t_node->next = ptr;
-        ptr->prev->next = t_node;
-        ptr->prev = t_node;
-    }
+    // insert t_node before ptr
+    t_node->prev = ptr->prev;
+    t_node->next = ptr;
+    ptr->prev->next = t_node;
+    ptr->prev = t_node;
 }
 
 static void __temp_state_update_attach_state(int16 temp)
 {
-    struct temp_hist *t_ptr = NULL;
+    struct temp_hist *t_ptr;
 
     // First: insert the node into temperature count
     // down list
@@ -223,9 +215,7 @@ void temp_state_init(void)
     for (idx = 0; idx < TEMP_HIST_DEPTH; idx++) {
         od_ptr[idx] = &(od_dlist[idx]);
     }
-    od_max.temp = 0;
-    od_max.idx = 0;
-    od_max.prev = NULL;
+    osal_memset((uint8 *)&od_max, 0, sizeof(od_max));
     od_max.next = &(od_dlist[0]);
 
     od_dlist[0].prev = &od_max;
@@ -237,10 +227,8 @@ void temp_state_init(void)
     od_dlist[2].prev = &(od_dlist[1]);
     od_dlist[2].next = &od_min;
 
-    od_min.temp = 0;
-    od_min.idx = 0;
+    osal_memset((uint8 *)&od_min, 0, sizeof(od_min));
     od_min.prev = &(od_dlist[2]);
-    od_min.next = NULL;
 
     od_ptr_idx = 0;
     od_idx = 0;

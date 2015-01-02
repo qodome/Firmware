@@ -60,6 +60,7 @@ contact Texas Instruments Incorporated at www.TI.com.
 #include "recorder.h"
 #include "pwrmgmt.h"
 #include "hci.h"
+#include "pwrmgmt.h"
 
 /*********************************************************************
  * CONSTANTS
@@ -495,6 +496,7 @@ static bStatus_t oadImgBlockWrite( uint16 connHandle, uint8 *pValue )
             HalFlashEnableException();
             HalFlashWrite(addr, (uint8 *)crc, 1);
 //#endif
+            pwrmgmt_flash_dump();
             HAL_SYSTEM_RESET();
         }
 #endif 

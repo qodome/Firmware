@@ -498,9 +498,7 @@ static bStatus_t battWriteAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
             
             if ( battServiceCB )
             {
-                (*battServiceCB)( (charCfg == GATT_CFG_NO_OPERATION) ?
-            BATT_LEVEL_NOTI_DISABLED :
-                                       BATT_LEVEL_NOTI_ENABLED);
+                (*battServiceCB)( (charCfg == GATT_CFG_NO_OPERATION) ? BATT_LEVEL_NOTI_DISABLED : BATT_LEVEL_NOTI_ENABLED);
             }
         }
         break;

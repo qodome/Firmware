@@ -368,7 +368,7 @@ CONST gattServiceCBs_t devInfoCBs =
 
 static uint8 bin_to_ascii(uint8 b)
 {
-	uint8 a = 0;
+	uint8 a;
 
 	if (b > 15) {
 		return ' ';
@@ -391,8 +391,8 @@ static uint8 bin_to_ascii(uint8 b)
  */
 bStatus_t DevInfo_AddService( void )
 {
-    uint8 idx = 0;   
-    uint8 *p_sn = NULL;
+    uint8 idx;   
+    uint8 *p_sn;
     
     p_sn = (uint8 *)0x780E;
     for (idx = 0; idx < 6; idx++) {
@@ -421,19 +421,11 @@ bStatus_t DevInfo_AddService( void )
 #endif   
     devInfoFirmwareRev[9] = ')';
     devInfoFirmwareRev[10] = 0;    
-    /*
-  sprintf(devInfoSerialNumber, "%02x:%02x:%02x:%02x:%02x:%02x", ((uint8 *)0x780E)[0],
-                                                        ((uint8 *)0x780E)[1],
-                                                        ((uint8 *)0x780E)[2],
-                                                        ((uint8 *)0x780E)[3],
-                                                        ((uint8 *)0x780E)[4],
-                                                        ((uint8 *)0x780E)[5]);
 
-    */
-  // Register GATT attribute list and CBs with GATT Server App
-  return GATTServApp_RegisterService( devInfoAttrTbl,
-                                      GATT_NUM_ATTRS( devInfoAttrTbl ),
-                                      &devInfoCBs );
+    // Register GATT attribute list and CBs with GATT Server App
+    return GATTServApp_RegisterService(devInfoAttrTbl,
+                                        GATT_NUM_ATTRS(devInfoAttrTbl),
+                                        &devInfoCBs);
 }
 
 /*********************************************************************
@@ -568,7 +560,6 @@ void devInfo_Util(uint8 *pValue, uint8 *pLen, uint16 offset, uint8 maxLen,
 static uint8 devInfo_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
                             uint8 *pValue, uint8 *pLen, uint16 offset, uint8 maxLen )
 {
-  bStatus_t status = SUCCESS;
   uint16 uuid = BUILD_UINT16( pAttr->type.uuid[0], pAttr->type.uuid[1]);
 
   switch (uuid)
@@ -675,11 +666,10 @@ static uint8 devInfo_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
 
     default:
       *pLen = 0;
-      status = ATT_ERR_ATTR_NOT_FOUND;
-      break;
+      return ATT_ERR_ATTR_NOT_FOUND;
   }
 
-  return ( status );
+  return SUCCESS;
 }
 
 

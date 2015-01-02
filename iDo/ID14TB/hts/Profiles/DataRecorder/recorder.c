@@ -19,6 +19,8 @@
 #include "iDo.h"
 #include "temperature.h"
      
+#define TEMP_SAMPLE_GAP_THRESHOLD   20      // FIXME: hard code
+
 /*
  * Notice: page 123, 124 is reserved for custom device name
  * page 125, 126 are used by osal_snv.c
@@ -458,7 +460,7 @@ static uint8 __recorder_find_ts(UTCTimeStruct *tc, struct record_read_temperatur
 uint8 __recorder_get_boundary_unix_time_callback(uint8 pg_idx, uint8 rec_idx, uint8 *cb_ret_ptr, struct for_task_param *task_param)
 {
     int16 head_temp, next_temp, current_temp;
-    uint32 head_ts, next_ts, current_ts, p_head_ts;
+    uint32 head_ts, next_ts, current_ts;
     uint8 npage_idx;
     uint8 nrec_idx;
     int8 nentry_idx;    
@@ -473,16 +475,14 @@ uint8 __recorder_get_boundary_unix_time_callback(uint8 pg_idx, uint8 rec_idx, ui
         } else if (task_param->search_mode == 2) {
             // Head is known, search for tail
             if (head_ts == task_param->last_known_ts) {
-                p_head_ts = head_ts;
                 do {
                     if (__recorder_get_current_next_info(pg_idx, rec_idx, (REC_DATA_PER_ENTRY - 1), &current_temp, &current_ts, &npage_idx, &nrec_idx, &nentry_idx, &next_temp, &next_ts) == RECORDER_SUCCESS) {
-                        if ((next_ts == 0) || (next_ts <= p_head_ts) || ((next_ts - p_head_ts) > 1860)) {      // FIXME: hard code
+                        if ((next_ts == 0) || (next_ts < current_ts) || ((next_ts - current_ts) > TEMP_SAMPLE_GAP_THRESHOLD)) {
                             // We got the target, page_idx/rec_idx is the last block
                             task_param->tail_ts = current_ts;
                             *cb_ret_ptr = RECORDER_SUCCESS;
                             return RECORDER_FOR_RETURN;
                         } else {
-                            p_head_ts = next_ts;
                             pg_idx = npage_idx;
                             rec_idx = nrec_idx;
                         }    
@@ -574,6 +574,9 @@ static uint8 __recorder_get_next_end_ts(struct record_read_temperature *rec_ptr)
  */
 void recorder_set_query_criteria(struct query_criteria *query_ptr)
 {
+    uint32 initial_ts;
+    uint16 seg_cnt;
+
     osal_memset((uint8 *)&qdb, 0, sizeof(qdb));
     osal_memset((uint8 *)&rec_read, 0, sizeof(struct record_read_temperature));
 
@@ -581,6 +584,32 @@ void recorder_set_query_criteria(struct query_criteria *query_ptr)
     if (query_ptr->stats_mode == 0xFF) {
         qdb.query_time_interval = 1;
         qdb.query_time_interval_flag = 1;        
+
+        // Count how many fragments do we have?
+        // Return at most 255
+        __recorder_get_next_end_ts(&rec_read);
+        if (rec_read.unix_ts == 0) {
+            qdb.query_time_interval = 1;
+            qdb.query_time_interval_flag = 1;        
+            return;
+        }
+
+        initial_ts = rec_read.unix_ts;
+        seg_cnt = 0;
+        do {
+            seg_cnt++;
+            __recorder_get_next_end_ts(&rec_read);
+        } while (rec_read.unix_ts != initial_ts);
+
+        if (seg_cnt >= (QUERY_MAX_SEGMENT_CNT * 2)) {
+            rec_read.page_idx = QUERY_MAX_SEGMENT_CNT;
+        } else {
+            rec_read.page_idx = (uint8)(seg_cnt / 2);
+        }
+
+        qdb.query_time_interval = 1;
+        qdb.query_time_interval_flag = 1;        
+        rec_read.unix_ts = 0;
         return;
     }
 
@@ -612,14 +641,22 @@ void recorder_get_query_result(struct query_criteria *query_result)
     int16 current_temp, next_temp, result_temp;
     uint32 current_ts, next_ts, result_ts;
     UTCTimeStruct tm;
-        
+    struct query_criteria q;
+
     osal_memset((uint8 *)query_result, 0, sizeof(struct query_criteria));
     
     if (qdb.query_time_interval == 1) {
         // Doing time interval query
         query_result->stats_mode = __recorder_get_next_end_ts(&rec_read);
         if (rec_read.unix_ts != 0) {
+            query_result->stats_sample_cnt = rec_read.page_idx;
+            query_result->stats_period_0 = qdb.query_time_interval_cnt / 2;
             osal_ConvertUTCTime(&(query_result->tc), rec_read.unix_ts);
+            qdb.query_time_interval_cnt++;
+            if (qdb.query_time_interval_cnt >= (QUERY_MAX_SEGMENT_CNT * 2)) {
+                q.stats_mode = 0xFF;
+                recorder_set_query_criteria(&q);
+            }
         }
     } else if (qdb.query_valid == 1) {
         read_cnt = 0;
@@ -633,7 +670,7 @@ void recorder_get_query_result(struct query_criteria *query_result)
             if (__recorder_get_current_next_info(rec_read.page_idx, rec_read.record_entry_idx, rec_read.data_entry_idx, &current_temp, &current_ts, &(rec_read.page_idx), &(rec_read.record_entry_idx), &(rec_read.data_entry_idx), &next_temp, &next_ts) != RECORDER_SUCCESS) {
                 return;
             }
-            if ((current_ts >= next_ts) || ((next_ts - current_ts) > 20)) { // FIXME: hard code sample period
+            if ((current_ts >= next_ts) || ((next_ts - current_ts) > TEMP_SAMPLE_GAP_THRESHOLD)) {
                 // Do not allow time rollback, time jump etc.
                 rec_read.page_idx = pg_backup;
                 rec_read.record_entry_idx = rec_backup;
@@ -647,9 +684,9 @@ void recorder_get_query_result(struct query_criteria *query_result)
                 // Send back result one by one
                 osal_ConvertUTCTime(&tm, current_ts);
 #ifdef ATTACH_DETECTION                
-                Temp_FinishPacket((uint8 *)query_result, current_temp, 0, 0, &tm);
-#else
                 Temp_FinishPacket((uint8 *)query_result, current_temp, 0, &tm);
+#else
+                Temp_FinishPacket((uint8 *)query_result, current_temp, &tm);
 #endif
                 return;
             } 
@@ -695,9 +732,9 @@ void recorder_get_query_result(struct query_criteria *query_result)
         
         osal_ConvertUTCTime(&tm, result_ts);
 #ifdef ATTACH_DETECTION        
-        Temp_FinishPacket((uint8 *)query_result, result_temp, 0, 0, &tm);
-#else
         Temp_FinishPacket((uint8 *)query_result, result_temp, 0, &tm);
+#else
+        Temp_FinishPacket((uint8 *)query_result, result_temp, &tm);
 #endif
 
         if (qdb.query_period != 0) {

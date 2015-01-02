@@ -52,6 +52,7 @@ struct record_entry {
 #define STATS_MIN               0x20
 #define STATS_AVERAGE           0x40
 #define STATS_DEFAULT           STATS_MAX
+#define QUERY_MAX_SEGMENT_CNT   2               // FIXME: test
 
 struct query_criteria {    
     uint8 stats_mode;
@@ -65,6 +66,7 @@ struct query_criteria {
 struct query_db {
     uint8 query_time_interval;
     uint8 query_time_interval_flag;
+    uint16 query_time_interval_cnt;
     uint8 query_valid;
     uint8 query_mode;
     uint8 query_sample_cnt;
