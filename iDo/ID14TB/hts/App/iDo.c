@@ -933,14 +933,11 @@ void tempReadCallback()
     
     Temp_Disable();
     v = spi_read(0x02);
-    if (v & 0x8000) {
+    v = v >> 3;    
+    v &= 0x1FFF;
+    if (v & 0x2000) {
         // negative
-        v = v >> 3;
-        v &= 0x1FFF;
         v |= 0xE000;
-    } else {
-        v = v >> 3;
-        v &= 0x1FFF;
     }
     
 #ifdef ADVERTISE_TEMP

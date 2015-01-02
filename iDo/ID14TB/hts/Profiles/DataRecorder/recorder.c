@@ -406,11 +406,21 @@ uint8 __recorder_find_ts_callback(uint8 pg_idx, uint8 rec_idx, uint8 *cb_ret_ptr
     uint8 npage_idx;
     uint8 nrec_idx;
     int8 nentry_idx, entry_idx;    
+    uint8 ret;
     
     if ((__recorder_get_sample_info(pg_idx, rec_idx, -1, &current_temp, &current_ts) == RECORDER_SUCCESS) && (current_ts <= task_param->ts)) {
-        if ((__recorder_get_current_next_info(pg_idx, rec_idx, (REC_DATA_PER_ENTRY - 1), NULL, NULL, &npage_idx, &nrec_idx, &nentry_idx, &next_temp, &next_ts) == RECORDER_SUCCESS) && (task_param->ts < next_ts)) {
+        ret = __recorder_get_current_next_info(pg_idx, rec_idx, (REC_DATA_PER_ENTRY - 1), &current_temp, &current_ts, &npage_idx, &nrec_idx, &nentry_idx, &next_temp, &next_ts);
+        if (ret == RECORDER_ERROR) {
+            if (__recorder_get_sample_info(pg_idx, rec_idx, (REC_DATA_PER_ENTRY - 1), &next_temp, &next_ts) != RECORDER_SUCCESS) {
+                    // This should not happen, but in case of flash been erased and written 
+                    // while we are doing the query
+                    *cb_ret_ptr = RECORDER_ERROR;
+                    return RECORDER_FOR_RETURN;
+            }
+        }
+        if (task_param->ts < next_ts) {
             for (entry_idx = -1; entry_idx < REC_DATA_PER_ENTRY; entry_idx++) {
-                if (__recorder_get_current_next_info(pg_idx, rec_idx, entry_idx, NULL, NULL, &npage_idx, &nrec_idx, &nentry_idx, &next_temp, &next_ts) != RECORDER_SUCCESS) {
+                if (__recorder_get_current_next_info(pg_idx, rec_idx, entry_idx, &current_temp, &current_ts, &npage_idx, &nrec_idx, &nentry_idx, &next_temp, &next_ts) != RECORDER_SUCCESS) {
                     // This should not happen, but in case of flash been erased and written 
                     // while we are doing the query
                     *cb_ret_ptr = RECORDER_ERROR;
@@ -424,6 +434,14 @@ uint8 __recorder_find_ts_callback(uint8 pg_idx, uint8 rec_idx, uint8 *cb_ret_ptr
                 // No data sample between ts and next available ts
                 *cb_ret_ptr = RECORDER_ERROR;
                 return RECORDER_FOR_RETURN;
+            } if (entry_idx < REC_DATA_PER_ENTRY) {
+                task_param->rec_ptr->page_idx = pg_idx;
+                task_param->rec_ptr->record_entry_idx = rec_idx;
+                task_param->rec_ptr->data_entry_idx = entry_idx;
+                task_param->rec_ptr->unix_ts = current_ts;
+                                
+                *cb_ret_ptr = RECORDER_SUCCESS;
+                return RECORDER_FOR_RETURN;               
             } else {
                 task_param->rec_ptr->page_idx = npage_idx;
                 task_param->rec_ptr->record_entry_idx = nrec_idx;
@@ -433,7 +451,7 @@ uint8 __recorder_find_ts_callback(uint8 pg_idx, uint8 rec_idx, uint8 *cb_ret_ptr
                 *cb_ret_ptr = RECORDER_SUCCESS;
                 return RECORDER_FOR_RETURN;
             }
-        }
+        } 
     }
     return RECORDER_FOR_CONTINUE;
 }
@@ -648,15 +666,17 @@ void recorder_get_query_result(struct query_criteria *query_result)
     if (qdb.query_time_interval == 1) {
         // Doing time interval query
         query_result->stats_mode = __recorder_get_next_end_ts(&rec_read);
-        if (rec_read.unix_ts != 0) {
+        if ((rec_read.unix_ts != 0) && (rec_read.page_idx > 0)) {
             query_result->stats_sample_cnt = rec_read.page_idx;
             query_result->stats_period_0 = qdb.query_time_interval_cnt / 2;
             osal_ConvertUTCTime(&(query_result->tc), rec_read.unix_ts);
             qdb.query_time_interval_cnt++;
-            if (qdb.query_time_interval_cnt >= (QUERY_MAX_SEGMENT_CNT * 2)) {
+            if (qdb.query_time_interval_cnt >= (rec_read.page_idx * 2)) {
                 q.stats_mode = 0xFF;
                 recorder_set_query_criteria(&q);
             }
+        } else {
+            query_result->stats_mode = 0;            
         }
     } else if (qdb.query_valid == 1) {
         read_cnt = 0;

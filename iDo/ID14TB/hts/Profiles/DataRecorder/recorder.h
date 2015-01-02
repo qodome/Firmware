@@ -52,7 +52,7 @@ struct record_entry {
 #define STATS_MIN               0x20
 #define STATS_AVERAGE           0x40
 #define STATS_DEFAULT           STATS_MAX
-#define QUERY_MAX_SEGMENT_CNT   2               // FIXME: test
+#define QUERY_MAX_SEGMENT_CNT   255
 
 struct query_criteria {    
     uint8 stats_mode;

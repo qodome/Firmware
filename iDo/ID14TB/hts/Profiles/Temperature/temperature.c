@@ -517,12 +517,12 @@ void Temp_Init(void)
 
 void Temp_Enable(void)
 {
-    spi_write(0x01, 0x4040);
+    spi_write(0x01, 0x40);
 }
 
 void Temp_Disable(void)
 {
-    spi_write(0x01, 0x6060);
+    spi_write(0x01, 0x60);
 }
 
 uint32 Temp_mill_seconds_before_next_indication(void)
@@ -556,10 +556,9 @@ uint8 Temp_FinishPacket(uint8 *ptr, int16 temp, UTCTimeStruct *ptc)
     uint32 temp32u;  
     uint8 len;
     
+    temp32 = (int32)temp;
     if (temp & 0x8000) {
-        temp32 = (int32)temp | 0xFFFF0000;
-    } else {
-        temp32 = temp;           
+        temp32 |= 0xFFFF0000;          
     }        
 
     temp32 = temp32 * 625;            

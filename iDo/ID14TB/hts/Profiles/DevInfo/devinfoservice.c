@@ -404,7 +404,7 @@ bStatus_t DevInfo_AddService( void )
     		devInfoSerialNumber[idx * 3 + 2] = ':';
     	}
     }
-    devInfoFirmwareRev[0] = '1';
+    devInfoFirmwareRev[0] = '0';                        // FIXME: change this to 1 for release image
     devInfoFirmwareRev[1] = '.';
     devInfoFirmwareRev[2] = '0';
     devInfoFirmwareRev[3] = '.';

@@ -82,12 +82,8 @@ void softwareSPIInit (void)
     // Set output pin IO directions
     P0DIR |= BV(5) | BV(2) | BV(3);
     // Set input pin IO direction
-    P0DIR &= ~(BV(4));
-
-    CS_HIGH();
-    SCK_LOW();
-    MO_LOW();
-
+    P0DIR &= ~(BV(4));   
+    
     CS_HIGH();
     SCK_HIGH();
     MO_LOW();
@@ -139,24 +135,24 @@ static void SPI_sendb (uint8 outData)
     }
 }
 
+// FIXME: spi_read only called with 0x01/0x02
 uint16 spi_read (uint8 addr)
 {
     uint16 ret;
-
+    /*
     if (addr > 0x07) {
       return 0;
     }
+    */
     
     //PMUX = 0x00;
     //P1_0 = 0;
     
     CS_LOW();
-    if (addr == 0x02 || addr >= 0x04) {
-      SPI_sendb(((addr & 0x07) << 3) | 0x40);
-      ret = (SPI_rcvb() << 8) | SPI_rcvb();
-    } else {
-      SPI_sendb(((addr & 0x07) << 3) | 0x40);
-      ret = (uint16)SPI_rcvb();
+    SPI_sendb(((addr & 0x07) << 3) | 0x40);
+    ret = (uint16)SPI_rcvb();
+    if (addr == 0x02) {
+        ret = (ret << 8) | (uint16)SPI_rcvb();
     }
     CS_HIGH();
     
@@ -166,7 +162,7 @@ uint16 spi_read (uint8 addr)
 }
 
 // FIXME: spi_write only writes to 0x01!
-void spi_write (uint8 addr, uint16 val)
+void spi_write (uint8 addr, uint8 val)
 {
   //PMUX = 0x00;
   //P1_0 = 0;
@@ -176,7 +172,7 @@ void spi_write (uint8 addr, uint16 val)
   if (addr == 0x01 || addr == 0x05) {
 #endif
     SPI_sendb(((addr & 0x07) << 3) & ~(0x40));
-    SPI_sendb((uint8)(val & 0xFF));
+    SPI_sendb(val);
 #if 0
   } else if (addr == 0x04 || addr == 0x06 || addr == 0x07) {
     SPI_sendb(((addr & 0x07) << 3) & ~(0x40));

@@ -12,7 +12,7 @@ void softwareSPIInit (void);
 
 uint16 spi_read (uint8 addr);
 
-void spi_write (uint8 addr, uint16 val);
+void spi_write (uint8 addr, uint8 val);
 
 void SPI_intf_reset (void);
 
