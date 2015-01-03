@@ -134,11 +134,12 @@ uint8_t advertise_temp_flag = 0;
 //int8_t rssi = 0;
 
 #ifdef DEBUG_STATS
-uint32_t ticks_max = 0;
+uint32_t p_ticks_max = 0;
 uint32_t full_power_on_seconds = 0;
 uint32_t abnormal_counts = 0;
-uint32_t indication_counts = 0;
-uint32_t notification_counts = 0;
+static uint32_t * p_ticks_old;
+static uint32_t * p_ticks_now;
+static uint32_t * p_ticks_diff;
 #endif
 
 // YOUR_JOB: Modify these according to requirements (e.g. if other event types are to pass through
@@ -895,21 +896,11 @@ static void gpiote_init(void)
 void iDo_send_indication(ble_hts_meas_t *p) // send_temp_handler
 {
 	ble_hts_send_tm(&m_hts, p);
-
-#ifdef DEBUG_STATS
-	indication_counts ++;
-#endif
-
 }
 
 void iDo_send_notification(ble_hts_meas_t *p)
 {
 	ble_hts_send_it(&m_hts, p);
-
-#ifdef DEBUG_STATS
-	notification_counts ++;
-#endif
-
 }
 
 void iDo_advertise_temp(int16_t temp)
@@ -996,12 +987,6 @@ static void wdt_init(void)
  */
 int main(void)
 {
-
-#ifdef DEBUG_STATS
-	static uint32_t  ticks_old = 0;
-	static uint32_t  ticks_now = 0;
-	static uint32_t  ticks_diff = 0;
-#endif
     // Initialize.
 	wdt_init();
 	persistent_init();
@@ -1030,18 +1015,18 @@ int main(void)
     {
 
 #ifdef DEBUG_STATS
-    	app_timer_cnt_get(&ticks_old);
+    	app_timer_cnt_get(p_ticks_old);
 #endif
 
     	app_sched_execute();
 
 #ifdef DEBUG_STATS
-    	app_timer_cnt_get(&ticks_now);
-    	app_timer_cnt_diff_compute(ticks_now, ticks_old, &ticks_diff);
-    	if(ticks_max < ticks_diff){
-    	ticks_max = ticks_diff;
+    	app_timer_cnt_get(p_ticks_now);
+    	app_timer_cnt_diff_compute(*p_ticks_now,*p_ticks_old,p_ticks_diff);
+    	if(p_ticks_max < *p_ticks_diff){
+    	p_ticks_max = *p_ticks_diff;
     	}
-    	full_power_on_seconds += ticks_max;
+    	full_power_on_seconds += p_ticks_max;
 #endif
 
     	power_manage();
