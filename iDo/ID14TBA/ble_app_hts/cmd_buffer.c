@@ -133,9 +133,11 @@ void cmd_buffer_push_temp (int16_t temp)
 	if (flag_time_stamp_get()) {
 		__cb[__cb_push_idx].t_buf.validFlag |= TIME_VALID_FLAG;
 	}
+#ifdef ATTACH_DETECTION
 	if (temp_state_is_attached()) {
 		__cb[__cb_push_idx].t_buf.validFlag |= TYPE_VALID_FLAG;
 	}
+#endif
 
 	__cb[__cb_push_idx].t_buf.tempValue = temp;
 	__cb[__cb_push_idx].status_flag |= CB_WRITE_DONE;

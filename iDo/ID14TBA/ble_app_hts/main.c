@@ -98,7 +98,7 @@
 #define PERIPHERAL_IOS_SLAVE_LATENCY                1                                   /* Slave latency. */
 #define PERIPHERAL_IOS_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(6000, UNIT_10_MS)     /* Connection supervisory timeout. */
 // Parameter update
-#define PERIPHERAL_FIRST_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(100, APP_TIMER_PRESCALER)
+#define PERIPHERAL_FIRST_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(0, APP_TIMER_PRESCALER)
 #define PERIPHERAL_NEXT_CONN_PARAMS_UPDATE_DELAY    APP_TIMER_TICKS(100, APP_TIMER_PRESCALER)
 #define PERIPHERAL_MAX_CONN_PARAMS_UPDATE_COUNT     2
 
@@ -132,7 +132,7 @@ static app_timer_id_t						m_watchdog_timer_id;
 static app_timer_id_t						m_adtmonitor_timer_id;
 static app_timer_id_t						m_txpower_timer_id;
 static dm_application_instance_t      		m_app_handle;
-uint8_t advertise_temp_flag = 0;
+
 int8_t rssi = 0;
 int8_t tx_power = 4;
 uint16_t error_cnt = 0;
@@ -364,10 +364,10 @@ static void gap_params_init(void)
 
     memset(&gap_conn_params, 0, sizeof(gap_conn_params));
 
-    gap_conn_params.min_conn_interval = PERIPHERAL_AND_MIN_CONN_INTERVAL;
-    gap_conn_params.max_conn_interval = PERIPHERAL_AND_MAX_CONN_INTERVAL;
-    gap_conn_params.slave_latency     = PERIPHERAL_AND_SLAVE_LATENCY;
-    gap_conn_params.conn_sup_timeout  = PERIPHERAL_AND_CONN_SUP_TIMEOUT;
+    gap_conn_params.min_conn_interval = PERIPHERAL_IOS_MIN_CONN_INTERVAL;
+    gap_conn_params.max_conn_interval = PERIPHERAL_IOS_MAX_CONN_INTERVAL;
+    gap_conn_params.slave_latency     = PERIPHERAL_IOS_SLAVE_LATENCY;
+    gap_conn_params.conn_sup_timeout  = PERIPHERAL_IOS_CONN_SUP_TIMEOUT;
 
     err_code = sd_ble_gap_ppcp_set(&gap_conn_params);
     APP_ERROR_CHECK(err_code);
@@ -418,51 +418,6 @@ static void advertising_init(void)
     m_adv_params.fp          = BLE_GAP_ADV_FP_ANY;
     m_adv_params.interval    = APP_ADV_INTERVAL;
     m_adv_params.timeout     = APP_ADV_TIMEOUT_IN_SECONDS;
-}
-
-// Set service data into advertising packet when disconnected
-// due to radio signal
-static void advertising_temp(int16_t temp)
-{
-    uint32_t      err_code;
-    ble_advdata_t advdata;
-    ble_advdata_t rspdata;
-    uint8_t       flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
-    ble_advdata_service_data_t temp_service_data;
-    int32_t temp_data;
-    int32_t sign = -4;
-
-    ble_uuid_t adv_uuids[] =
-    {
-        {BLE_UUID_HEALTH_THERMOMETER_SERVICE, BLE_UUID_TYPE_BLE},
-    };
-
-    // Build and set advertising data
-    memset(&advdata, 0, sizeof(advdata));
-    advdata.name_type               = BLE_ADVDATA_NO_NAME;
-    advdata.include_appearance      = true;
-    advdata.flags.size              = sizeof(flags);
-    advdata.flags.p_data            = &flags;
-    advdata.uuids_complete.uuid_cnt = sizeof(adv_uuids) / sizeof(adv_uuids[0]);
-    advdata.uuids_complete.p_uuids  = adv_uuids;
-
-    advdata.service_data_count = 1;
-    temp_service_data.service_uuid = BLE_UUID_HEALTH_THERMOMETER_SERVICE;
-    temp_service_data.data.size = 4;
-    if (temp & 0x8000) {
-    	temp_data = (int32_t)temp | 0xFFFF0000;
-    } else {
-    	temp_data = (int32_t)temp;
-    }
-    temp_data = (sign << 24) | ((temp_data * 625) & 0xFFFFFF);
-    temp_service_data.data.p_data = (uint8_t *)&temp_data;
-    advdata.p_service_data_array = &temp_service_data;
-
-    memset(&rspdata, 0, sizeof(rspdata));
-    rspdata.name_type               = BLE_ADVDATA_FULL_NAME;
-
-    err_code = ble_advdata_set(&advdata, &rspdata);
-    APP_ERROR_CHECK(err_code);
 }
 
 /**@brief Function for handling the Health Thermometer Service events.
@@ -711,10 +666,10 @@ static void conn_params_init(void)
     cp_init.evt_handler                    = on_conn_params_evt;
     cp_init.error_handler                  = conn_params_error_handler;
 
-    cp_init.secondary_min_conn_interval = PERIPHERAL_IOS_MIN_CONN_INTERVAL;
-    cp_init.secondary_max_conn_interval = PERIPHERAL_IOS_MAX_CONN_INTERVAL;
-    cp_init.secondary_slave_latency     = PERIPHERAL_IOS_SLAVE_LATENCY;
-    cp_init.secondary_conn_sup_timeout  = PERIPHERAL_IOS_CONN_SUP_TIMEOUT;
+    cp_init.secondary_min_conn_interval = PERIPHERAL_AND_MIN_CONN_INTERVAL;
+    cp_init.secondary_max_conn_interval = PERIPHERAL_AND_MAX_CONN_INTERVAL;
+    cp_init.secondary_slave_latency     = PERIPHERAL_AND_SLAVE_LATENCY;
+    cp_init.secondary_conn_sup_timeout  = PERIPHERAL_AND_CONN_SUP_TIMEOUT;
 
     err_code = ble_conn_params_init(&cp_init);
     APP_ERROR_CHECK(err_code);
@@ -739,7 +694,6 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             APP_ERROR_CHECK(sd_ble_gap_device_name_get(dev_name_check, &len));
             battery_request_measure();
             advertising_default();
-            advertise_temp_flag = 0;
             sd_ble_gap_rssi_start(m_conn_handle);
             break;
 
@@ -754,15 +708,9 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
         	reason = p_ble_evt->evt.gap_evt.params.disconnected.reason;
         	if (reason != BLE_HCI_CONNECTION_TIMEOUT)
         	{
-        		temp_tm_stop();
-        		temp_it_stop();
-        		advertise_temp_flag = 0;
+        		// Intentional disconnect
         	} else {
-        		if (temp_advertise_temp() != 0) {
-        			advertise_temp_flag = 1;
-        		} else {
-        			advertise_temp_flag = 0;
-        		}
+        		// Disconnect due to timeout (radio signal loss?)
         	}
         	m_conn_handle               = BLE_CONN_HANDLE_INVALID;
         	advertising_start();
@@ -945,13 +893,6 @@ void iDo_send_notification(ble_hts_meas_t *p)
 #endif
 }
 
-void iDo_advertise_temp(int16_t temp)
-{
-	if (advertise_temp_flag == 1) {
-		advertising_temp(temp);
-	}
-}
-
 // Device manager
 static uint32_t device_manager_evt_handler(dm_handle_t const    * p_handle,
                                            dm_event_t const     * p_event,
@@ -1050,7 +991,7 @@ int main(void)
     date_time_init();
     gpiote_init();
     ble_stack_init();
-    temp_init(iDo_send_indication, iDo_send_notification, iDo_advertise_temp);//send_temp_handler
+    temp_init(iDo_send_indication, iDo_send_notification);
     scheduler_init();
     device_manager_init();
     gap_params_init();

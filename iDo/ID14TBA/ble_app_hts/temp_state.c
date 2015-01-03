@@ -270,10 +270,12 @@ void temp_state_update(int16_t newTemp)
     }
 }
 
+#ifdef ATTACH_DETECTION
 uint8_t temp_state_is_attached(void)
 {
     return tempStateAttachedStatus;
 }
+#endif
 
 int16_t temp_state_get_last_filtered_temp(void)
 {

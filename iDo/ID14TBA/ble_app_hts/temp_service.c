@@ -67,7 +67,6 @@ static cmd_buffer_t *lastReadBuffer = NULL;
 
 iDo_send_indication_callback send_indication = NULL;
 iDo_send_notification_callback send_notification = NULL;
-iDo_advertise_callback send_advertise = NULL;
 
 uint16_t temp_service_get_tm_interval()
 {
@@ -125,15 +124,6 @@ void temp_it_stop(void)
 
 	if (m_tm_enabled == false) {
 		APP_ERROR_CHECK(app_timer_stop(m_it_timer_id));
-	}
-}
-
-uint8_t temp_advertise_temp(void)
-{
-	if (m_tm_enabled == true || m_it_enabled == true) {
-		return 1;
-	} else {
-		return 0;
 	}
 }
 
@@ -217,8 +207,10 @@ static void temp_it_timeout_handler(void  *p_context)
 static void __do_send_it(int16_t temp_raw)
 {
 	ble_hts_meas_t   adt_meas;
-	uint8_t          flag_type = 0;
-	int32_t			 temp_meas_v = 0;
+#ifdef ATTACH_DETECTION
+	uint8_t          flag_type;
+#endif
+	int32_t			 temp_meas_v;
 
 	// signed 16 bits to signed 32 bits
 	if (temp_raw & 0x8000) {
@@ -234,12 +226,14 @@ static void __do_send_it(int16_t temp_raw)
 	adt_meas.temp_in_celcius.exponent = -4;
 	adt_meas.temp_in_celcius.mantissa = temp_meas_v * 625;
 
+#ifdef ATTACH_DETECTION
 	// Temperature type
 	flag_type = temp_state_is_attached();
 	if (flag_type) {
 		adt_meas.temp_type_present = 1;
 		adt_meas.temp_type = 2;
 	}
+#endif
 
 	if (send_notification != NULL) {
 		send_notification(&adt_meas);
@@ -297,10 +291,6 @@ static void __sps_timeout_handler(void * p_event_data , uint16_t event_size)
 		__do_send_it(result);
 	}
 
-	if (send_advertise != 0) {
-		send_advertise(result);
-	}
-
 #ifdef DEBUG_STATS
 	adt_sample_sps_counts++;
 #endif
@@ -312,14 +302,12 @@ static void sps_timeout_handler(void * p_context)
 }
 
 void temp_init(iDo_send_indication_callback indication_callback,
-				iDo_send_notification_callback notification_callback,
-				iDo_advertise_callback advertise_callback)
+				iDo_send_notification_callback notification_callback)
 {
 	uint32_t err_code;
 
 	send_indication = indication_callback;
 	send_notification = notification_callback;
-	send_advertise = advertise_callback;
 
 	//Structure for SPI master configuration, initialized by default values.
 	spi_master_config_t spi_config = SPI_MASTER_INIT_DEFAULT;
