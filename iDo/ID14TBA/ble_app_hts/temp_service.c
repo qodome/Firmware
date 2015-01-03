@@ -59,9 +59,8 @@ uint16_t m_tm_interval = MEASUREMENT_INTERVAL_DEFAULT;
 uint32_t m_tm_interval_ticks = APP_TIMER_TICKS(MEASUREMENT_INTERVAL_DEFAULT * 1000, APP_TIMER_PRESCALER);
 
 #ifdef DEBUG_STATS
-uint32_t adt_sample_counts = 0;
-uint32_t p_ticks_2s = 0;
-uint32_t p_ticks_10s = 0;
+uint32_t adt_sample_sps_counts = 0;
+uint32_t temp_tm_counts_30s= 0;
 #endif
 
 static cmd_buffer_t *lastReadBuffer = NULL;
@@ -190,6 +189,10 @@ static void __temp_tm_timeout_handler(void * p_event_data , uint16_t event_size)
 	if (lastReadBuffer != NULL) {
 		__do_send_tm(temp, validFlag, &tc);
 	}
+
+#ifdef DEBUG_STATS
+	temp_tm_counts_30s ++;
+#endif
 }
 
 static void temp_tm_timeout_handler(void *p_context)
@@ -270,11 +273,6 @@ static void __sps_timeout_handler(void * p_event_data , uint16_t event_size)
 			if (m_it_enabled == true || m_tm_enabled == true) {
 				APP_ERROR_CHECK(app_timer_stop(m_it_timer_id));
 				APP_ERROR_CHECK(app_timer_start(m_it_timer_id, m_it_timeout_ticks, NULL));
-
-#ifdef DEBUG_STATS
-				p_ticks_2s ++;
-#endif
-
 			}
 		}
 		staleCount = 0;
@@ -286,11 +284,6 @@ static void __sps_timeout_handler(void * p_event_data , uint16_t event_size)
 			if (m_it_enabled == true || m_tm_enabled == true) {
 				APP_ERROR_CHECK(app_timer_stop(m_it_timer_id));
 				APP_ERROR_CHECK(app_timer_start(m_it_timer_id, m_it_timeout_ticks, NULL));
-
-#ifdef DEBUG_STATS
-				p_ticks_10s ++;
-#endif
-
 			}
 		}
 	}
@@ -309,7 +302,7 @@ static void __sps_timeout_handler(void * p_event_data , uint16_t event_size)
 	}
 
 #ifdef DEBUG_STATS
-	adt_sample_counts++;
+	adt_sample_sps_counts++;
 #endif
 }
 

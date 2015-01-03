@@ -206,6 +206,20 @@ int main(void)
     uint32_t err_code;
     bool     dfu_start = false;
     bool     app_reset = (NRF_POWER->GPREGRET == BOOTLOADER_DFU_START);
+    bool	 app_reboot = false;
+
+    // Check application forced reboot
+    /*
+     * @@@@ FIXME this address is hard coded persistent page defined in hts @@@@
+     */
+    uint8_t *ptr = (uint8_t *)0x00036c00;
+    uint8_t boot_magic[8] = {'B', 'O', 'O', 'T', 'O', 'A', 'D', 0};
+    uint8_t test_buf[8] = {0};
+
+    memcpy(test_buf, ptr, 8);
+    if (memcmp(test_buf, boot_magic, 8) == 0) {
+    	app_reboot = true;
+    }
 
     wdt_init();
 
@@ -240,7 +254,7 @@ int main(void)
 
     dfu_start  = app_reset;
     
-    if (dfu_start || (!bootloader_app_is_valid(DFU_BANK_0_REGION_START)))
+    if (dfu_start || app_reboot || (!bootloader_app_is_valid(DFU_BANK_0_REGION_START)))
     {
         err_code = sd_power_gpregret_clr(POWER_GPREGRET_GPREGRET_Msk);
         APP_ERROR_CHECK(err_code);

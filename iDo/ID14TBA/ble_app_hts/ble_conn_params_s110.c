@@ -25,7 +25,9 @@ static uint8_t                m_update_count;           /**< Number of Connectio
 static uint16_t               m_conn_handle;            /**< Current connection handle. */
 static ble_gap_conn_params_t  m_current_conn_params;    /**< Connection parameters received in the most recent Connect event. */
 static app_timer_id_t         m_conn_params_timer_id;   /**< Connection parameters timer. */
+static app_timer_id_t		  m_fast_conn_params_timer_id;
 static uint8_t				  m_enabled_fast_parameter;
+uint8_t m_conn_param_negotiation_done = 0;
 
 extern void uart_logf(const char *fmt, ...);
 
@@ -60,6 +62,25 @@ static bool is_conn_params_ok(ble_gap_conn_params_t * p_conn_params)
     }
 }
 
+static void fast_conn_params_handler(void *p_context)
+{
+    UNUSED_PARAMETER(p_context);
+	ble_gap_conn_params_t  preferred_fast_conn_params;
+
+	if (m_conn_param_negotiation_done == 1) {
+		if (m_conn_handle != BLE_CONN_HANDLE_INVALID) {
+			m_enabled_fast_parameter = 1;
+			preferred_fast_conn_params.min_conn_interval = MSEC_TO_UNITS(100, UNIT_1_25_MS);
+			preferred_fast_conn_params.max_conn_interval = MSEC_TO_UNITS(150, UNIT_1_25_MS);
+			preferred_fast_conn_params.slave_latency = 0;
+			preferred_fast_conn_params.conn_sup_timeout = MSEC_TO_UNITS(2000, UNIT_10_MS);
+	        // Parameters are not ok, send connection parameters update request.
+	        APP_ERROR_CHECK(sd_ble_gap_conn_param_update(m_conn_handle, &preferred_fast_conn_params));
+		}
+	} else {
+		APP_ERROR_CHECK(app_timer_start(m_fast_conn_params_timer_id, 1000, NULL));
+	}
+}
 
 static void update_timeout_handler(void * p_context)
 {
@@ -111,6 +132,8 @@ static void update_timeout_handler(void * p_context)
                 evt.evt_type = BLE_CONN_PARAMS_EVT_FAILED;
                 m_conn_params_config.evt_handler(&evt);
             }
+
+            m_conn_param_negotiation_done = 1;
         }
     }
 }
@@ -120,14 +143,18 @@ void ble_conn_enable_fast_read(void)
 {
 	ble_gap_conn_params_t  preferred_fast_conn_params;
 
-	if (m_conn_handle != BLE_CONN_HANDLE_INVALID) {
-		m_enabled_fast_parameter = 1;
-		preferred_fast_conn_params.min_conn_interval = MSEC_TO_UNITS(100, UNIT_1_25_MS);
-		preferred_fast_conn_params.max_conn_interval = MSEC_TO_UNITS(150, UNIT_1_25_MS);
-		preferred_fast_conn_params.slave_latency = 0;
-		preferred_fast_conn_params.conn_sup_timeout = MSEC_TO_UNITS(2000, UNIT_10_MS);
-        // Parameters are not ok, send connection parameters update request.
-        APP_ERROR_CHECK(sd_ble_gap_conn_param_update(m_conn_handle, &preferred_fast_conn_params));
+	if (m_conn_param_negotiation_done == 1) {
+		if (m_conn_handle != BLE_CONN_HANDLE_INVALID) {
+			m_enabled_fast_parameter = 1;
+			preferred_fast_conn_params.min_conn_interval = MSEC_TO_UNITS(100, UNIT_1_25_MS);
+			preferred_fast_conn_params.max_conn_interval = MSEC_TO_UNITS(150, UNIT_1_25_MS);
+			preferred_fast_conn_params.slave_latency = 0;
+			preferred_fast_conn_params.conn_sup_timeout = MSEC_TO_UNITS(2000, UNIT_10_MS);
+			// Parameters are not ok, send connection parameters update request.
+			APP_ERROR_CHECK(sd_ble_gap_conn_param_update(m_conn_handle, &preferred_fast_conn_params));
+		}
+	} else {
+		APP_ERROR_CHECK(app_timer_start(m_fast_conn_params_timer_id, 1000, NULL));
 	}
 }
 
@@ -160,6 +187,13 @@ uint32_t ble_conn_params_init(const ble_conn_params_init_t * p_init)
     m_conn_handle  = BLE_CONN_HANDLE_INVALID;
     m_update_count = 0;
     m_enabled_fast_parameter = 0;
+
+    err_code = app_timer_create(&m_fast_conn_params_timer_id,
+                                APP_TIMER_MODE_SINGLE_SHOT,
+                                update_timeout_handler);
+    if (err_code != NRF_SUCCESS) {
+    	return err_code;
+    }
 
     return app_timer_create(&m_conn_params_timer_id,
                             APP_TIMER_MODE_SINGLE_SHOT,
@@ -207,6 +241,8 @@ static void conn_params_negotiation(void)
             evt.evt_type = BLE_CONN_PARAMS_EVT_SUCCEEDED;
             m_conn_params_config.evt_handler(&evt);
         }
+
+    	m_conn_param_negotiation_done = 1;
     }
 }
 
@@ -244,6 +280,10 @@ static void on_disconnect(ble_evt_t * p_ble_evt)
     {
         m_conn_params_config.error_handler(err_code);
     }
+
+    app_timer_stop(m_fast_conn_params_timer_id);
+
+    m_conn_param_negotiation_done = 0;
 }
 
 

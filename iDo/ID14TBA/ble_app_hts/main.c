@@ -84,8 +84,8 @@
 #define APP_ADV_TIMEOUT_IN_SECONDS           0                                        /**< The advertising timeout in units of seconds. */
 
 #define APP_TIMER_PRESCALER                  0                                          /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_MAX_TIMERS                 9                                          /**< Maximum number of simultaneously created timers. */
-#define APP_TIMER_OP_QUEUE_SIZE              9                                          /**< Size of timer operation queues. */
+#define APP_TIMER_MAX_TIMERS                 10                                          /**< Maximum number of simultaneously created timers. */
+#define APP_TIMER_OP_QUEUE_SIZE              8                                          /**< Size of timer operation queues. */
 
 // Android parameter
 #define PERIPHERAL_AND_MIN_CONN_INTERVAL            MSEC_TO_UNITS(1000, UNIT_1_25_MS)   /* Minimum acceptable connection interval. */
@@ -98,13 +98,14 @@
 #define PERIPHERAL_IOS_SLAVE_LATENCY                1                                   /* Slave latency. */
 #define PERIPHERAL_IOS_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(6000, UNIT_10_MS)     /* Connection supervisory timeout. */
 // Parameter update
-#define PERIPHERAL_FIRST_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
-#define PERIPHERAL_NEXT_CONN_PARAMS_UPDATE_DELAY    APP_TIMER_TICKS(3000, APP_TIMER_PRESCALER)
+#define PERIPHERAL_FIRST_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(100, APP_TIMER_PRESCALER)
+#define PERIPHERAL_NEXT_CONN_PARAMS_UPDATE_DELAY    APP_TIMER_TICKS(100, APP_TIMER_PRESCALER)
 #define PERIPHERAL_MAX_CONN_PARAMS_UPDATE_COUNT     2
 
 #define BATTERY_LEVEL_MEAS_INTERVAL          		APP_TIMER_TICKS(480000, APP_TIMER_PRESCALER)	// 480 seconds
 #define WATCHDOG_INTERVAL          					APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
 #define ADT_MONITOR_INTERVAL						APP_TIMER_TICKS(300000, APP_TIMER_PRESCALER)
+#define TX_POWER_INTERVAL          					APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
 
 #define APP_GPIOTE_MAX_USERS                 1                                          /**< Maximum number of users of the GPIOTE handler. */
 
@@ -129,17 +130,21 @@ static ble_dfu_t							 m_dfu;
 static app_timer_id_t						m_battery_timer_id;
 static app_timer_id_t						m_watchdog_timer_id;
 static app_timer_id_t						m_adtmonitor_timer_id;
+static app_timer_id_t						m_txpower_timer_id;
 static dm_application_instance_t      		m_app_handle;
 uint8_t advertise_temp_flag = 0;
-//int8_t rssi = 0;
+int8_t rssi = 0;
+int8_t tx_power = 4;
+uint16_t error_cnt = 0;
+uint32_t last_error_code = 0;
+uint8_t *last_error_file_name = NULL;
 
 #ifdef DEBUG_STATS
-uint32_t p_ticks_max = 0;
+uint32_t ticks_max = 0;
 uint32_t full_power_on_seconds = 0;
 uint32_t abnormal_counts = 0;
-static uint32_t * p_ticks_old;
-static uint32_t * p_ticks_now;
-static uint32_t * p_ticks_diff;
+uint32_t indication_counts = 0;
+uint32_t notification_counts = 0;
 #endif
 
 // YOUR_JOB: Modify these according to requirements (e.g. if other event types are to pass through
@@ -159,6 +164,8 @@ static uint32_t * p_ticks_diff;
  */
 void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p_file_name)
 {
+	uint8_t error_idx = 0;
+	uint32_t error_info = 0;
 
     // This call can be used for debug purposes during application development.
     // @note CAUTION: Activating this code will write the stack to flash on an error.
@@ -170,11 +177,23 @@ void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p
     // ble_debug_assert_handler(error_code, line_num, p_file_name);
 
     // On assert, the system can only recover with a reset.
-#if SVCALL_AS_NORMAL_FUNCTION
-    for(;;);
-#else
-    NVIC_SystemReset();
-#endif
+//#if SVCALL_AS_NORMAL_FUNCTION
+//    for(;;);
+//#else
+//    NVIC_SystemReset();
+//#endif
+	error_cnt++;
+	last_error_code = error_code;
+	last_error_file_name = (uint8_t *)p_file_name;
+
+	if ((uint8_t)error_code >= PERSISTENT_ERROR_SYS_MAX) {
+		error_idx = PERSISTENT_ERROR_SYS_MAX;
+	} else {
+		error_idx = (uint8_t)error_code;
+	}
+	error_info = (line_num & 0x0000FFFF) | (((uint32_t)p_file_name & 0x0000FFFF) << 16);
+
+	persistent_record_error(error_idx, error_info);
 }
 
 /**@brief Callback function for asserts in the SoftDevice.
@@ -190,7 +209,9 @@ void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p
  */
 void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 {
-    app_error_handler(DEAD_BEEF, line_num, p_file_name);
+    //app_error_handler(DEAD_BEEF, line_num, p_file_name);
+	persistent_record_error(PERSISTENT_ERROR_DEADBEEF, (uint32_t)line_num);
+	for(;;);
 }
 
 /**@brief Function for performing a battery measurement, and update the Battery Level characteristic in the Battery Service.
@@ -281,6 +302,15 @@ static void adt_monitor_timeout_handler(void * p_context)
 	}
 }
 
+static void tx_power_timeout_handler(void *p_context)
+{
+	UNUSED_PARAMETER(p_context);
+
+	if (sd_ble_gap_tx_power_set(tx_power) != NRF_SUCCESS) {
+		APP_ERROR_CHECK(app_timer_start(m_txpower_timer_id, TX_POWER_INTERVAL, NULL));
+	}
+}
+
 static void timers_init(void)
 {
 	// Initialize timer module.
@@ -302,6 +332,11 @@ static void timers_init(void)
                                 APP_TIMER_MODE_REPEATED,
                                 adt_monitor_timeout_handler));
     APP_ERROR_CHECK(app_timer_start(m_adtmonitor_timer_id, ADT_MONITOR_INTERVAL, NULL));
+
+    // Create TX power setting timer.
+    APP_ERROR_CHECK(app_timer_create(&m_txpower_timer_id,
+    							APP_TIMER_MODE_SINGLE_SHOT,
+                                tx_power_timeout_handler));
 }
 
 /**@brief Function for the GAP initialization.
@@ -705,11 +740,12 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             battery_request_measure();
             advertising_default();
             advertise_temp_flag = 0;
-            //sd_ble_gap_rssi_start(m_conn_handle);
+            sd_ble_gap_rssi_start(m_conn_handle);
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
-        	//sd_ble_gap_rssi_stop(m_conn_handle);
+        	sd_ble_gap_rssi_stop(m_conn_handle);
+        	rssi = 0;
         	// If device name get changed, save that in persistent storage
         	APP_ERROR_CHECK(sd_ble_gap_device_name_get(dev_name_new, &len));
         	if (strcmp((char *)dev_name_check, (char *)dev_name_new) != 0) {
@@ -759,11 +795,9 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             }
             break;
 
-        /*
         case BLE_GAP_EVT_RSSI_CHANGED:
             rssi = p_ble_evt->evt.gap_evt.params.rssi_changed.rssi;
             break;
-         */
 
         default:
             // No implementation needed.
@@ -896,11 +930,19 @@ static void gpiote_init(void)
 void iDo_send_indication(ble_hts_meas_t *p) // send_temp_handler
 {
 	ble_hts_send_tm(&m_hts, p);
+
+#ifdef DEBUG_STATS
+	indication_counts ++;
+#endif
 }
 
 void iDo_send_notification(ble_hts_meas_t *p)
 {
 	ble_hts_send_it(&m_hts, p);
+
+#ifdef DEBUG_STATS
+	notification_counts ++;
+#endif
 }
 
 void iDo_advertise_temp(int16_t temp)
@@ -983,10 +1025,23 @@ static void wdt_init(void)
 	NRF_WDT->TASKS_START = 1;
 }
 
+void protect_flash(void)
+{
+	APP_ERROR_CHECK(sd_flash_protect(0, 0xFF800000));
+}
+
 /**@brief Function for application main entry.
  */
 int main(void)
 {
+#ifdef DEBUG_STATS
+	static uint32_t  ticks_old = 0;
+	static uint32_t  ticks_now = 0;
+	static uint32_t  ticks_diff = 0;
+#endif
+	// Protect bootloader/boot_settings/code
+	protect_flash();
+
     // Initialize.
 	wdt_init();
 	persistent_init();
@@ -1007,31 +1062,29 @@ int main(void)
     recorder_init();
     ble_radio_notification_init(APP_IRQ_PRIORITY_LOW, 0, flash_radio_notification_evt_handler_t);
 
+    while (sd_ble_gap_tx_power_set(4) != NRF_SUCCESS);
+
     // Start execution.
     advertising_start();
 
     // Enter main loop.
     for (;;)
     {
-
 #ifdef DEBUG_STATS
-    	app_timer_cnt_get(p_ticks_old);
+    	app_timer_cnt_get(&ticks_old);
 #endif
 
     	app_sched_execute();
 
 #ifdef DEBUG_STATS
-    	app_timer_cnt_get(p_ticks_now);
-    	app_timer_cnt_diff_compute(*p_ticks_now,*p_ticks_old,p_ticks_diff);
-    	if(p_ticks_max < *p_ticks_diff){
-    	p_ticks_max = *p_ticks_diff;
+    	app_timer_cnt_get(&ticks_now);
+    	app_timer_cnt_diff_compute(ticks_now, ticks_old, &ticks_diff);
+    	if(ticks_max < ticks_diff){
+    	ticks_max = ticks_diff;
     	}
-    	full_power_on_seconds += p_ticks_max;
+    	full_power_on_seconds += ticks_max;
 #endif
-
     	power_manage();
-
-
     }
 }
 

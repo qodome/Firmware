@@ -100,7 +100,7 @@ static void on_write(ble_time_t * p_time, ble_evt_t * p_ble_evt)
     if (p_evt_write->handle == p_time->time_handles.value_handle)
     {
     	ble_date_time_decode(&time, &(p_evt_write->data[0]));
-    	if(time.month<12 && time.day<31 && time.hours <24 && time.minutes<60 && time.seconds<60){
+    	if(time.month <= 12 && time.day <= 31 && time.hours < 24 && time.minutes < 60 && time.seconds < 60){
     	    flag_time_stamp = 1;
         	second_now = osal_ConvertUTCSecs(&time);
     	}

@@ -21,8 +21,15 @@ static uint8_t bc_magic[8] = {'B', 'O', 'O', 'T', '_', 'C', 'N', 'T'};
 struct persistent_record prcd;
 uint8_t pidx;
 
+uint8_t persistent_flash_page(void)
+{
+	return (uint8_t)PERSISTENT_PAGE_IDX;
+}
+
 void persistent_init(void)
 {
+	uint8_t i = 0, j = 0;
+
 	pidx = (uint8_t)PERSISTENT_PAGE_IDX;
 	HalFlashRead(pidx, 0, (uint8_t *)&prcd, sizeof(prcd));
 
@@ -34,6 +41,13 @@ void persistent_init(void)
         prcd.device_name[2] = 'o';
         prcd.device_name[3] = '2';
         prcd.device_name[4] = 0;
+
+        for (i = 0; i < PERSISTENT_ERROR_MAX; i++) {
+        	prcd.error_log[i].count = 0;
+        	for (j = 0; j < PERSISTENT_ERROR_ENTRY; j++) {
+        		prcd.error_log[i].error_info[j] = 0;
+        	}
+        }
 	}
 
 #ifdef DEBUG_STATS
@@ -78,3 +92,15 @@ void persistent_get_dev_name(uint8_t *buf)
     buf[idx] = 0;
 }
 
+void persistent_record_error(uint8_t error_idx, uint32_t error_info)
+{
+	if (error_idx > PERSISTENT_ERROR_MAX) {
+		persistent_record_error(PERSISTENT_ERROR_INTERNAL, 0);
+		return;
+	}
+
+	prcd.error_log[error_idx].error_info[prcd.error_log[error_idx].count % PERSISTENT_ERROR_ENTRY] = error_info;
+	prcd.error_log[error_idx].count++;
+    HalFlashErase(pidx);
+    HalFlashWrite((uint32_t *)((uint32_t)pidx * 1024), (uint8_t *)&prcd, sizeof(prcd));
+}
