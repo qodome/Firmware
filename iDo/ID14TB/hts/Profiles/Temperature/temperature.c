@@ -260,61 +260,39 @@ CONST gattServiceCBs_t tempCBs =
 * @return  Success or Failure
 */
 bStatus_t Temp_AddService( uint32 services )
-{
-    uint8 status = SUCCESS;
-    
+{    
     VOID linkDB_Register( Temp_HandleConnStatusCB );
     
     GATTServApp_InitCharCfg( INVALID_CONNHANDLE, valueConfigCoordinates );  
     GATTServApp_InitCharCfg( INVALID_CONNHANDLE, intermediateConfigCoordinates );  
-    tempInterval = 30;
     
-    status = GATTServApp_RegisterService( tempAttrTbl, 
+    return GATTServApp_RegisterService( tempAttrTbl, 
                                          GATT_NUM_ATTRS( tempAttrTbl ),
                                          &tempCBs );
-    
-    return ( status );
-}
-
-// Application logic notify intermediate temperature
-void Temp_NotifyTemperature(uint16 connHandle, uint8 *bufPtr, uint8 bufLen)
-{
-    attHandleValueNoti_t tempNotify;
-    uint16 value = GATTServApp_ReadCharCfg(connHandle, intermediateConfigCoordinates);
-    
-    if (value & GATT_CLIENT_CFG_NOTIFY) {
-        tempNotify.handle = tempAttrTbl[5].handle;
-        tempNotify.len = bufLen;
-        VOID osal_memcpy((uint8 *)&(tempNotify.value[0]), bufPtr, bufLen);
-    
-        if (GATT_Notification(connHandle, &tempNotify, FALSE) == SUCCESS) {
-/*
-#ifdef DEBUG_STATS
-            s.pkt_count++;
-#endif
-*/  
-        }
-    }
 }
 
 // Application logic indicates the measured temperature
-void Temp_IndicateTemperature(uint16 connHandle, uint8 *bufPtr, uint8 bufLen, uint8 taskId)
+void Temp_SendTemperature(uint16 connHandle, uint8 *bufPtr, uint8 bufLen, uint8 taskId)
 {
-    attHandleValueInd_t tempIndication;
-    uint16 value = GATTServApp_ReadCharCfg(connHandle, valueConfigCoordinates);
+    attHandleValueInd_t tempSend;
+    uint16 value;
+    gattCharCfg_t *coordinate_ptr;
     
-    if (value & GATT_CLIENT_CFG_INDICATE) {
-        tempIndication.handle = tempAttrTbl[2].handle;
-        tempIndication.len = bufLen;
-        VOID osal_memcpy((uint8 *)&(tempIndication.value[0]), bufPtr, bufLen);
-    
-        if (GATT_Indication(connHandle, &tempIndication, FALSE, taskId) == SUCCESS) {
-/*
-#ifdef DEBUG_STATS
-            s.pkt_count++;
-#endif
-*/            
-        }
+    if (taskId != 0) {
+        coordinate_ptr = valueConfigCoordinates;
+    } else {
+        coordinate_ptr = intermediateConfigCoordinates;
+    }
+    value = GATTServApp_ReadCharCfg(connHandle, coordinate_ptr);
+
+    tempSend.len = bufLen;
+    VOID osal_memcpy((uint8 *)&(tempSend.value[0]), bufPtr, bufLen);    
+    if ((taskId != 0) && (value & GATT_CLIENT_CFG_INDICATE)) {
+        tempSend.handle = tempAttrTbl[2].handle;    
+        GATT_Indication(connHandle, &tempSend, FALSE, taskId);
+    } else if ((taskId == 0) && (value & GATT_CLIENT_CFG_NOTIFY)) {
+        tempSend.handle = tempAttrTbl[5].handle;
+        GATT_Notification(connHandle, (attHandleValueNoti_t *)&tempSend, FALSE);     
     }
 }
 
@@ -335,7 +313,6 @@ void Temp_IndicateTemperature(uint16 connHandle, uint8 *bufPtr, uint8 bufLen, ui
 static uint8 temp_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr, 
                              uint8 *pValue, uint8 *pLen, uint16 offset, uint8 maxLen )
 {
-    bStatus_t status = SUCCESS;
     uint16 uuid;
 #ifdef PRIVATE_TIME_UUID
     UTCTimeStruct tc;
@@ -375,11 +352,10 @@ static uint8 temp_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr,
         
     default:
         *pLen = 0;
-        status = ATT_ERR_ATTR_NOT_FOUND;
-        break;
+        return ATT_ERR_ATTR_NOT_FOUND;
     }
     
-    return ( status );
+    return SUCCESS;
 }
 
 /*********************************************************************

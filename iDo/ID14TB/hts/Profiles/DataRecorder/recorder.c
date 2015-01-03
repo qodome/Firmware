@@ -643,8 +643,12 @@ void recorder_set_query_criteria(struct query_criteria *query_ptr)
     }
     qdb.query_sample_cnt = query_ptr->stats_sample_cnt;
     osal_memcpy((uint8 *)&(qdb.query_period), &(query_ptr->stats_period_0), 3);
-    qdb.query_valid = __recorder_find_ts(&(query_ptr->tc), &rec_read);
-    qdb.query_start_point_ts = rec_read.unix_ts;
+    if (qdb.query_period > 604800) {
+        qdb.query_valid = 0;
+    } else {
+        qdb.query_valid = __recorder_find_ts(&(query_ptr->tc), &rec_read);
+        qdb.query_start_point_ts = rec_read.unix_ts;
+    }
 }
 
 /*
@@ -697,7 +701,10 @@ void recorder_get_query_result(struct query_criteria *query_result)
                 rec_read.data_entry_idx = entry_backup;
                 return;
             }
-            read_cnt++;    
+            read_cnt++;
+            if ((read_cnt % 2000) == 0) {
+                WD_KICK();
+            }
             
             // Go through samples one by one
             if (qdb.query_period == 0 && qdb.query_sample_cnt == 0) {

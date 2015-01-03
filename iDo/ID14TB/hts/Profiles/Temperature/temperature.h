@@ -149,11 +149,8 @@ extern bStatus_t Temp_GetParameter( uint8 param, void *value );
  */
 extern void Temp_HandleConnStatusCB( uint16 connHandle, uint8 changeType );
 
-// Notify/Indicate temperature
-void Temp_NotifyTemperature(uint16 connHandle, uint8 *bufPtr, uint8 bufLen);
-
 // Indicate interval update
-void Temp_IndicateTemperature(uint16 connHandle, uint8 *bufPtr, uint8 bufLen, uint8 taskId);
+void Temp_SendTemperature(uint16 connHandle, uint8 *bufPtr, uint8 bufLen, uint8 taskId);
 
 void Temp_Init(void);
 void Temp_Enable(void);

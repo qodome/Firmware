@@ -957,7 +957,7 @@ void tempReadCallback()
 #else
         len = Temp_FinishPacket(buf, v, NULL);
 #endif
-        Temp_NotifyTemperature(gapConnHandle, buf, len);
+        Temp_SendTemperature(gapConnHandle, buf, len, 0);
     }   
 }
 
@@ -1032,7 +1032,7 @@ static void iDo_prepare_send_indication()
             len = Temp_FinishPacket(buf, temp, (validFlag & TIME_VALID_FLAG) ? &tc : NULL);
             
 #endif
-            Temp_IndicateTemperature(gapConnHandle, buf, len, iDo_TaskID);
+            Temp_SendTemperature(gapConnHandle, buf, len, iDo_TaskID);
         }
     }
 }
