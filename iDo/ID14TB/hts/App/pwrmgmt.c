@@ -291,11 +291,13 @@ uint8 pwrmgmt_hb(void)
     }
 
     // If disconnected due to timeout after 10 minutes, lower tx/rx power
-    if ((lostConnectionTime != 0) && (osal_getRelativeClock() - lostConnectionTime) >= 600) {        
+    if ((lostConnectionTime != 0) && (osal_getRelativeClock() - lostConnectionTime) >= 14400) {        // FIXME: tune this parameter      
+        // Lower power
         HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_MINUS_23_DBM);
         pwrmgmt_event(TX_LOW);
         HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_STD);
-        pwrmgmt_event(RX_LOW);        
+        pwrmgmt_event(RX_LOW);
+                
         return 1;       // stop me!
     }
     

@@ -506,6 +506,7 @@ bStatus_t GAPRole_GetParameter( uint16 param, void *pValue )
   bStatus_t ret = SUCCESS;
   switch ( param )
   {
+/*      
     case GAPROLE_PROFILEROLE:
       *((uint8*)pValue) = gapRole_profileRole;
       break;
@@ -561,11 +562,11 @@ bStatus_t GAPRole_GetParameter( uint16 param, void *pValue )
     case GAPROLE_ADV_FILTER_POLICY:
       *((uint8*)pValue) = gapRole_AdvFilterPolicy;
       break;
-
+*/
     case GAPROLE_CONNHANDLE:
       *((uint16*)pValue) = gapRole_ConnectionHandle;
       break;
-
+/*
     case GAPROLE_RSSI_READ_RATE:
       *((uint16*)pValue) = gapRole_RSSIReadRate;
       break;
@@ -605,7 +606,7 @@ bStatus_t GAPRole_GetParameter( uint16 param, void *pValue )
     case GAPROLE_CONN_TIMEOUT:
       *((uint16*)pValue) = gapRole_ConnTimeout;
       break;
-
+*/
     case GAPROLE_STATE:
       *((uint8*)pValue) = gapRole_state;
       break;
@@ -708,7 +709,7 @@ void GAPRole_Init( uint8 task_id )
   gapRole_signCounter = 0;
   gapRole_AdvEventType = GAP_ADTYPE_ADV_IND;
   gapRole_AdvDirectType = ADDRTYPE_PUBLIC;
-  gapRole_AdvChanMap = GAP_ADVCHAN_ALL;
+  gapRole_AdvChanMap = GAP_ADVCHAN_38;
   gapRole_AdvFilterPolicy = GAP_FILTER_POLICY_ALL;
 
   // Restore Items from NV
@@ -1114,10 +1115,12 @@ static void gapRole_ProcessGAPMsg( gapEventHdr_t *pMsg )
         if( pPkt->reason == LL_SUPERVISION_TIMEOUT_TERM )
         {
           gapRole_state = GAPROLE_WAITING_AFTER_TIMEOUT;
+          gapRole_AdvChanMap = GAP_ADVCHAN_ALL;
         }
         else
         {
           gapRole_state = GAPROLE_WAITING;
+          gapRole_AdvChanMap = GAP_ADVCHAN_38;
         }
 
         notify = TRUE;

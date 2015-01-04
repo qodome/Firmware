@@ -184,6 +184,9 @@ static void osalClockUpdate( uint16 elapsedMSec )
     if ( timeMSec >= 2000 )
     {
         uint16 tt = (timeMSec / 2000) * 2;
+
+        // Relative clock does not need clock corrections
+        relative_sec += tt;
         
         if (OSAL_deltaDir != 0) {
             if (OSAL_deltaDir == 1) {           // Time need to go faster
@@ -201,7 +204,6 @@ static void osalClockUpdate( uint16 elapsedMSec )
             }
         }
         OSAL_timeSeconds += tt;
-        relative_sec += tt;
         timeMSec = timeMSec % 2000;
     }
 }
