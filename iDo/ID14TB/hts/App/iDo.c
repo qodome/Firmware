@@ -96,7 +96,7 @@ contact Texas Instruments Incorporated at www.TI.com.
 /*********************************************************************
 * CONSTANTS
 */
-#define TEMP_SAMPLE_PERIOD_DEFAULT     10000
+#define TEMP_SAMPLE_PERIOD_DEFAULT     5000
 #define TEMP_WAIT_SAMPLE            100
 #define ADT_CHECK_PERIOD            300000
 
@@ -489,8 +489,13 @@ void iDo_Init( uint8 task_id )
     // Initialize power management module
     pwrmgmt_init();
     
+#ifdef OPTIMIZE_POWER
     HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_MINUS_23_DBM);
     pwrmgmt_event(TX_LOW);
+#else 
+    HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_0_DBM);
+    pwrmgmt_event(TX_HIGH);    
+#endif
     
     HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_STD);
     pwrmgmt_event(RX_LOW);
@@ -761,10 +766,12 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         
     case GAPROLE_CONNECTED:
         pwrmgmt_event(CONNECT);
-        
+
+#ifdef OPTIMIZE_POWER        
         // Set tx/rx power to high once connected
         HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_0_DBM);
         pwrmgmt_event(TX_HIGH);
+#endif
         HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_HIGH);
         pwrmgmt_event(RX_HIGH);
 
@@ -812,22 +819,29 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
     case GAPROLE_WAITING:
     case GAPROLE_WAITING_AFTER_TIMEOUT:        
         pwrmgmt_event(DISCONNECT);
-                
+
+#ifndef OPTIMIZE_POWER
+        osal_stop_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT);
+#endif
+        
         if (newState == GAPROLE_WAITING) {
+#ifdef OPTIMIZE_POWER
             osal_stop_timerEx(iDo_TaskID, IDO_PWR_HEART_BEAT);
+#endif
         } else {
             pwrmgmt_timeout();            
         }
         
         if (newState == GAPROLE_WAITING) {
             // Link terminated intentionally: disable temperature sensor, lower tx power
+#ifdef OPTIMIZE_POWER
             HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_MINUS_23_DBM);
             pwrmgmt_event(TX_LOW);
-            
+#endif            
             HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_STD);
             pwrmgmt_event(RX_LOW);
         } else {
-            
+            // Link loss, try hard
             HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_0_DBM);
             pwrmgmt_event(TX_HIGH);    
             

@@ -13,9 +13,9 @@
 
 #define PWR_VOLTAGE_DELAY               5000
 #define PWR_VOLTAGE_CNT                 10
-#define PWR_TX_HIGH_FACTOR              1.1     // FIXME: this factor should be measured
-#define PWR_RX_HIGH_FACTOR              1.1     // FIXME: measure???
-#define PWR_TX_RX_HIGH_FACTOR           1.21    // FIXME
+//#define PWR_TX_HIGH_FACTOR              1.1     // FIXME: this factor should be measured
+//#define PWR_RX_HIGH_FACTOR              1.1     // FIXME: measure???
+//#define PWR_TX_RX_HIGH_FACTOR           1.21    // FIXME
 #define PWR_CONNECT_DUMMY_TX_H          55      // FIXME: need recalculate
 #define PWR_CONNECT_DUMMY_TX_N          50
 #define PWR_BATTERY_LIFE_PKT_CNT        16200000UL
@@ -46,7 +46,9 @@ static uint32 conn_interval = 0;
 static uint32 conn_latency = 0;
 static uint32 adv_param = ((uint32)DEFAULT_ADVERTISING_INTERVAL * (uint32)625) / (uint32)1000;
 
+#ifdef OPTIMIZE_POWER
 static uint32 lostConnectionTime = 0;
+#endif
 
 extern void iDo_ScheduleCheckVDD(uint16 delay);
 extern void iDo_StopVDDCheck(void);
@@ -113,15 +115,23 @@ static void pwrmgmt_glean_stats(void)
 
     if (pconn_status == 0) {
         pkt_cnt = (delta * (uint32)1000) / adv_param;
-        if (ptxmode == 1) {
-            pkt_cnt = (uint32)((float)pkt_cnt * (float)PWR_TX_HIGH_FACTOR);
+        if ((ptxmode == 1) && (prxmode == 1)) {
+            pkt_cnt = pkt_cnt * (uint32)12 / (uint32)10;
+        } else if (ptxmode == 1) {
+            pkt_cnt = pkt_cnt * (uint32)11 / (uint32)10;
+        } else if (prxmode == 1) {
+            pkt_cnt = pkt_cnt * (uint32)11 / (uint32)10;
         }
         pd.adv_pkt_cnt += pkt_cnt;
     } else {
         if (conn_interval > 0) {
             pkt_cnt = (delta * (uint32)800) / (conn_interval * (conn_latency + 1));
-            if (ptxmode == 1) {
-                pkt_cnt = (uint32)((float)pkt_cnt * (float)PWR_TX_HIGH_FACTOR);
+            if ((ptxmode == 1) && (prxmode == 1)) {
+                pkt_cnt = pkt_cnt * (uint32)12 / (uint32)10;
+            } else if (ptxmode == 1) {
+                pkt_cnt = pkt_cnt * (uint32)11 / (uint32)10;
+            } else if (prxmode == 1) {
+                pkt_cnt = pkt_cnt * (uint32)11 / (uint32)10;
             }
             pd.connected_pkt_cnt += pkt_cnt;
         }
@@ -176,8 +186,10 @@ void pwrmgmt_connect(void)
     } else {
         pd.connected_pkt_cnt += PWR_CONNECT_DUMMY_TX_N;
     }
-    pconn_status = 1;    
+    pconn_status = 1;
+#ifdef OPTIMIZE_POWER    
     lostConnectionTime = 0;
+#endif
 }
 
 void pwrmgmt_disconnect(void)
@@ -290,6 +302,7 @@ uint8 pwrmgmt_hb(void)
         pwrmgmt_event(RX_LOW);
     }
 
+#ifdef OPTIMIZE_POWER    
     // If disconnected due to timeout after 10 minutes, lower tx/rx power
     if ((lostConnectionTime != 0) && (osal_getRelativeClock() - lostConnectionTime) >= 14400) {        // FIXME: tune this parameter      
         // Lower power
@@ -300,6 +313,7 @@ uint8 pwrmgmt_hb(void)
                 
         return 1;       // stop me!
     }
+#endif
     
     return 0;   // continue
 }
@@ -316,7 +330,9 @@ void pwrmgmt_timeout(void)
         }
     }
     pwr_timeout_ts[min_idx] = osal_getRelativeClock();
-    
+
+#ifdef OPTIMIZE_POWER    
     lostConnectionTime = osal_getRelativeClock();
+#endif
 }
 

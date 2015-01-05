@@ -709,7 +709,11 @@ void GAPRole_Init( uint8 task_id )
   gapRole_signCounter = 0;
   gapRole_AdvEventType = GAP_ADTYPE_ADV_IND;
   gapRole_AdvDirectType = ADDRTYPE_PUBLIC;
+#ifdef OPTIMIZE_POWER
   gapRole_AdvChanMap = GAP_ADVCHAN_38;
+#else
+  gapRole_AdvChanMap = GAP_ADVCHAN_ALL;
+#endif
   gapRole_AdvFilterPolicy = GAP_FILTER_POLICY_ALL;
 
   // Restore Items from NV
@@ -1115,12 +1119,16 @@ static void gapRole_ProcessGAPMsg( gapEventHdr_t *pMsg )
         if( pPkt->reason == LL_SUPERVISION_TIMEOUT_TERM )
         {
           gapRole_state = GAPROLE_WAITING_AFTER_TIMEOUT;
+#ifdef OPTIMIZE_POWER
           gapRole_AdvChanMap = GAP_ADVCHAN_ALL;
+#endif
         }
         else
         {
           gapRole_state = GAPROLE_WAITING;
+#ifdef OPTIMIZE_POWER
           gapRole_AdvChanMap = GAP_ADVCHAN_38;
+#endif
         }
 
         notify = TRUE;

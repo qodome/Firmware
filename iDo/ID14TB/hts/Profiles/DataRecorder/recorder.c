@@ -19,7 +19,7 @@
 #include "iDo.h"
 #include "temperature.h"
      
-#define TEMP_SAMPLE_GAP_THRESHOLD   20      // FIXME: hard code
+#define TEMP_SAMPLE_GAP_THRESHOLD   10      // FIXME: hard code
 
 /*
  * Notice: page 123, 124 is reserved for custom device name

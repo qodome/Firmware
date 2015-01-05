@@ -357,10 +357,11 @@ static bStatus_t oadWriteAttrCB(uint16 connHandle, gattAttribute_t *pAttr,
         // 128-bit UUID
         if (osal_memcmp(pAttr->type.uuid, oadCharUUID[OAD_CHAR_IMG_IDENTIFY], ATT_UUID_SIZE))
         {
+#ifdef OPTIMIZE_POWER
             // Set TX power to high
             HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_0_DBM);
             pwrmgmt_event(TX_HIGH);
-            
+#endif            
             iDo_FirmwareUpdateParameter();
             status = oadImgIdentifyWrite( connHandle, pValue );
         }
