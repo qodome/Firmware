@@ -22,17 +22,16 @@
 static ble_conn_params_init_t m_conn_params_config;     /**< Configuration as specified by the application. */
 static ble_gap_conn_params_t  m_ios_conn_params;  		// iOS connection parameter
 static ble_gap_conn_params_t  m_and_conn_params;		// Android connection parameter
-static ble_gap_conn_params_t  m_requested_conn_params;  // Requested parameter
 static uint8_t                m_update_count;           /**< Number of Connection Parameter Update messages that has currently been sent. */
 static uint16_t               m_conn_handle;            /**< Current connection handle. */
 static ble_gap_conn_params_t  m_current_conn_params;    /**< Connection parameters received in the most recent Connect event. */
 static app_timer_id_t         m_conn_params_timer_id;   /**< Connection parameters timer. */
 static app_timer_id_t		  m_fast_conn_params_timer_id;
-static uint8_t				  m_enabled_fast_parameter;
 uint8_t m_conn_param_negotiation_done = 0;
 
 extern void uart_logf(const char *fmt, ...);
 
+/*
 static bool is_conn_params_ok(ble_gap_conn_params_t * p_conn_params, ble_gap_conn_params_t * p_target)
 {
     // Check if interval is within the acceptable range.
@@ -45,20 +44,21 @@ static bool is_conn_params_ok(ble_gap_conn_params_t * p_conn_params, ble_gap_con
 		return false;
 	}
 }
+*/
 
 static void fast_conn_params_handler(void *p_context)
 {
     UNUSED_PARAMETER(p_context);
+    ble_gap_conn_params_t  requested_conn_params;
 
 	if (m_conn_param_negotiation_done == 1) {
 		if (m_conn_handle != BLE_CONN_HANDLE_INVALID) {
-			m_enabled_fast_parameter = 1;
-			m_requested_conn_params.min_conn_interval = MSEC_TO_UNITS(100, UNIT_1_25_MS);
-			m_requested_conn_params.max_conn_interval = MSEC_TO_UNITS(150, UNIT_1_25_MS);
-			m_requested_conn_params.slave_latency = 0;
-			m_requested_conn_params.conn_sup_timeout = MSEC_TO_UNITS(2000, UNIT_10_MS);
+			requested_conn_params.min_conn_interval = MSEC_TO_UNITS(100, UNIT_1_25_MS);
+			requested_conn_params.max_conn_interval = MSEC_TO_UNITS(150, UNIT_1_25_MS);
+			requested_conn_params.slave_latency = 0;
+			requested_conn_params.conn_sup_timeout = MSEC_TO_UNITS(2000, UNIT_10_MS);
 	        // Parameters are not ok, send connection parameters update request.
-	        APP_ERROR_CHECK(sd_ble_gap_conn_param_update(m_conn_handle, &m_requested_conn_params));
+	        APP_ERROR_CHECK(sd_ble_gap_conn_param_update(m_conn_handle, &requested_conn_params));
 		}
 	} else {
 		APP_ERROR_CHECK(app_timer_start(m_fast_conn_params_timer_id, 1000, NULL));
@@ -68,6 +68,7 @@ static void fast_conn_params_handler(void *p_context)
 static void update_timeout_handler(void * p_context)
 {
     UNUSED_PARAMETER(p_context);
+    ble_gap_conn_params_t  requested_conn_params;
 
     if (m_conn_handle != BLE_CONN_HANDLE_INVALID) {
         // Check if we have reached the maximum number of attempts
@@ -76,34 +77,22 @@ static void update_timeout_handler(void * p_context)
             uint32_t err_code;
 
             if (m_update_count == 1) {
-            	m_requested_conn_params.min_conn_interval = m_ios_conn_params.min_conn_interval;
-            	m_requested_conn_params.max_conn_interval = m_ios_conn_params.max_conn_interval;
-            	m_requested_conn_params.slave_latency = m_ios_conn_params.slave_latency;
-            	m_requested_conn_params.conn_sup_timeout = m_ios_conn_params.conn_sup_timeout;
+            	requested_conn_params.min_conn_interval = m_ios_conn_params.min_conn_interval;
+            	requested_conn_params.max_conn_interval = m_ios_conn_params.max_conn_interval;
+            	requested_conn_params.slave_latency = m_ios_conn_params.slave_latency;
+            	requested_conn_params.conn_sup_timeout = m_ios_conn_params.conn_sup_timeout;
             } else {
-            	m_requested_conn_params.min_conn_interval = m_and_conn_params.min_conn_interval;
-            	m_requested_conn_params.max_conn_interval = m_and_conn_params.max_conn_interval;
-            	m_requested_conn_params.slave_latency = m_and_conn_params.slave_latency;
-            	m_requested_conn_params.conn_sup_timeout = m_and_conn_params.conn_sup_timeout;
+            	requested_conn_params.min_conn_interval = m_and_conn_params.min_conn_interval;
+            	requested_conn_params.max_conn_interval = m_and_conn_params.max_conn_interval;
+            	requested_conn_params.slave_latency = m_and_conn_params.slave_latency;
+            	requested_conn_params.conn_sup_timeout = m_and_conn_params.conn_sup_timeout;
             }
 
             // Parameters are not ok, send connection parameters update request.
-            err_code = sd_ble_gap_conn_param_update(m_conn_handle, &m_requested_conn_params);
+            err_code = sd_ble_gap_conn_param_update(m_conn_handle, &requested_conn_params);
             if ((err_code != NRF_SUCCESS) && (m_conn_params_config.error_handler != NULL)) {
                 m_conn_params_config.error_handler(err_code);
             }
-        } else {
-            m_update_count = 0;
-
-            // Notify the application that the procedure has failed
-            if (m_conn_params_config.evt_handler != NULL) {
-                ble_conn_params_evt_t evt;
-
-                evt.evt_type = BLE_CONN_PARAMS_EVT_FAILED;
-                m_conn_params_config.evt_handler(&evt);
-            }
-
-            m_conn_param_negotiation_done = 1;
         }
     }
 }
@@ -111,15 +100,16 @@ static void update_timeout_handler(void * p_context)
 // Enable fast conn_parameter for temperature record read
 void ble_conn_enable_fast_read(void)
 {
+	ble_gap_conn_params_t  requested_conn_params;
+
 	if (m_conn_param_negotiation_done == 1) {
 		if (m_conn_handle != BLE_CONN_HANDLE_INVALID) {
-			m_enabled_fast_parameter = 1;
-			m_requested_conn_params.min_conn_interval = MSEC_TO_UNITS(100, UNIT_1_25_MS);
-			m_requested_conn_params.max_conn_interval = MSEC_TO_UNITS(150, UNIT_1_25_MS);
-			m_requested_conn_params.slave_latency = 0;
-			m_requested_conn_params.conn_sup_timeout = MSEC_TO_UNITS(2000, UNIT_10_MS);
+			requested_conn_params.min_conn_interval = MSEC_TO_UNITS(100, UNIT_1_25_MS);
+			requested_conn_params.max_conn_interval = MSEC_TO_UNITS(150, UNIT_1_25_MS);
+			requested_conn_params.slave_latency = 0;
+			requested_conn_params.conn_sup_timeout = MSEC_TO_UNITS(2000, UNIT_10_MS);
 			// Parameters are not ok, send connection parameters update request.
-			APP_ERROR_CHECK(sd_ble_gap_conn_param_update(m_conn_handle, &m_requested_conn_params));
+			APP_ERROR_CHECK(sd_ble_gap_conn_param_update(m_conn_handle, &requested_conn_params));
 		}
 	} else {
 		APP_ERROR_CHECK(app_timer_start(m_fast_conn_params_timer_id, 1000, NULL));
@@ -146,7 +136,6 @@ uint32_t ble_conn_params_init(const ble_conn_params_init_t * p_init)
 
     m_conn_handle  = BLE_CONN_HANDLE_INVALID;
     m_update_count = 0;
-    m_enabled_fast_parameter = 0;
 
     err_code = app_timer_create(&m_fast_conn_params_timer_id,
                                 APP_TIMER_MODE_SINGLE_SHOT,
@@ -183,6 +172,8 @@ static void conn_params_negotiation(void)
         if ((err_code != NRF_SUCCESS) && (m_conn_params_config.error_handler != NULL)) {
             m_conn_params_config.error_handler(err_code);
         }
+    } else {
+        m_conn_param_negotiation_done = 1;
     }
 
 	// Notify the application that the procedure has succeeded
@@ -202,7 +193,6 @@ static void on_connect(ble_evt_t * p_ble_evt)
     m_conn_handle         = p_ble_evt->evt.gap_evt.conn_handle;
     m_current_conn_params = p_ble_evt->evt.gap_evt.params.connected.conn_params;
     m_update_count        = 0;  // Connection parameter negotiation should re-start every connection
-    m_enabled_fast_parameter = 0;
 
     //init_preferred_conn_params();
 
@@ -222,7 +212,6 @@ static void on_disconnect(ble_evt_t * p_ble_evt)
     uint32_t err_code;
 
     m_conn_handle = BLE_CONN_HANDLE_INVALID;
-    m_enabled_fast_parameter = 0;
 
     // Stop timer if running
     m_update_count = 0; // Connection parameters updates should happen during every connection
@@ -273,15 +262,10 @@ static void on_write(ble_evt_t * p_ble_evt)
 
 static void on_conn_params_update(ble_evt_t * p_ble_evt)
 {
-	if (m_enabled_fast_parameter != 0) {
-		// Faster conn_parameter does not go through negotiation process
-		return;
-	}
-
     // Copy the parameters
     m_current_conn_params = p_ble_evt->evt.gap_evt.params.conn_param_update.conn_params;
 
-    conn_params_negotiation(&m_ios_conn_params);
+    conn_params_negotiation();
 }
 
 
