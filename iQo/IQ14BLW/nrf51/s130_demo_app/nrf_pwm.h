@@ -3,18 +3,23 @@
 
 #include <stdint.h>
 
-// This define sets the number of PWM channels to use, valid options are 1, 2 and 3
-#define PWM_NUM_CHANNELS        3
+// This define sets the number of PWM channels to use, valid options are 1, 2, 3 and 4
+#define PWM_NUM_CHANNELS        4
 
 // To change the timer used for the PWM library replace the three defines below
-#define PWM_TIMER               NRF_TIMER2
-#define PWM_IRQHandler          TIMER2_IRQHandler
-#define PWM_IRQn                TIMER2_IRQn
+#define PWM_TIMER               NRF_TIMER1
+#define PWM_IRQHandler          TIMER1_IRQHandler
+#define PWM_IRQn                TIMER1_IRQn
+
+#define PWM_TIMER2				NRF_TIMER2
+#define PWM_IRQ2Handler         TIMER2_IRQHandler
+#define PWM_IRQ2n               TIMER2_IRQn
 
 // To change the GPIOTE channels used by the different PWM channels, please change the defines below
 #define PWM_GPIOTE_CHANNEL0     2
 #define PWM_GPIOTE_CHANNEL1     3
 #define PWM_GPIOTE_CHANNEL2     0
+#define PWM_GPIOTE_CHANNEL3		1
 
 typedef enum
 {
@@ -33,6 +38,8 @@ void nrf_pwm_init(uint32_t io_select_pwm0, nrf_pwm_mode_t pwm_mode);
 void nrf_pwm_init(uint32_t io_select_pwm0, uint32_t io_select_pwm1, nrf_pwm_mode_t pwm_mode);
 #elif (PWM_NUM_CHANNELS == 3)
 void nrf_pwm_init(uint32_t io_select_pwm0, uint32_t io_select_pwm1, uint32_t io_select_pwm2, nrf_pwm_mode_t pwm_mode);
+#elif (PWM_NUM_CHANNELS == 4)
+void nrf_pwm_init(uint32_t io_select_pwm0, uint32_t io_select_pwm1, uint32_t io_select_pwm2, uint32_t io_select_pwm3, nrf_pwm_mode_t pwm_mode);
 #else
 #error Invalid number of PWM channels selected! Please choose a number between 1 and 3
 #endif

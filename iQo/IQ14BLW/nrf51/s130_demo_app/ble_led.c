@@ -14,7 +14,7 @@
 #include "app_error.h"
 #include "nrf_pwm.h"
 
-uint32_t led_addr = 0;
+uint8_t led_pwm[4] = {0, 0, 0, 0};
 
 static void on_connect(ble_led_t * p_led, ble_evt_t * p_ble_evt)
 {
@@ -29,22 +29,24 @@ static void on_disconnect(ble_led_t * p_led, ble_evt_t * p_ble_evt)
 
 static void on_write(ble_led_t * p_led, ble_evt_t * p_ble_evt)
 {
+	uint8_t idx = 0;
     ble_gatts_evt_write_t * p_evt_write = &p_ble_evt->evt.gatts_evt.params.write;
 
     if (p_evt_write->handle == p_led->led_handles.value_handle) {
-        if (p_evt_write->len == sizeof(uint32_t)) {
-        	led_addr = (((uint32_t)p_evt_write->data[0]) << 24 |
-        					((uint32_t)p_evt_write->data[1]) << 16 |
-        					((uint32_t)p_evt_write->data[2]) << 8 |
-        					((uint32_t)p_evt_write->data[3]));
-        	// FIXME
+        if (p_evt_write->len == 4) {
+        	for (idx = 0; idx < 4; idx++) {
+        		if (p_evt_write->data[idx] != led_pwm[idx]) {
+        		    nrf_pwm_set_value(idx, p_evt_write->data[idx]);
+        		    led_pwm[idx] = p_evt_write->data[idx];
+        		}
+        	}
         }
     }
 }
 
 static void on_rw_authorize_request(ble_led_t * p_led, ble_evt_t * p_ble_evt)
 {
-	ble_led_v_t mem_v;
+	ble_led_v_t led_status;
     ble_gatts_evt_rw_authorize_request_t * evt_rw_auth = &p_ble_evt->evt.gatts_evt.params.authorize_request;
 
     if (evt_rw_auth->type != BLE_GATTS_AUTHORIZE_TYPE_READ)
@@ -58,17 +60,13 @@ static void on_rw_authorize_request(ble_led_t * p_led, ble_evt_t * p_ble_evt)
         ble_gatts_rw_authorize_reply_params_t * p_auth_params = &auth_params;
         uint8_t idx = 0;
 
-        ((uint8_t *)&(mem_v.addr))[0] = (uint8_t)(((led_addr & 0xFF000000) >> 24) & 0xFF);
-        ((uint8_t *)&(mem_v.addr))[1] = (uint8_t)(((led_addr & 0x00FF0000) >> 16) & 0xFF);
-        ((uint8_t *)&(mem_v.addr))[2] = (uint8_t)(((led_addr & 0x0000FF00) >> 8) & 0xFF);
-        ((uint8_t *)&(mem_v.addr))[3] = (uint8_t)(led_addr & 0xFF);
-        for (idx = 0; idx < 16; idx++) {
-        	mem_v.v[idx] = ((const uint8_t *)led_addr)[idx];
+        for (idx = 0; idx < 4; idx++) {
+        	led_status.led_pwm[idx] = led_pwm[idx];
         }
         memset((void *)p_auth_params, 0, sizeof(auth_params));
         auth_params.type =  BLE_GATTS_AUTHORIZE_TYPE_READ;
-        auth_params.params.read.p_data = (uint8_t *)&mem_v;
-        auth_params.params.read.len    = sizeof(mem_v);
+        auth_params.params.read.p_data = (uint8_t *)&led_status;
+        auth_params.params.read.len    = sizeof(ble_led_v_t);
         auth_params.params.read.update = 1;
 
         APP_ERROR_CHECK(sd_ble_gatts_rw_authorize_reply(p_led->conn_handle, p_auth_params));

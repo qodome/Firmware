@@ -30,9 +30,10 @@
 #include "ble_db_discovery.h"
 #include "ble_hts_c.h"
 #include "nrf_pwm.h"
+#include "ble_led.h"
 
 /* Addresses of peer peripherals that are expeted to run Heart Rate Service. */
-#define NUMBER_OF_PERIPHERALS                   3
+#define NUMBER_OF_PERIPHERALS                   1
 
 /* Services on Peripherals */
 #define HEART_RATE_SERVICE                      0x180D
@@ -53,13 +54,13 @@
 #define CENTRAL_CONN_SUP_TIMEOUT                MSEC_TO_UNITS(4000, UNIT_10_MS)   /* Connection supervisory timeout (4 seconds). */
 
 // Android parameter
-#define PERIPHERAL_AND_MIN_CONN_INTERVAL            MSEC_TO_UNITS(1000, UNIT_1_25_MS)   /* Minimum acceptable connection interval. */
-#define PERIPHERAL_AND_MAX_CONN_INTERVAL            MSEC_TO_UNITS(1500, UNIT_1_25_MS)   /* Maximum acceptable connection interval. */
+#define PERIPHERAL_AND_MIN_CONN_INTERVAL            MSEC_TO_UNITS(100, UNIT_1_25_MS)   /* Minimum acceptable connection interval. */
+#define PERIPHERAL_AND_MAX_CONN_INTERVAL            MSEC_TO_UNITS(150, UNIT_1_25_MS)   /* Maximum acceptable connection interval. */
 #define PERIPHERAL_AND_SLAVE_LATENCY                1                                   /* Slave latency. */
 #define PERIPHERAL_AND_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(8000, UNIT_10_MS)     /* Connection supervisory timeout. */
 // iOS parameter
-#define PERIPHERAL_IOS_MIN_CONN_INTERVAL            MSEC_TO_UNITS(500, UNIT_1_25_MS)    /* Minimum acceptable connection interval. */
-#define PERIPHERAL_IOS_MAX_CONN_INTERVAL            MSEC_TO_UNITS(1000, UNIT_1_25_MS)   /* Maximum acceptable connection interval. */
+#define PERIPHERAL_IOS_MIN_CONN_INTERVAL            MSEC_TO_UNITS(80, UNIT_1_25_MS)    /* Minimum acceptable connection interval. */
+#define PERIPHERAL_IOS_MAX_CONN_INTERVAL            MSEC_TO_UNITS(100, UNIT_1_25_MS)   /* Maximum acceptable connection interval. */
 #define PERIPHERAL_IOS_SLAVE_LATENCY                1                                   /* Slave latency. */
 #define PERIPHERAL_IOS_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(6000, UNIT_10_MS)     /* Connection supervisory timeout. */
 // Parameter update
@@ -78,12 +79,17 @@
 
 // Scheduler
 #define SCHED_MAX_EVENT_DATA_SIZE       sizeof(app_timer_event_t)                   /**< Maximum size of scheduler events. Note that scheduler BLE stack events do not contain any data, as the events are being pulled from the stack in the event handler. */
-#define SCHED_QUEUE_SIZE                10                                          /**< Maximum number of events in the scheduler queue. */
+#define SCHED_QUEUE_SIZE                4                                          /**< Maximum number of events in the scheduler queue. */
 
 #define TARGET_UUID                     0x1809                             /**< Target device name that application is looking for. */
 #define UUID16_SIZE                2                                  /**< Size of 16 bit UUID */
 
-#define NRF51_TO_MCU_MAIL_IO			12
+#define SEC_PARAM_BOND                       1                                          /**< Perform bonding. */
+#define SEC_PARAM_MITM                       0                                          /**< Man In The Middle protection not required. */
+#define SEC_PARAM_IO_CAPABILITIES            BLE_GAP_IO_CAPS_NONE                       /**< No I/O capabilities. */
+#define SEC_PARAM_OOB                        0                                          /**< Out Of Band data not available. */
+#define SEC_PARAM_MIN_KEY_SIZE               7                                          /**< Minimum encryption key size. */
+#define SEC_PARAM_MAX_KEY_SIZE               16                                         /**< Maximum encryption key size. */
 
 /**@brief To convert ticks from milliseconds
  * @param[in] time          Number of millseconds that needs to be converted.
@@ -146,11 +152,12 @@ typedef struct
 void softdevice_assert_callback(uint32_t pc, uint16_t line_num, const uint8_t *file_name);
 void app_assert_callback(uint32_t line_num, const uint8_t *file_name);
 
-static app_timer_id_t m_app_timer_id;
+//static app_timer_id_t m_app_timer_id;
 static app_timer_id_t scheduler_timer_id;
 static uint8_t scheduler_flag = 0;
 
 static ble_memdump_t                            m_memdump;
+static ble_led_t								m_led;
 static ble_gap_scan_params_t                    m_scan_param;
 
 static const ble_gap_conn_params_t m_connection_param =
@@ -164,7 +171,7 @@ static const ble_gap_conn_params_t m_connection_param =
 /*****************************************************************************
 * Functions and structures related to connection and buffers
 *****************************************************************************/
-#define DATA_BUFFER_SIZE                   16 /* Size of bufer that collects HTS data from one peripheral. */
+#define DATA_BUFFER_SIZE                   12 /* Size of bufer that collects HTS data from one peripheral. */
 
 #define TX_BUFFER_READY                    1 /* TX buffer empty. */
 #define TX_BUFFER_BUSY                     0 /* TX buffer in use. */                               
@@ -685,6 +692,7 @@ uint32_t event_handle(uint8_t expected_event, uint32_t timeout_ms, uint8_t *p_ev
 static void services_init(void)
 {
     APP_ERROR_CHECK(ble_memdump_init(&m_memdump));
+    APP_ERROR_CHECK(ble_led_init(&m_led));
 }
 
 /**@brief Function connects to given peer peripheral.
@@ -1092,11 +1100,13 @@ static void do_work(void)
 }
 #endif
 
+/*
 // When timer time happens, toggle GPIO to raise interrupt
 static void timer_timeout_handler(void * p_context)
 {
 	nrf_gpio_pin_toggle(NRF51_TO_MCU_MAIL_IO);
 }
+*/
 
 /**@brief Function for the Timer initialization.
  *
@@ -1108,10 +1118,13 @@ static void timers_init(void)
     APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_MAX_TIMERS, APP_TIMER_OP_QUEUE_SIZE, false);
 
     APP_ERROR_CHECK(app_timer_create(&scheduler_timer_id, APP_TIMER_MODE_REPEATED, scheduler_timeout_handler));
+/*
     APP_ERROR_CHECK(app_timer_create(&m_app_timer_id, APP_TIMER_MODE_REPEATED, timer_timeout_handler));
     APP_ERROR_CHECK(app_timer_start(m_app_timer_id, 50000, NULL));
+    */
 }
 
+/*
 static void mail_io_init(void)
 {
 	nrf_gpio_pin_dir_set(NRF51_TO_MCU_MAIL_IO, NRF_GPIO_PIN_DIR_OUTPUT);
@@ -1119,6 +1132,7 @@ static void mail_io_init(void)
 	nrf_gpio_cfg_output(NRF51_TO_MCU_MAIL_IO);
 	nrf_gpio_pin_clear(NRF51_TO_MCU_MAIL_IO);
 }
+*/
 
 static uint32_t adv_report_parse(uint8_t type, data_t * p_advdata, data_t * p_typedata)
 {
@@ -1335,6 +1349,7 @@ static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
 	ble_memdump_on_ble_evt(&m_memdump, p_ble_evt);
     ble_conn_params_on_ble_evt(p_ble_evt);
     ble_hts_c_on_ble_evt((peripheral_id == ID_NOT_FOUND) ? NULL : &(gs_peripheral[peripheral_id].hts_c), p_ble_evt);
+    ble_led_on_ble_evt(&m_led, p_ble_evt);
 }
 
 static void on_sys_evt(uint32_t sys_evt)
@@ -1525,7 +1540,9 @@ int main(void)
 {
     // Initialize peripheral
     board_configure();
+    /*
     mail_io_init();
+    */
 	timers_init();
 	ble_stack_init();
     scheduler_init();
@@ -1547,10 +1564,11 @@ int main(void)
     advertising_start();
     scan_start(); 
 
-    nrf_pwm_init(8, 9, 10, PWM_MODE_LED_255);
-    nrf_pwm_set_value(0, 255);
+    nrf_pwm_init(8, 9, 10, 12, PWM_MODE_LED_255);
+    nrf_pwm_set_value(0, 0);
     nrf_pwm_set_value(1, 0);
     nrf_pwm_set_value(2, 0);
+    nrf_pwm_set_value(3, 0);
 
     //do_work();
     for (;;) {

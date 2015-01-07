@@ -42,8 +42,7 @@ typedef struct ble_led_s
 /**@brief LED Service result data structure. This contains measurement result */
 typedef struct ble_led_v_s
 {
-	uint32_t	addr;									/* LED address */
-    uint8_t  	v[16];                                 	/**< LED value */
+	uint8_t	led_pwm[4];									/* LED address */
 } __attribute__((packed)) ble_led_v_t;
 
 /**@brief Function for initializing the LED Service.
