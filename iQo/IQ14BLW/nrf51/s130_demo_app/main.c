@@ -45,7 +45,7 @@
 
 #define DEVICE_NAME                             "iQo" 
 
-#define APP_ADV_INTERVAL                        MSEC_TO_UNITS(1285, UNIT_0_625_MS)  /* The advertising interval (in units of 0.625 ms. This value corresponds to 25 ms). */
+#define APP_ADV_INTERVAL                        MSEC_TO_UNITS(120, UNIT_0_625_MS)  /* The advertising interval (in units of 0.625 ms. This value corresponds to 25 ms). */
 #define APP_ADV_TIMEOUT_IN_SECONDS              0                                 /* The advertising NEVER timeout */
 
 #define CENTRAL_MIN_CONN_INTERVAL               MSEC_TO_UNITS(500, UNIT_1_25_MS)  /* Minimum acceptable connection interval. */
@@ -57,12 +57,12 @@
 #define PERIPHERAL_AND_MIN_CONN_INTERVAL            MSEC_TO_UNITS(100, UNIT_1_25_MS)   /* Minimum acceptable connection interval. */
 #define PERIPHERAL_AND_MAX_CONN_INTERVAL            MSEC_TO_UNITS(150, UNIT_1_25_MS)   /* Maximum acceptable connection interval. */
 #define PERIPHERAL_AND_SLAVE_LATENCY                1                                   /* Slave latency. */
-#define PERIPHERAL_AND_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(8000, UNIT_10_MS)     /* Connection supervisory timeout. */
+#define PERIPHERAL_AND_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(4000, UNIT_10_MS)     /* Connection supervisory timeout. */
 // iOS parameter
 #define PERIPHERAL_IOS_MIN_CONN_INTERVAL            MSEC_TO_UNITS(80, UNIT_1_25_MS)    /* Minimum acceptable connection interval. */
 #define PERIPHERAL_IOS_MAX_CONN_INTERVAL            MSEC_TO_UNITS(100, UNIT_1_25_MS)   /* Maximum acceptable connection interval. */
 #define PERIPHERAL_IOS_SLAVE_LATENCY                1                                   /* Slave latency. */
-#define PERIPHERAL_IOS_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(6000, UNIT_10_MS)     /* Connection supervisory timeout. */
+#define PERIPHERAL_IOS_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(4000, UNIT_10_MS)     /* Connection supervisory timeout. */
 // Parameter update
 #define PERIPHERAL_FIRST_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)  
 #define PERIPHERAL_NEXT_CONN_PARAMS_UPDATE_DELAY    APP_TIMER_TICKS(3000, APP_TIMER_PRESCALER) 
@@ -159,6 +159,7 @@ static uint8_t scheduler_flag = 0;
 static ble_memdump_t                            m_memdump;
 static ble_led_t								m_led;
 static ble_gap_scan_params_t                    m_scan_param;
+uint8_t led_uuid_type = 0;
 
 static const ble_gap_conn_params_t m_connection_param =
 {
@@ -1333,6 +1334,11 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             }
             break;
 
+        // The following case is the key to CCCD issue
+        case BLE_GATTS_EVT_SYS_ATTR_MISSING:
+        	sd_ble_gatts_sys_attr_set(p_ble_evt->evt.gatts_evt.conn_handle, NULL, 0);
+        	break;
+
         default:
             // No implementation needed.
             break;
@@ -1430,7 +1436,7 @@ static void advertising_init(void)
     uint8_t       flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
 
     // FIXME: battery service is the place holder for Smart Lamp
-    ble_uuid_t adv_uuids[] = {{BLE_UUID_BATTERY_SERVICE, BLE_UUID_TYPE_BLE}};
+    ble_uuid_t adv_uuids[] = {{BLE_UUID_LED_SERVICE, led_uuid_type}};
 
     // Build and set advertising data
     memset(&advdata, 0, sizeof(advdata));

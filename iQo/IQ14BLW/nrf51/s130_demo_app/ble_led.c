@@ -14,6 +14,17 @@
 #include "app_error.h"
 #include "nrf_pwm.h"
 
+extern uint8_t led_uuid_type;
+
+/**@brief 128-bit UUID base List. */
+static const ble_uuid128_t qodome_base_uuid128 =
+{
+   {
+       0x20, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF
+   }
+};
+
 uint8_t led_pwm[4] = {0, 0, 0, 0};
 
 static void on_connect(ble_led_t * p_led, ble_evt_t * p_ble_evt)
@@ -99,7 +110,7 @@ void ble_led_on_ble_evt(ble_led_t * p_led, ble_evt_t * p_ble_evt)
     }
 }
 
-static uint32_t hts_led_char_add(ble_led_t * p_led)
+static uint32_t hts_led_char_add(ble_led_t * p_led, uint8_t uuid_type)
 {
     ble_gatts_char_md_t char_md;
     ble_gatts_attr_t    attr_char_value;
@@ -110,13 +121,15 @@ static uint32_t hts_led_char_add(ble_led_t * p_led)
     memset(&char_md, 0, sizeof(char_md));
 
     char_md.char_props.read  = 1;
+    char_md.char_props.write = 1;
     char_md.p_char_user_desc = NULL;
     char_md.p_char_pf        = NULL;
     char_md.p_user_desc_md   = NULL;
     char_md.p_cccd_md        = NULL;
     char_md.p_sccd_md        = NULL;
 
-    BLE_UUID_BLE_ASSIGN(ble_uuid, BLE_UUID_LED_CHAR);
+    ble_uuid.type = uuid_type;
+    ble_uuid.uuid = BLE_UUID_LED_CHAR;
 
     memset(&attr_md, 0, sizeof(attr_md));
 
@@ -155,7 +168,14 @@ uint32_t ble_led_init(ble_led_t * p_led)
     p_led->conn_handle = BLE_CONN_HANDLE_INVALID;
 
     // Add service
-    BLE_UUID_BLE_ASSIGN(ble_uuid, BLE_UUID_LED_SERVICE);
+    ble_uuid.uuid = BLE_UUID_LED_SERVICE;
+    err_code = sd_ble_uuid_vs_add(&qodome_base_uuid128, &ble_uuid.type);
+    if (err_code != NRF_SUCCESS)
+    {
+        return err_code;
+    }
+
+    led_uuid_type = ble_uuid.type;
 
     err_code = sd_ble_gatts_service_add(BLE_GATTS_SRVC_TYPE_PRIMARY, &ble_uuid, &p_led->service_handle);
     if (err_code != NRF_SUCCESS)
@@ -164,7 +184,7 @@ uint32_t ble_led_init(ble_led_t * p_led)
     }
 
     // Add measurement characteristic
-    err_code = hts_led_char_add(p_led);
+    err_code = hts_led_char_add(p_led, ble_uuid.type);
     if (err_code != NRF_SUCCESS)
     {
         return err_code;

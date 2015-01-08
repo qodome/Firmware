@@ -111,6 +111,7 @@ static uint32_t hts_memdump_char_add(ble_memdump_t * p_memdump)
     memset(&char_md, 0, sizeof(char_md));
 
     char_md.char_props.read  = 1;
+    // force readonly on iOS
     char_md.p_char_user_desc = NULL;
     char_md.p_char_pf        = NULL;
     char_md.p_user_desc_md   = NULL;
