@@ -31,6 +31,7 @@
 #include "ble_hts_c.h"
 #include "nrf_pwm.h"
 #include "ble_led.h"
+#include "intermcu_spi.h"
 
 /* Addresses of peer peripherals that are expeted to run Heart Rate Service. */
 #define NUMBER_OF_PERIPHERALS                   1
@@ -152,7 +153,6 @@ typedef struct
 void softdevice_assert_callback(uint32_t pc, uint16_t line_num, const uint8_t *file_name);
 void app_assert_callback(uint32_t line_num, const uint8_t *file_name);
 
-//static app_timer_id_t m_app_timer_id;
 static app_timer_id_t scheduler_timer_id;
 static uint8_t scheduler_flag = 0;
 
@@ -1101,14 +1101,6 @@ static void do_work(void)
 }
 #endif
 
-/*
-// When timer time happens, toggle GPIO to raise interrupt
-static void timer_timeout_handler(void * p_context)
-{
-	nrf_gpio_pin_toggle(NRF51_TO_MCU_MAIL_IO);
-}
-*/
-
 /**@brief Function for the Timer initialization.
  *
  * @details Initializes the timer module.
@@ -1119,21 +1111,7 @@ static void timers_init(void)
     APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_MAX_TIMERS, APP_TIMER_OP_QUEUE_SIZE, false);
 
     APP_ERROR_CHECK(app_timer_create(&scheduler_timer_id, APP_TIMER_MODE_REPEATED, scheduler_timeout_handler));
-/*
-    APP_ERROR_CHECK(app_timer_create(&m_app_timer_id, APP_TIMER_MODE_REPEATED, timer_timeout_handler));
-    APP_ERROR_CHECK(app_timer_start(m_app_timer_id, 50000, NULL));
-    */
 }
-
-/*
-static void mail_io_init(void)
-{
-	nrf_gpio_pin_dir_set(NRF51_TO_MCU_MAIL_IO, NRF_GPIO_PIN_DIR_OUTPUT);
-	nrf_gpio_pin_clear(NRF51_TO_MCU_MAIL_IO);
-	nrf_gpio_cfg_output(NRF51_TO_MCU_MAIL_IO);
-	nrf_gpio_pin_clear(NRF51_TO_MCU_MAIL_IO);
-}
-*/
 
 static uint32_t adv_report_parse(uint8_t type, data_t * p_advdata, data_t * p_typedata)
 {
@@ -1541,15 +1519,20 @@ static void scan_start(void)
     APP_ERROR_CHECK(err_code);
 }
 
+void intermcu_spi_cb(uint8_t type, uint8_t len, uint8_t *buf)
+{
+	if (type == 0x01) {
+		nrf_pwm_set_value(3, (uint32_t)buf[0]);
+	}
+}
+
 /* Initial configuration of peripherals and hardware before the test begins. Calling the main loop. */
 int main(void)
 {
     // Initialize peripheral
     board_configure();
-    /*
-    mail_io_init();
-    */
 	timers_init();
+    intermcu_init(intermcu_spi_cb);
 	ble_stack_init();
     scheduler_init();
     services_init();
@@ -1570,7 +1553,7 @@ int main(void)
     advertising_start();
     scan_start(); 
 
-    nrf_pwm_init(8, 9, 10, 12, PWM_MODE_LED_255);
+    nrf_pwm_init(8, 9, 10, 12, PWM_MODE_LED_1000);
     nrf_pwm_set_value(0, 0);
     nrf_pwm_set_value(1, 0);
     nrf_pwm_set_value(2, 0);
