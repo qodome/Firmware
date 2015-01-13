@@ -67,7 +67,7 @@
 // Parameter update
 #define PERIPHERAL_FIRST_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)  
 #define PERIPHERAL_NEXT_CONN_PARAMS_UPDATE_DELAY    APP_TIMER_TICKS(3000, APP_TIMER_PRESCALER) 
-#define PERIPHERAL_MAX_CONN_PARAMS_UPDATE_COUNT     2                                           
+#define PERIPHERAL_MAX_CONN_PARAMS_UPDATE_COUNT     1
 
 #define SCAN_INTERVAL                           MSEC_TO_UNITS(100, UNIT_0_625_MS) /* Scan interval between 2.5ms to 10.24s  (100 ms).*/
 #define SCAN_WINDOW                             MSEC_TO_UNITS(80, UNIT_0_625_MS)  /* Scan window between 2.5ms to 10.24s    ( 80 ms). */
@@ -75,8 +75,8 @@
 
 // Application Timer
 #define APP_TIMER_PRESCALER             0                                           /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_MAX_TIMERS            4                                           /**< Maximum number of simultaneously created timers. */
-#define APP_TIMER_OP_QUEUE_SIZE         4                                           /**< Size of timer operation queues. */
+#define APP_TIMER_MAX_TIMERS            8                                           /**< Maximum number of simultaneously created timers. */
+#define APP_TIMER_OP_QUEUE_SIZE         8                                           /**< Size of timer operation queues. */
 
 // Scheduler
 #define SCHED_MAX_EVENT_DATA_SIZE       sizeof(app_timer_event_t)                   /**< Maximum size of scheduler events. Note that scheduler BLE stack events do not contain any data, as the events are being pulled from the stack in the event handler. */
@@ -153,8 +153,16 @@ typedef struct
 void softdevice_assert_callback(uint32_t pc, uint16_t line_num, const uint8_t *file_name);
 void app_assert_callback(uint32_t line_num, const uint8_t *file_name);
 
-static app_timer_id_t scheduler_timer_id;
-static uint8_t scheduler_flag = 0;
+#define LED_STEP_INTERVAL					APP_TIMER_TICKS(20, APP_TIMER_PRESCALER)
+#define LED_STEP_SIZE						2
+static app_timer_id_t led_dim_timer_id[4];
+static uint8_t led_current[4] = {0};
+static uint8_t led_target[4] = {0};
+static uint8_t led_turning[4] = {0};
+static uint8_t led_step_size[4] = {0};
+static uint8_t led_step_cnt[4] = {0};
+static uint8_t led_recalculate[4] = {0};
+static uint8_t led_tag[4] = {0, 1, 2, 3};
 
 static ble_memdump_t                            m_memdump;
 static ble_led_t								m_led;
@@ -203,6 +211,70 @@ typedef struct
 
 central_t gs_central;
 static bool gs_advertising_is_running = false;
+
+void led_set_light(uint8_t idx, uint8_t target)
+{
+	uint8_t delta;
+
+	// Four LEDs
+	if ((idx >= 4) || (led_turning[idx] != 0) || (target == led_current[idx])) {
+		return;
+	}
+
+	led_target[idx] = target;
+	if (target > led_current[idx]) {
+		led_turning[idx] = 1;
+		delta = target - led_current[idx];
+	} else {
+		led_turning[idx] = 0xFF;
+		delta = led_current[idx] - target;
+	}
+
+#ifdef LED_STEP_SIZE
+	if (delta <= LED_STEP_SIZE) {
+		led_step_size[idx] = delta;
+		led_step_cnt[idx] = 1;
+	} else {
+		led_step_size[idx] = LED_STEP_SIZE;
+		led_step_cnt[idx] = delta / LED_STEP_SIZE;
+		if (delta % LED_STEP_SIZE != 0) {
+			led_step_cnt[idx]++;
+		}
+	}
+	led_recalculate[idx] = 0;
+#else
+	if (delta <= 20) {
+		led_step_size[idx] = 1;
+		led_step_cnt[idx] = delta;
+		led_recalculate[idx] = 0;
+	} else {
+		led_step_size[idx] = delta / 20;
+		led_step_cnt[idx] = 20;
+		led_recalculate[idx] = 1;
+	}
+#endif
+
+	if (led_turning[idx] == 1) {
+		led_current[idx] += led_step_size[idx];
+		led_step_cnt[idx]--;
+		if (led_recalculate[idx] != 0) {
+			led_step_size[idx] = (led_target[idx] - led_current[idx]) / led_step_cnt[idx];
+		}
+	} else {
+		led_current[idx] -= led_step_size[idx];
+		led_step_cnt[idx]--;
+		if (led_recalculate[idx] != 0) {
+			led_step_size[idx] = (led_current[idx] - led_target[idx]) / led_step_cnt[idx];
+		}
+	}
+	nrf_pwm_set_value(idx, led_current[idx]);
+
+	if (led_step_cnt[idx] > 0) {
+		app_timer_start(led_dim_timer_id[idx], LED_STEP_INTERVAL, &led_tag[idx]);
+	} else {
+		led_turning[idx] = 0;
+	}
+}
 
 // Application error handler
 void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p_file_name)
@@ -516,11 +588,35 @@ static __INLINE void write_event_handle(ble_evt_t *p_ble_evt)
     }
 }
 
-// When timer time happens, call SPI to receive 1K bytes
-static void scheduler_timeout_handler(void * p_context)
+// LED dimmer
+static void led_dim_timeout_handler(void * p_context)
 {
-	scheduler_flag = 1;
-	app_timer_stop(scheduler_timer_id);
+	uint8_t idx;
+
+	idx = *(uint8_t *)p_context;
+
+	if (led_step_cnt[idx] > 1) {
+		if (led_turning[idx] == 1) {
+			led_current[idx] += led_step_size[idx];
+			led_step_cnt[idx]--;
+			if (led_recalculate[idx] != 0) {
+				led_step_size[idx] = (led_target[idx] - led_current[idx]) / led_step_cnt[idx];
+			}
+		} else {
+			led_current[idx] -= led_step_size[idx];
+			led_step_cnt[idx]--;
+			if (led_recalculate[idx] != 0) {
+				led_step_size[idx] = (led_current[idx] - led_target[idx]) / led_step_cnt[idx];
+			}
+		}
+		nrf_pwm_set_value(idx, led_current[idx]);
+		app_timer_start(led_dim_timer_id[idx], LED_STEP_INTERVAL, &led_tag[idx]);
+	} else {
+		led_current[idx] = led_target[idx];
+		led_step_cnt[idx] = 0;
+		led_turning[idx] = 0;
+		nrf_pwm_set_value(idx, led_target[idx]);
+	}
 }
 
 /**@brief Function that handles BLE events
@@ -1107,10 +1203,14 @@ static void do_work(void)
  */
 static void timers_init(void)
 {
+	uint8_t idx;
+
     // Initialize timer module, making it use the scheduler
     APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_MAX_TIMERS, APP_TIMER_OP_QUEUE_SIZE, false);
 
-    APP_ERROR_CHECK(app_timer_create(&scheduler_timer_id, APP_TIMER_MODE_REPEATED, scheduler_timeout_handler));
+    for (idx = 0; idx < 4; idx++) {
+    	APP_ERROR_CHECK(app_timer_create(&(led_dim_timer_id[idx]), APP_TIMER_MODE_SINGLE_SHOT, led_dim_timeout_handler));
+    }
 }
 
 static uint32_t adv_report_parse(uint8_t type, data_t * p_advdata, data_t * p_typedata)
@@ -1491,11 +1591,13 @@ static void conn_params_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
+/*
 static void power_manage(void)
 {
     uint32_t err_code = sd_app_evt_wait();
     APP_ERROR_CHECK(err_code);
 }
+*/
 
 static void db_discovery_init(void)
 {
@@ -1522,7 +1624,9 @@ static void scan_start(void)
 void intermcu_spi_cb(uint8_t type, uint8_t len, uint8_t *buf)
 {
 	if (type == 0x01) {
-		nrf_pwm_set_value(3, (uint32_t)buf[0]);
+		led_set_light(0, (uint32_t)buf[0]);
+		led_set_light(1, (uint32_t)buf[1]);
+		led_set_light(2, (uint32_t)buf[2]);
 	}
 }
 
@@ -1553,7 +1657,7 @@ int main(void)
     advertising_start();
     scan_start(); 
 
-    nrf_pwm_init(8, 9, 10, 12, PWM_MODE_LED_1000);
+    nrf_pwm_init(8, 9, 10, 12, PWM_MODE_LED_255);
     nrf_pwm_set_value(0, 0);
     nrf_pwm_set_value(1, 0);
     nrf_pwm_set_value(2, 0);
@@ -1562,7 +1666,7 @@ int main(void)
     //do_work();
     for (;;) {
         app_sched_execute();
-        power_manage();
+        //power_manage();
     }
 }
 

@@ -70,6 +70,7 @@ static void on_rw_authorize_request(ble_memdump_t * p_memdump, ble_evt_t * p_ble
         auth_params.params.read.len    = sizeof(mem_v);
         auth_params.params.read.update = 1;
 
+        // FIXME: check why we hit NRF_ERROR_INVALID_STATE error?
         APP_ERROR_CHECK(sd_ble_gatts_rw_authorize_reply(p_memdump->conn_handle, p_auth_params));
     }
 }

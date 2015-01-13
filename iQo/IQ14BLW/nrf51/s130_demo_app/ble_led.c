@@ -12,7 +12,6 @@
 #include "ble_srv_common.h"
 #include "app_util.h"
 #include "app_error.h"
-#include "nrf_pwm.h"
 
 extern uint8_t led_uuid_type;
 
@@ -38,6 +37,8 @@ static void on_disconnect(ble_led_t * p_led, ble_evt_t * p_ble_evt)
     p_led->conn_handle = BLE_CONN_HANDLE_INVALID;
 }
 
+extern void led_set_light(uint8_t idx, uint8_t target);
+
 static void on_write(ble_led_t * p_led, ble_evt_t * p_ble_evt)
 {
 	uint8_t idx = 0;
@@ -47,7 +48,7 @@ static void on_write(ble_led_t * p_led, ble_evt_t * p_ble_evt)
         if (p_evt_write->len == 4) {
         	for (idx = 0; idx < 4; idx++) {
         		if (p_evt_write->data[idx] != led_pwm[idx]) {
-        		    nrf_pwm_set_value(idx, p_evt_write->data[idx]);
+        			led_set_light(idx, p_evt_write->data[idx]);
         		    led_pwm[idx] = p_evt_write->data[idx];
         		}
         	}

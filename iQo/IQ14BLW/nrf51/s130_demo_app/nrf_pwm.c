@@ -205,7 +205,7 @@ void PWM_IRQHandler(void)
             PWM_TIMER->CC[i] = pwm_next_value[i] * 2;
             if(!pwm_running[i])
             {
-                nrf_gpiote_task_config(pwm_gpiote_channel[i], pwm_io_ch[i], NRF_GPIOTE_POLARITY_TOGGLE, NRF_GPIOTE_INITIAL_VALUE_LOW);
+                nrf_gpiote_task_config(pwm_gpiote_channel[i], pwm_io_ch[i], NRF_GPIOTE_POLARITY_TOGGLE, NRF_GPIOTE_INITIAL_VALUE_HIGH);
                 pwm_running[i] = 1;
             }
         }
@@ -238,7 +238,7 @@ void PWM_IRQ2Handler(void)
         	PWM_TIMER2->CC[0] = pwm_next_value[i] * 2;
             if(!pwm_running[i])
             {
-                nrf_gpiote_task_config(pwm_gpiote_channel[i], pwm_io_ch[i], NRF_GPIOTE_POLARITY_TOGGLE, NRF_GPIOTE_INITIAL_VALUE_LOW);
+                nrf_gpiote_task_config(pwm_gpiote_channel[i], pwm_io_ch[i], NRF_GPIOTE_POLARITY_TOGGLE, NRF_GPIOTE_INITIAL_VALUE_HIGH);
                 pwm_running[i] = 1;
             }
         }
