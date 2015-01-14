@@ -20,7 +20,7 @@
 #include "temperature.h"
 #include "hal_sleep.h"
      
-#define TEMP_SAMPLE_GAP_THRESHOLD   10      // FIXME: hard code
+#define TEMP_SAMPLE_GAP_THRESHOLD   20      // FIXME: hard code
 
 /*
  * Notice: page 123, 124 is reserved for custom device name
@@ -664,21 +664,34 @@ void recorder_API_task(void)
         }
         
         initial_ts = rec_read.unix_ts;
-        seg_cnt = 0;
+        seg_cnt = 1;
         do {
+            if (__recorder_get_next_end_ts(&rec_read) == RECORDER_ERROR) {
+                break;
+            }
             seg_cnt++;
-            __recorder_get_next_end_ts(&rec_read);
-        } while (rec_read.unix_ts != initial_ts);
+            if ((seg_cnt % 8) == 0) {
+                WD_KICK();
+            }
+        } while ((rec_read.unix_ts != initial_ts) && seg_cnt < (QUERY_MAX_SEGMENT_CNT * 2));
         
-        if (seg_cnt >= (QUERY_MAX_SEGMENT_CNT * 2)) {
-            rec_read.page_idx = QUERY_MAX_SEGMENT_CNT;
+        rec_read.page_idx = (uint8)(seg_cnt / 2);
+               
+        if (rec_read.page_idx > 0) {
+            rec_read.unix_ts = initial_ts;
+            qdb.query_time_interval_flag = 2;
+            record_query_result_buffer.stats_mode = 1;
+            record_query_result_buffer.stats_sample_cnt = rec_read.page_idx;
+            record_query_result_buffer.stats_period_0 = 0;
+            osal_ConvertUTCTime(&(record_query_result_buffer.tc), rec_read.unix_ts);
+            qdb.query_time_interval_cnt = 1;
+            return;
         } else {
-            rec_read.page_idx = (uint8)(seg_cnt / 2);
+            rec_read.unix_ts = 0;
+            qdb.query_time_interval = 1;
+            qdb.query_time_interval_flag = 1;        
+            return;
         }
-        
-        qdb.query_time_interval = 1;
-        qdb.query_time_interval_flag = 1;        
-        rec_read.unix_ts = 0;        
     }
     
     record_query_result_buffer.stats_mode = __recorder_get_next_end_ts(&rec_read);
@@ -778,7 +791,7 @@ void recorder_get_query_result(struct query_criteria *query_result)
                 return;
             }
             read_cnt++;
-            if ((read_cnt % 2000) == 0) {
+            if ((read_cnt % 200) == 0) {
                 WD_KICK();
             }
             
@@ -794,7 +807,6 @@ void recorder_get_query_result(struct query_criteria *query_result)
                 return;
             } 
             
-
             // Apply stats
             if (qdb.query_mode == STATS_MAX) {
                 if (current_temp > max_temp) {
