@@ -373,12 +373,10 @@ void iDo_Init( uint8 task_id )
         // until the enabler is set back to TRUE
         
         // First apply iOS settings, this should be success; then try apply Android settings
-        uint16 gapRole_AdvertOffTime = 0;
         uint8 enable_update_request = DEFAULT_ENABLE_UPDATE_REQUEST;
         
         // Set the GAP Role Parameters
         GAPRole_SetParameter( GAPROLE_ADVERT_ENABLED, sizeof( uint8 ), &initial_advertising_enable );
-        GAPRole_SetParameter( GAPROLE_ADVERT_OFF_TIME, sizeof( uint16 ), &gapRole_AdvertOffTime );
         
         GAPRole_SetParameter( GAPROLE_ADVERT_DATA, sizeof( advertData ), advertData );
         
@@ -441,7 +439,8 @@ void iDo_Init( uint8 task_id )
     // Enable clock divide on halt
     // This reduces active current while radio is active and CC254x MCU
     // is halted
-    HCI_EXT_ClkDivOnHaltCmd( HCI_EXT_ENABLE_CLK_DIVIDE_ON_HALT );
+    HCI_EXT_HaltDuringRfCmd(HCI_EXT_HALT_DURING_RF_ENABLE);
+    HCI_EXT_ClkDivOnHaltCmd(HCI_EXT_ENABLE_CLK_DIVIDE_ON_HALT);
 
     // Initialize all IO ports to output
     P0DIR = 0xFF;
@@ -679,8 +678,18 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
         return (events ^ IDO_PWR_HEART_BEAT);
     }
     
+    if (events & IDO_SCHEDULE_RECORD_API_TASK) {
+        recorder_API_task();
+        return (events ^ IDO_SCHEDULE_RECORD_API_TASK);
+    }
+    
     // Discard unknown events
     return 0;
+}
+
+void iDo_schedule_recorder_API_task(void)
+{
+    osal_set_event(iDo_TaskID, IDO_SCHEDULE_RECORD_API_TASK);
 }
 
 void iDo_ScheduleCheckVDD(uint16 delay)

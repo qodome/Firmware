@@ -66,7 +66,7 @@
 #define START_CONN_UPDATE_EVT         0x0004  // Start Connection Update Procedure
 #define CONN_PARAM_TIMEOUT_EVT        0x0008  // Connection Parameters Update Timeout
 
-#define DEFAULT_ADVERT_OFF_TIME       30000   // 30 seconds
+#define DEFAULT_ADVERT_OFF_TIME       0       // Never turn off advertise
 
 #define RSSI_NOT_AVAILABLE            127
 
@@ -196,6 +196,7 @@ bStatus_t GAPRole_SetParameter( uint16 param, uint8 len, void *pValue )
   bStatus_t ret = SUCCESS;
   switch ( param )
   {
+      /*
     case GAPROLE_IRK:
       if ( len == KEYLEN )
       {
@@ -228,6 +229,7 @@ bStatus_t GAPRole_SetParameter( uint16 param, uint8 len, void *pValue )
         ret = bleInvalidRange;
       }
       break;
+      */
 
     case GAPROLE_ADVERT_ENABLED:
       if ( len == sizeof( uint8 ) )
@@ -263,6 +265,7 @@ bStatus_t GAPRole_SetParameter( uint16 param, uint8 len, void *pValue )
       }
       break;
 
+      /*
     case GAPROLE_ADVERT_OFF_TIME:
       if ( len == sizeof ( uint16 ) )
       {
@@ -273,6 +276,7 @@ bStatus_t GAPRole_SetParameter( uint16 param, uint8 len, void *pValue )
         ret = bleInvalidRange;
       }
       break;
+      */
 
     case GAPROLE_ADVERT_DATA:
       if ( len <= B_MAX_ADV_LEN )
@@ -308,6 +312,7 @@ bStatus_t GAPRole_SetParameter( uint16 param, uint8 len, void *pValue )
       }
       break;
 
+      /*
     case GAPROLE_ADV_EVENT_TYPE:
       if ( (len == sizeof ( uint8 )) && (*((uint8*)pValue) <= GAP_ADTYPE_ADV_LDC_DIRECT_IND) )
       {
@@ -379,6 +384,7 @@ bStatus_t GAPRole_SetParameter( uint16 param, uint8 len, void *pValue )
         ret = bleInvalidRange;
       }
       break;
+      */
 
     case GAPROLE_PARAM_UPDATE_ENABLE:
       if ( (len == sizeof ( uint8 )) && (*((uint8*)pValue) <= TRUE) )

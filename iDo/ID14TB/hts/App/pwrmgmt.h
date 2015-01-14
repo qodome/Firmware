@@ -19,7 +19,7 @@
 
 struct pwrmgmt_data {
     uint16  initial_v_adc;
-    uint16  dummy;
+    uint16  battery_voltage;
     uint32  adv_pkt_cnt; 
     uint32  connect_cnt;
     uint32  connected_pkt_cnt;
