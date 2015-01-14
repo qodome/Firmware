@@ -18,6 +18,7 @@
 #include "OSAL_Clock.h"
 #include "iDo.h"
 #include "temperature.h"
+#include "hal_sleep.h"
      
 #define TEMP_SAMPLE_GAP_THRESHOLD   10      // FIXME: hard code
 
@@ -35,9 +36,14 @@ uint32 latest_sample_unix_ts;
 int16 latest_sample_temp;
 int8 rec_latest_entry_idx = -1;
 uint8 all_ff[4] = {0xff, 0xff, 0xff, 0xff};
+uint32 recorder_api_task_period = 0;
 
 struct record_read_temperature rec_read;
 struct query_db qdb;
+struct query_criteria record_query_result_buffer;
+
+uint8 __recorder_get_current_tail_next_head_info(uint8 pg_idx, uint8 rec_idx, uint32 head_ts, uint32 *tail_ts_ptr, 
+                                                uint8 *npg_ptr, uint8 *nrec_ptr, uint32 *nhead_ts_ptr);
 
 #define RECORDER_FOR_CONTINUE   1
 #define RECORDER_FOR_RETURN     2
@@ -188,6 +194,7 @@ void recorder_add_temperature(int16 temp)
         rec_latest.unix_time = ts;
         rec_latest.base_temp = temp;
         rec_latest_entry_idx++;
+        rec_latest.end_delta = 0;
     } else {
         if ((ts - latest_sample_unix_ts) >= 32) {
             // Temperature recording stopped for a while, open new block
@@ -211,7 +218,8 @@ void recorder_add_temperature(int16 temp)
             
             rec_latest.unix_time = ts;
             rec_latest.base_temp = temp;
-            rec_latest_entry_idx = 0;            
+            rec_latest_entry_idx = 0;
+            rec_latest.end_delta = 0;
         } else {
             // Normal record entry
             rec_latest.entries[rec_latest_entry_idx].delta_time_temp_h = 
@@ -219,6 +227,8 @@ void recorder_add_temperature(int16 temp)
                     ((uint8)(((temp - latest_sample_temp) >> 8) & 0x07));
             rec_latest.entries[rec_latest_entry_idx].delta_temp_l = 
                 ((uint8)((temp - latest_sample_temp) & 0xFF));
+            
+            rec_latest.end_delta = (uint16)(ts - rec_latest.unix_time);
             
             rec_latest_entry_idx++;
             if (rec_latest_entry_idx >= REC_DATA_PER_ENTRY) {
@@ -402,14 +412,15 @@ static uint8 recorder_for_task(recorder_for_callback callback, struct for_task_p
 uint8 __recorder_find_ts_callback(uint8 pg_idx, uint8 rec_idx, uint8 *cb_ret_ptr, struct for_task_param *task_param)
 {
     int16 current_temp, next_temp;
-    uint32 current_ts, next_ts;
+    uint32 current_ts, next_ts, current_tail_ts;
     uint8 npage_idx;
     uint8 nrec_idx;
     int8 nentry_idx, entry_idx;    
     uint8 ret;
     
     if ((__recorder_get_sample_info(pg_idx, rec_idx, -1, &current_temp, &current_ts) == RECORDER_SUCCESS) && (current_ts <= task_param->ts)) {
-        ret = __recorder_get_current_next_info(pg_idx, rec_idx, (REC_DATA_PER_ENTRY - 1), &current_temp, &current_ts, &npage_idx, &nrec_idx, &nentry_idx, &next_temp, &next_ts);
+
+        ret = __recorder_get_current_tail_next_head_info(pg_idx, rec_idx, current_ts, &current_tail_ts, &npage_idx, &nrec_idx, &next_ts);
         if (ret == RECORDER_ERROR) {
             if (__recorder_get_sample_info(pg_idx, rec_idx, (REC_DATA_PER_ENTRY - 1), &next_temp, &next_ts) != RECORDER_SUCCESS) {
                     // This should not happen, but in case of flash been erased and written 
@@ -451,7 +462,7 @@ uint8 __recorder_find_ts_callback(uint8 pg_idx, uint8 rec_idx, uint8 *cb_ret_ptr
                 *cb_ret_ptr = RECORDER_SUCCESS;
                 return RECORDER_FOR_RETURN;
             }
-        } 
+        }
     }
     return RECORDER_FOR_CONTINUE;
 }
@@ -475,15 +486,54 @@ static uint8 __recorder_find_ts(UTCTimeStruct *tc, struct record_read_temperatur
     return RECORDER_ERROR;
 }
 
+uint8 __recorder_get_current_head_info(uint8 pg_idx, uint8 rec_idx, uint32 *ts_ptr)
+{
+    uint8 magic[2];
+    
+    HalFlashRead(pg_idx, (uint16)(rec_idx + 1) * sizeof(struct record_entry) - 2, magic, 2);
+    if (magic[0] == 0x52 && magic[1] == 0x44) {
+        HalFlashRead(pg_idx, (uint16)rec_idx * sizeof(struct record_entry), (uint8 *)ts_ptr, sizeof(uint32));
+        return RECORDER_SUCCESS;
+    } else {
+        return RECORDER_ERROR;
+    }        
+}
+
+uint8 __recorder_get_current_tail_next_head_info(uint8 pg_idx, uint8 rec_idx, uint32 head_ts, uint32 *tail_ts_ptr, 
+                                                uint8 *npg_ptr, uint8 *nrec_ptr, uint32 *nhead_ts_ptr)
+{
+    uint8 magic[2];
+    uint16 delta;
+
+    // Update IDX
+    if (rec_idx >= (REC_ENTRY_PER_PAGE - 1)) {
+        *npg_ptr = __recorder_get_next_page(pg_idx);
+        *nrec_ptr = 0;
+    } else {
+        *npg_ptr = pg_idx;
+        *nrec_ptr = rec_idx + 1;
+    }
+    
+    HalFlashRead(pg_idx, (uint16)(rec_idx + 1) * sizeof(struct record_entry) - 4, (uint8 *)&delta, sizeof(uint16));
+    *tail_ts_ptr = head_ts + (uint32)delta;
+    
+    // Check NEXT magic number, current magic is always valid!
+    HalFlashRead(*npg_ptr, (uint16)(*nrec_ptr + 1) * sizeof(struct record_entry) - 2, magic, 2);
+    if (magic[0] == 0x52 && magic[1] == 0x44) {
+        HalFlashRead(*npg_ptr, (uint16)*nrec_ptr * sizeof(struct record_entry), (uint8 *)nhead_ts_ptr, sizeof(uint32));
+        return RECORDER_SUCCESS;
+    } else {
+        return RECORDER_ERROR;
+    }        
+}
+
 uint8 __recorder_get_boundary_unix_time_callback(uint8 pg_idx, uint8 rec_idx, uint8 *cb_ret_ptr, struct for_task_param *task_param)
 {
-    int16 head_temp, next_temp, current_temp;
     uint32 head_ts, next_ts, current_ts;
     uint8 npage_idx;
     uint8 nrec_idx;
-    int8 nentry_idx;    
     
-    if (__recorder_get_sample_info(pg_idx, rec_idx, -1, &head_temp, &head_ts) == RECORDER_SUCCESS) {
+    if (__recorder_get_current_head_info(pg_idx, rec_idx, &head_ts) == RECORDER_SUCCESS) {
         if (task_param->search_mode == 1) {
             // Search for head
             if ((head_ts > task_param->last_known_ts) && (head_ts < task_param->head_ts)) {
@@ -493,8 +543,9 @@ uint8 __recorder_get_boundary_unix_time_callback(uint8 pg_idx, uint8 rec_idx, ui
         } else if (task_param->search_mode == 2) {
             // Head is known, search for tail
             if (head_ts == task_param->last_known_ts) {
+                uint16 cnt = 0;
                 do {
-                    if (__recorder_get_current_next_info(pg_idx, rec_idx, (REC_DATA_PER_ENTRY - 1), &current_temp, &current_ts, &npage_idx, &nrec_idx, &nentry_idx, &next_temp, &next_ts) == RECORDER_SUCCESS) {
+                    if (__recorder_get_current_tail_next_head_info(pg_idx, rec_idx, head_ts, &current_ts, &npage_idx, &nrec_idx, &next_ts) == RECORDER_SUCCESS) {
                         if ((next_ts == 0) || (next_ts < current_ts) || ((next_ts - current_ts) > TEMP_SAMPLE_GAP_THRESHOLD)) {
                             // We got the target, page_idx/rec_idx is the last block
                             task_param->tail_ts = current_ts;
@@ -503,8 +554,13 @@ uint8 __recorder_get_boundary_unix_time_callback(uint8 pg_idx, uint8 rec_idx, ui
                         } else {
                             pg_idx = npage_idx;
                             rec_idx = nrec_idx;
+                            head_ts = next_ts;
+                            cnt++;
+                            if ((cnt % 16) == 0) {
+                                WD_KICK();
+                            }
                         }    
-                    } else if (__recorder_get_sample_info(pg_idx, rec_idx, (REC_DATA_PER_ENTRY - 1), &current_temp, &current_ts) == RECORDER_SUCCESS) {
+                    } else if (__recorder_get_current_head_info(pg_idx, rec_idx, &current_ts) == RECORDER_SUCCESS) {
                         task_param->tail_ts = current_ts;
                         *cb_ret_ptr = RECORDER_SUCCESS;
                         return RECORDER_FOR_RETURN;
@@ -587,22 +643,16 @@ static uint8 __recorder_get_next_end_ts(struct record_read_temperature *rec_ptr)
     return RECORDER_ERROR;
 }
 
-/*
- * Set query criteria and move rec_read to the point
- */
-void recorder_set_query_criteria(struct query_criteria *query_ptr)
+void recorder_API_task(void)
 {
-    uint32 initial_ts;
     uint16 seg_cnt;
-
-    osal_memset((uint8 *)&qdb, 0, sizeof(qdb));
-    osal_memset((uint8 *)&rec_read, 0, sizeof(struct record_read_temperature));
-
-    // Query valid sample time intervals
-    if (query_ptr->stats_mode == 0xFF) {
-        qdb.query_time_interval = 1;
-        qdb.query_time_interval_flag = 1;        
-
+    uint32 initial_ts;
+    uint32 time_tmp;
+    
+    recorder_api_task_period = halSleepReadTimer();
+    osal_memset((void *)&record_query_result_buffer, 0, sizeof(record_query_result_buffer));
+    
+    if (rec_read.unix_ts == 0) {        
         // Count how many fragments do we have?
         // Return at most 255
         __recorder_get_next_end_ts(&rec_read);
@@ -611,23 +661,61 @@ void recorder_set_query_criteria(struct query_criteria *query_ptr)
             qdb.query_time_interval_flag = 1;        
             return;
         }
-
+        
         initial_ts = rec_read.unix_ts;
         seg_cnt = 0;
         do {
             seg_cnt++;
             __recorder_get_next_end_ts(&rec_read);
         } while (rec_read.unix_ts != initial_ts);
-
+        
         if (seg_cnt >= (QUERY_MAX_SEGMENT_CNT * 2)) {
             rec_read.page_idx = QUERY_MAX_SEGMENT_CNT;
         } else {
             rec_read.page_idx = (uint8)(seg_cnt / 2);
         }
-
+        
         qdb.query_time_interval = 1;
         qdb.query_time_interval_flag = 1;        
-        rec_read.unix_ts = 0;
+        rec_read.unix_ts = 0;        
+    }
+    
+    record_query_result_buffer.stats_mode = __recorder_get_next_end_ts(&rec_read);
+    if ((rec_read.unix_ts != 0) && (rec_read.page_idx > 0)) {
+        record_query_result_buffer.stats_sample_cnt = rec_read.page_idx;
+        record_query_result_buffer.stats_period_0 = qdb.query_time_interval_cnt / 2;
+        osal_ConvertUTCTime(&(record_query_result_buffer.tc), rec_read.unix_ts);
+        qdb.query_time_interval_cnt++;
+        if (qdb.query_time_interval_cnt >= (rec_read.page_idx * 2)) {
+            osal_memset((uint8 *)&qdb, 0, sizeof(qdb));
+            osal_memset((uint8 *)&rec_read, 0, sizeof(struct record_read_temperature));            
+            qdb.query_time_interval = 1;
+            qdb.query_time_interval_flag = 1; 
+        }
+    } else {
+        record_query_result_buffer.stats_mode = 0;            
+    }
+    
+    time_tmp = halSleepReadTimer();
+    if (time_tmp < recorder_api_task_period) {
+        time_tmp += 0x01000000;
+    }
+    recorder_api_task_period = time_tmp - recorder_api_task_period;
+}
+
+/*
+ * Set query criteria and move rec_read to the point
+ */
+void recorder_set_query_criteria(struct query_criteria *query_ptr)
+{
+    osal_memset((uint8 *)&qdb, 0, sizeof(qdb));
+    osal_memset((uint8 *)&rec_read, 0, sizeof(struct record_read_temperature));
+
+    // Query valid sample time intervals
+    if (query_ptr->stats_mode == 0xFF) {
+        qdb.query_time_interval = 1;
+        qdb.query_time_interval_flag = 1;        
+        iDo_schedule_recorder_API_task();
         return;
     }
 
@@ -663,25 +751,12 @@ void recorder_get_query_result(struct query_criteria *query_result)
     int16 current_temp, next_temp, result_temp;
     uint32 current_ts, next_ts, result_ts;
     UTCTimeStruct tm;
-    struct query_criteria q;
 
     osal_memset((uint8 *)query_result, 0, sizeof(struct query_criteria));
     
     if (qdb.query_time_interval == 1) {
-        // Doing time interval query
-        query_result->stats_mode = __recorder_get_next_end_ts(&rec_read);
-        if ((rec_read.unix_ts != 0) && (rec_read.page_idx > 0)) {
-            query_result->stats_sample_cnt = rec_read.page_idx;
-            query_result->stats_period_0 = qdb.query_time_interval_cnt / 2;
-            osal_ConvertUTCTime(&(query_result->tc), rec_read.unix_ts);
-            qdb.query_time_interval_cnt++;
-            if (qdb.query_time_interval_cnt >= (rec_read.page_idx * 2)) {
-                q.stats_mode = 0xFF;
-                recorder_set_query_criteria(&q);
-            }
-        } else {
-            query_result->stats_mode = 0;            
-        }
+        osal_memcpy((void *)query_result, (void *)&record_query_result_buffer, sizeof(record_query_result_buffer));
+        iDo_schedule_recorder_API_task();
     } else if (qdb.query_valid == 1) {
         read_cnt = 0;
         

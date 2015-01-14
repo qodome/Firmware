@@ -103,7 +103,7 @@ void pwrmgmt_checkvdd_callback(void)
         pd.initial_v_adc = pvavg;
         pinit = 1;
 
-        custom_mgmt_set(&pd);
+        pwrmgmt_flash_dump();
     }
 }
 
@@ -262,7 +262,7 @@ uint8 pwrmgmt_battery_percent(void)
             if ((guess_capacity == 100) && (calculated_capacity < 40)) {
                 osal_memset((uint8 *)&pd, 0, sizeof(pd));
                 pd.initial_v_adc = voltage_lvl;
-                custom_mgmt_set(&pd);
+                pwrmgmt_flash_dump();
                 calculated_capacity = 100;
             } else if ((guess_capacity <= 20) && (calculated_capacity > guess_capacity)) {
                 // In case battery voltage is *VERY LOW*, trust guess result
@@ -276,6 +276,8 @@ uint8 pwrmgmt_battery_percent(void)
 void pwrmgmt_flash_dump(void)
 {
     pwrmgmt_glean_stats();
+    HalAdcSetReference( HAL_ADC_REF_125V );
+    pd.battery_voltage = HalAdcRead(HAL_ADC_CHANNEL_VDD, HAL_ADC_RESOLUTION_14);
     custom_mgmt_set(&pd);
 }
 
