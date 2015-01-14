@@ -180,13 +180,6 @@
   while ( (CLKCONSTA & ~0x80) != CLKCONCMD_32MHZ );                            \
 }
 
-// Switch to faster clock speed
-#define SET_OSC_TO_XOSC_FAST()                                                 \
-{                                                                              \
-  CLKCONCMD = (CLKCONCMD & 0x80) | CLKCONCMD_32MHZ_FAST;                       \
-  while ( (CLKCONSTA & ~0x80) != CLKCONCMD_32MHZ_FAST );                       \
-}
-
 // set 32kHz OSC and wait until it is stable
 #define SET_32KHZ_OSC()                                                        \
 {                                                                              \

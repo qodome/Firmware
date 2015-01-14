@@ -9,7 +9,7 @@
 #include "OSAL_Clock.h"
 
 #define REC_ENTRY_PER_PAGE (2048 / 256)
-#define REC_DATA_PER_ENTRY  123
+#define REC_DATA_PER_ENTRY  124
 #define REC_DATA_ENTRY_OFFSET   6
 
 #define RECORDER_ERROR          0
@@ -45,7 +45,6 @@ struct record_entry {
     uint32 unix_time;
     int16 base_temp;
     struct data_entry entries[REC_DATA_PER_ENTRY];
-    uint16 end_delta;
     uint8 magic[2];
 };
 
@@ -82,7 +81,5 @@ void recorder_get_query_result(struct query_criteria *query_result);
 
 void recorder_touch_wd_page(void);
 uint32 recorder_get_wd_boot_count(void);
-
-void recorder_API_task(void);
 
 #endif

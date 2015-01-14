@@ -164,8 +164,6 @@ void HalFlashWrite(uint16 addr, uint8 *buf, uint16 cnt)
         }
     }
     
-    SET_OSC_TO_XOSC_FAST();
-    
 #if (defined HAL_DMA) && (HAL_DMA == TRUE)
   halDMADesc_t *ch = HAL_NV_DMA_GET_DESC();
 
@@ -190,8 +188,6 @@ void HalFlashWrite(uint16 addr, uint8 *buf, uint16 cnt)
   FCTL |= 0x02;         // Trigger the DMA writes.
   while (FCTL & 0x80);  // Wait until writing is done.
 #endif
-  
-    SET_OSC_TO_XOSC();
 }
 
 /**************************************************************************************************
@@ -216,20 +212,8 @@ void HalFlashErase(uint8 pg)
         return;
     }
     
-    halIntState_t intState;
-    
-    SET_OSC_TO_XOSC_FAST();
-    
-    HAL_ENTER_CRITICAL_SECTION(intState);
-    
-    while (FCTL & 0x80);
     FADDRH = pg * (HAL_FLASH_PAGE_SIZE / HAL_FLASH_WORD_SIZE / 256);
     FCTL |= 0x01;
-    while (FCTL & 0x80);
-    
-    HAL_EXIT_CRITICAL_SECTION(intState); 
-    
-    SET_OSC_TO_XOSC();
 }
 
 /**************************************************************************************************
