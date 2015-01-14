@@ -27,7 +27,7 @@ void custom_init(void)
         osal_memcpy(pdata.dn_magic, DN_MAGIC, CUSTOM_DN_MAGIC_LEN);
         osal_memcpy(pdata.dn, DN_DEFAULT, 4);
 
-        HalFlashErase(CUSTOM_DN_PAGE_IDX);
+        HalFlashEraseSecure(CUSTOM_DN_PAGE_IDX);
         HalFlashWrite((((uint32)CUSTOM_DN_PAGE_IDX * (uint32)512)), (uint8 *)&pdata, sizeof(pdata) / 4);
     }
 
@@ -41,7 +41,7 @@ void custom_init(void)
         if (idx >= MGMT_RCD_CNT) {
             HalFlashRead(CUSTOM_DN_PAGE_IDX, 0, (uint8 *)&pdata, sizeof(pdata));
 
-            HalFlashErase(CUSTOM_DN_PAGE_IDX);
+            HalFlashEraseSecure(CUSTOM_DN_PAGE_IDX);
             HalFlashWrite((((uint32)CUSTOM_DN_PAGE_IDX * (uint32)2048) / 4), (uint8 *)&pdata, sizeof(pdata) / 4);
             HalFlashWrite(((((uint32)CUSTOM_DN_PAGE_IDX * (uint32)2048) + (uint32)&(((struct persistent_data_storage *)0)->mgmt[0])) / 4), (uint8 *)&mgmt, sizeof(mgmt) / 4);
 
@@ -82,7 +82,7 @@ void custom_set_dn(uint8 *dn)
         HalFlashRead(CUSTOM_DN_PAGE_IDX, (uint16)&(((struct persistent_data_storage *)0)->mgmt[current_mgmt_idx]), (uint8 *)&mgmt, sizeof(mgmt));
     }
 
-    HalFlashErase(CUSTOM_DN_PAGE_IDX);
+    HalFlashEraseSecure(CUSTOM_DN_PAGE_IDX);
     HalFlashWrite((((uint32)CUSTOM_DN_PAGE_IDX * (uint32)2048) / 4), (uint8 *)&pdata, sizeof(pdata) / 4);
 
     if (current_mgmt_idx != 0xFF) {
@@ -111,7 +111,7 @@ void custom_mgmt_set(struct pwrmgmt_data *pwr)
         HalFlashRead(CUSTOM_DN_PAGE_IDX, 0, (uint8 *)&pdata, sizeof(pdata));
         osal_memcpy(pdata.mgmt_magic, MGMT_MAGIC, MGMT_MAGIC_LEN);
 
-        HalFlashErase(CUSTOM_DN_PAGE_IDX);
+        HalFlashEraseSecure(CUSTOM_DN_PAGE_IDX);
         HalFlashWrite((((uint32)CUSTOM_DN_PAGE_IDX * (uint32)2048) / 4), (uint8 *)&pdata, sizeof(pdata) / 4);
         current_mgmt_idx = 0;
         HalFlashWrite(((((uint32)CUSTOM_DN_PAGE_IDX * (uint32)2048) + (uint32)&(((struct persistent_data_storage *)0)->mgmt[current_mgmt_idx])) / 4), (uint8 *)pwr, sizeof(struct pwrmgmt_data) / 4);

@@ -216,5 +216,24 @@ void HalFlashErase(uint8 pg)
     FCTL |= 0x01;
 }
 
+void HalFlashEraseSecure(uint8 pg)
+{
+    if (!HalFlashPageValid(pg)) {
+        return;
+    }
+    
+    WD_KICK();
+    
+    halIntState_t intState;
+    
+    HAL_ENTER_CRITICAL_SECTION(intState);
+    
+    while (FCTL & 0x80);
+    FADDRH = pg * (HAL_FLASH_PAGE_SIZE / HAL_FLASH_WORD_SIZE / 256);
+    FCTL |= 0x01;
+    while (FCTL & 0x80);
+    
+    HAL_EXIT_CRITICAL_SECTION(intState); 
+}
 /**************************************************************************************************
 */

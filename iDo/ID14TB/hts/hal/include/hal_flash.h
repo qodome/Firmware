@@ -112,6 +112,8 @@ void HalFlashWrite(uint16 addr, uint8 *buf, uint16 cnt);
  */
 void HalFlashErase(uint8 pg);
 
+void HalFlashEraseSecure(uint8 pg);
+
 void HalFlashEnableException(void);
 
 #ifdef __cplusplus

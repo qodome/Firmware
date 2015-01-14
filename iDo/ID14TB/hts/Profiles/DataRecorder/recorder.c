@@ -96,7 +96,8 @@ void recorder_touch_wd_page(void)
         buf[3] = (uint8)((OAD_IMAGE_VERSION) & 0xFF);
         ((uint32 *)buf)[1] = 1;
     }
-    
+
+	// FIXME: need to make sure erase finished before write!
     HalFlashErase(__recorder_get_wd_page());    
     HalFlashWrite(((((uint32)__recorder_get_wd_page()) * 2048) / 4), buf, 2);    
 }
