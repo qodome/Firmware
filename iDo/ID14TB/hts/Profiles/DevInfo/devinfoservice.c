@@ -376,7 +376,7 @@ static uint8 bin_to_ascii(uint8 b)
 	if (b < 10) {
 		a = '0' + b;
 	} else {
-		a = 'a' + (b - 10);
+		a = 'A' + (b - 10);
 	}
 	return a;
 }
