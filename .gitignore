@@ -39,3 +39,5 @@ iMo/IM14BEA_dialog/With_PIC/da14580.X/funclist
 iMo/IM14BEA_dialog/With_PIC/da14580.X/l.obj
 .gitignore.bak
 *.bak
+**/*.pyc
+**/*.log
