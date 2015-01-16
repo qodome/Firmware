@@ -13,8 +13,8 @@
 #include "ble.h"
 #include "ble_srv_common.h"
 
-#define BLE_UUID_MEMDUMP_SERVICE    0x1110
-#define BLE_UUID_MEMDUMP_CHAR       0x1111
+#define BLE_UUID_MEMDUMP_SERVICE    0x5555
+#define BLE_UUID_MEMDUMP_CHAR       0x6666
 
 // Forward declaration of the ble_memdump_t type.
 typedef struct ble_memdump_s ble_memdump_t;
