@@ -67,6 +67,7 @@
 #include "pstorage.h"
 #include "ble_dfu.h"
 #include "dfu_app_handler.h"
+#include "ble_acc.h"
 
 //lint -e553
 #ifdef SVCALL_AS_NORMAL_FUNCTION
@@ -80,11 +81,11 @@
 #define MANUFACTURER_NAME                    "Qodome Co., Ltd."                      /**< Manufacturer. Will be passed to Device Information Service. */
 #define MODEL_NUM                            "ID14TBA"                            /**< Model number. Will be passed to Device Information Service. */
 
-#define APP_ADV_INTERVAL                     MSEC_TO_UNITS(1285, UNIT_0_625_MS)       /**< The advertising interval (in units of 0.625 ms. This value corresponds to 25 ms). */
+#define APP_ADV_INTERVAL                     MSEC_TO_UNITS(/*1285*/128, UNIT_0_625_MS)       /**< The advertising interval (in units of 0.625 ms. This value corresponds to 25 ms). */
 #define APP_ADV_TIMEOUT_IN_SECONDS           0                                        /**< The advertising timeout in units of seconds. */
 
 #define APP_TIMER_PRESCALER                  0                                          /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_MAX_TIMERS                 10                                          /**< Maximum number of simultaneously created timers. */
+#define APP_TIMER_MAX_TIMERS                 11                                          /**< Maximum number of simultaneously created timers. */
 #define APP_TIMER_OP_QUEUE_SIZE              8                                          /**< Size of timer operation queues. */
 
 // Android parameter
@@ -123,9 +124,9 @@ static uint16_t                              m_conn_handle = BLE_CONN_HANDLE_INV
 static ble_gap_adv_params_t                  m_adv_params;                              /**< Parameters to be passed to the stack when starting advertising. */
 ble_bas_t                             m_bas;                                     /**< Structure used to identify the battery service. */
 static ble_hts_t                             m_hts;                                     /**< Structure used to identify the health thermometer service. */
-//static ble_reg_t                             m_reg;                                     /**< Structure used to identify the health thermometer service. */
 static ble_time_t                            m_time;                                     /**< Structure used to identify the health thermometer service. */
 static ble_dfu_t							 m_dfu;
+static ble_acc_t							 m_acc;
 
 static app_timer_id_t						m_battery_timer_id;
 static app_timer_id_t						m_watchdog_timer_id;
@@ -458,6 +459,24 @@ static void on_hts_evt(ble_hts_t * p_hts, ble_hts_evt_t *p_evt)
 	}
 }
 
+static void on_acc_evt(ble_acc_t * p_hts, ble_acc_evt_t *p_evt)
+{
+	switch (p_evt->evt_type)
+	{
+	case BLE_ACC_EVT_NOTIFICATION_ENABLED:
+		temp_it_start();
+		break;
+
+	case BLE_ACC_EVT_NOTIFICATION_DISABLED:
+		temp_it_stop();
+		break;
+
+	default:
+		// No implementation needed.
+		break;
+	}
+}
+
 // Battery service event handler
 static void on_bas_evt(ble_bas_t * p_bas, ble_bas_evt_t *p_evt)
 {
@@ -606,6 +625,9 @@ static void services_init(void)
     err_code = ble_dfu_init(&m_dfu, &dfus_init);
     APP_ERROR_CHECK(err_code);
     dfu_app_reset_prepare_set(reset_prepare);
+
+    // ACC service
+    APP_ERROR_CHECK(ble_acc_init(&m_acc));
 }
 
 /**@brief Function for starting advertising.
@@ -802,6 +824,7 @@ static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
 	ble_conn_params_on_ble_evt(p_ble_evt);
 	dm_ble_evt_handler(p_ble_evt);
 	ble_dfu_on_ble_evt(&m_dfu, p_ble_evt);
+	ble_acc_on_ble_evt(&m_acc, p_ble_evt);
 
 	// Backdoor
 	if (memdump_flag_get()) {
