@@ -167,11 +167,11 @@ static const uint8 devInfoModelNumber[] = "ID14TB";
 
 // Serial Number String characteristic
 static uint8 devInfoSerialNumberProps = GATT_PROP_READ;
-static char devInfoSerialNumber[20] = {0};
+static char devInfoSerialNumber[18] = {0};
 
 // Firmware Revision String characteristic
 static uint8 devInfoFirmwareRevProps = GATT_PROP_READ;
-static char devInfoFirmwareRev[20] = {0};
+static char devInfoFirmwareRev[11] = {0};
 
 /*
 // Hardware Revision String characteristic
