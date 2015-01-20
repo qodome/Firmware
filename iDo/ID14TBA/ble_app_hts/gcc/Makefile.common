@@ -81,7 +81,6 @@ ASMFLAGS += -x assembler-with-cpp
 INCLUDEPATHS += -I"../"
 INCLUDEPATHS += -I"$(SDK_PATH)Include"
 INCLUDEPATHS += -I"$(SDK_PATH)Include/gcc"
-INCLUDEPATHS += -I"$(SDK_PATH)Include/ext_sensors"
 
 # Sorting removes duplicates
 BUILD_DIRECTORIES := $(sort $(OBJECT_DIRECTORY) $(OUTPUT_BINARY_DIRECTORY) $(LISTING_DIRECTORY) )

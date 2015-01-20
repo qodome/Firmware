@@ -38,24 +38,19 @@
 #include "ble_dis.h"
 #include "ble_conn_params.h"
 #include "app_scheduler.h"
-#include "boards.h"
-#include "ble_sensorsim.h"
 #include "softdevice_handler.h"
 #include "app_timer.h"
-#include "device_manager.h"
 #include "app_gpiote.h"
 #include "ble_error_log.h"
 #include "app_gpiote.h"
-#include "ble_debug_assert_handler.h"
 #include "app_trace.h"
 #include "nrf_sdm.h"
 #include "app_util_platform.h"
 #include "spi_master.h"
 #include "nrf_delay.h"
 #include "UTCtime_convert.h"
-#include "ble_register_rw.h"
 #include "temp_service.h"
-#include "temp_date_time.h"
+#include "ble_time.h"
 #include "ble_memdump.h"
 #include "temp_state.h"
 #include "cmd_buffer.h"
@@ -64,7 +59,6 @@
 #include "flash_helper.h"
 #include "persistent.h"
 #include "battery.h"
-#include "pstorage.h"
 #include "ble_dfu.h"
 #include "dfu_app_handler.h"
 #include "ble_acc.h"
@@ -132,7 +126,6 @@ static app_timer_id_t						m_battery_timer_id;
 static app_timer_id_t						m_watchdog_timer_id;
 static app_timer_id_t						m_adtmonitor_timer_id;
 static app_timer_id_t						m_txpower_timer_id;
-static dm_application_instance_t      		m_app_handle;
 
 int8_t rssi = 0;
 int8_t tx_power = 4;
@@ -168,21 +161,6 @@ void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p
 	uint8_t error_idx = 0;
 	uint32_t error_info = 0;
 
-    // This call can be used for debug purposes during application development.
-    // @note CAUTION: Activating this code will write the stack to flash on an error.
-    //                This function should NOT be used in a final product.
-    //                It is intended STRICTLY for development/debugging purposes.
-    //                The flash write will happen EVEN if the radio is active, thus interrupting
-    //                any communication.
-    //                Use with care. Uncomment the line below to use.
-    // ble_debug_assert_handler(error_code, line_num, p_file_name);
-
-    // On assert, the system can only recover with a reset.
-//#if SVCALL_AS_NORMAL_FUNCTION
-//    for(;;);
-//#else
-//    NVIC_SystemReset();
-//#endif
 	error_cnt++;
 	last_error_code = error_code;
 	last_error_file_name = (uint8_t *)p_file_name;
@@ -210,7 +188,6 @@ void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p
  */
 void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 {
-    //app_error_handler(DEAD_BEEF, line_num, p_file_name);
 	persistent_record_error(PERSISTENT_ERROR_DEADBEEF, (uint32_t)line_num);
 	for(;;);
 }
@@ -245,10 +222,10 @@ uint16_t spi_read (uint8_t addr)
 
     temp_tx_buffer[0] = ((addr & 0x07) << 3) | 0x40;
     if (addr == 0x02 || addr >= 0x04) {
-      APP_ERROR_CHECK(spi_master_send_recv(SPI_MASTER_0, temp_tx_buffer, 3,  temp_rx_buffer, 3));
+      APP_ERROR_CHECK(spi_master_send_recv(SPI_MASTER_0, temp_tx_buffer, temp_rx_buffer, 3));
       ret = ((uint16_t)temp_rx_buffer[1] << 8) | temp_rx_buffer[2];
     } else {
-      APP_ERROR_CHECK(spi_master_send_recv(SPI_MASTER_0, temp_tx_buffer, 2,  temp_rx_buffer, 2));
+      APP_ERROR_CHECK(spi_master_send_recv(SPI_MASTER_0, temp_tx_buffer, temp_rx_buffer, 2));
       ret = (uint16_t)temp_rx_buffer[1];
     }
 
@@ -263,12 +240,12 @@ void spi_write (uint8_t addr, uint16_t cmd)
     temp_tx_buffer[0] = ((addr & 0x07) << 3) & ~(0x40);
     if (addr == 0x01 || addr == 0x05) {
       temp_tx_buffer[1] =(uint8_t)(cmd & 0xFF);
-      APP_ERROR_CHECK(spi_master_send_recv(SPI_MASTER_0, temp_tx_buffer, 2,  temp_rx_buffer, 2));
+      APP_ERROR_CHECK(spi_master_send_recv(SPI_MASTER_0, temp_tx_buffer, temp_rx_buffer, 2));
 
     } else  if (addr == 0x04 || addr == 0x06 || addr == 0x07){
       temp_tx_buffer[1] = (uint8_t)((cmd >> 8) & 0xFF);
       temp_tx_buffer[2] = (uint8_t)(cmd & 0xFF);
-      APP_ERROR_CHECK(spi_master_send_recv(SPI_MASTER_0, temp_tx_buffer, 3,  temp_rx_buffer, 3));
+      APP_ERROR_CHECK(spi_master_send_recv(SPI_MASTER_0, temp_tx_buffer, temp_rx_buffer, 3));
     }
 }
 
@@ -769,6 +746,11 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             rssi = p_ble_evt->evt.gap_evt.params.rssi_changed.rssi;
             break;
 
+        // The following case is the key to CCCD issue
+        case BLE_GATTS_EVT_SYS_ATTR_MISSING:
+        	sd_ble_gatts_sys_attr_set(p_ble_evt->evt.gatts_evt.conn_handle, NULL, 0);
+        	break;
+
         default:
             // No implementation needed.
             break;
@@ -817,12 +799,10 @@ static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
 {
 	ble_memdump_t m_memdump;
 	ble_hts_on_ble_evt(&m_hts, p_ble_evt);
-	//ble_reg_on_ble_evt(&m_reg, p_ble_evt);
 	ble_time_on_ble_evt(&m_time, p_ble_evt);
 	ble_bas_on_ble_evt(&m_bas, p_ble_evt);
 	on_ble_evt(p_ble_evt);
 	ble_conn_params_on_ble_evt(p_ble_evt);
-	dm_ble_evt_handler(p_ble_evt);
 	ble_dfu_on_ble_evt(&m_dfu, p_ble_evt);
 	ble_acc_on_ble_evt(&m_acc, p_ble_evt);
 
@@ -842,7 +822,6 @@ static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
  */
 static void sys_evt_dispatch(uint32_t sys_evt)
 {
-	pstorage_sys_event_handler(sys_evt);
     on_sys_evt(sys_evt);
 }
 
@@ -916,71 +895,6 @@ void iDo_send_notification(ble_hts_meas_t *p)
 #endif
 }
 
-// Device manager
-static uint32_t device_manager_evt_handler(dm_handle_t const    * p_handle,
-                                           dm_event_t const     * p_event,
-                                           api_result_t           event_result)
-{
-    //uint32_t err_code;
-    //bool     is_indication_enabled;
-
-    switch(p_event->event_id)
-    {
-        case DM_EVT_LINK_SECURED:
-            // Send a single temperature measurement if indication is enabled.
-            // NOTE: For this to work, make sure ble_hts_on_ble_evt() is called before
-            //       ble_bondmngr_on_ble_evt() in ble_evt_dispatch().
-        	/*
-            err_code = ble_hts_is_indication_enabled(&m_hts, &is_indication_enabled);
-            APP_ERROR_CHECK(err_code);
-
-            if (is_indication_enabled)
-            {
-                //temperature_measurement_send();
-            }
-            */
-            break;
-        default:
-            break;
-    }
-
-    return NRF_SUCCESS;
-}
-
-/**@brief Function for the Device Manager initialization.
- */
-static void device_manager_init(void)
-{
-    uint32_t                err_code;
-    dm_init_param_t         init_data;
-    dm_application_param_t  register_param;
-
-    // Initialize persistent storage module.
-    err_code = pstorage_init();
-    APP_ERROR_CHECK(err_code);
-
-    // Clear all bonded centrals if the Bonds Delete button is pushed.
-    //init_data.clear_persistent_data = (nrf_gpio_pin_read(BOND_DELETE_ALL_BUTTON_ID) == 0);
-
-    err_code = dm_init(&init_data);
-    APP_ERROR_CHECK(err_code);
-
-    memset(&register_param.sec_param, 0, sizeof(ble_gap_sec_params_t));
-
-    register_param.sec_param.timeout      = SEC_PARAM_TIMEOUT;
-    register_param.sec_param.bond         = SEC_PARAM_BOND;
-    register_param.sec_param.mitm         = SEC_PARAM_MITM;
-    register_param.sec_param.io_caps      = SEC_PARAM_IO_CAPABILITIES;
-    register_param.sec_param.oob          = SEC_PARAM_OOB;
-    register_param.sec_param.min_key_size = SEC_PARAM_MIN_KEY_SIZE;
-    register_param.sec_param.max_key_size = SEC_PARAM_MAX_KEY_SIZE;
-    register_param.evt_handler            = device_manager_evt_handler;
-    register_param.service_type           = DM_PROTOCOL_CNTXT_GATT_SRVR_ID;
-
-    err_code = dm_register(&m_app_handle, &register_param);
-    APP_ERROR_CHECK(err_code);
-}
-
 static void wdt_init(void)
 {
 	NRF_WDT->CONFIG = (WDT_CONFIG_HALT_Pause << WDT_CONFIG_HALT_Pos) | ( WDT_CONFIG_SLEEP_Run << WDT_CONFIG_SLEEP_Pos);
@@ -1016,13 +930,12 @@ int main(void)
     ble_stack_init();
     temp_init(iDo_send_indication, iDo_send_notification);
     scheduler_init();
-    device_manager_init();
     gap_params_init();
     advertising_init();
     services_init();
     conn_params_init();
     temp_state_init();
-    cmd_buffer_init();
+    CBInit();
     recorder_init();
     ble_radio_notification_init(APP_IRQ_PRIORITY_LOW, 0, flash_radio_notification_evt_handler_t);
 
