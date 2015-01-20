@@ -51,6 +51,7 @@ uint8_t acc_data[20] = {0};
 uint16_t acc_cnt = 0;
 uint8_t acc_data_enabled = 0;
 uint8_t acc_sample_cnt = 0;
+uint8_t acc_started = 0;
 
 static app_timer_id_t	m_acc_timer_id;
 static ble_acc_t *acc_ptr = NULL;
@@ -233,6 +234,18 @@ static void acc_timeout_handler(void * p_context)
     uint16_t acc_fifo_sample_cnt;
     uint8_t pkt_cnt;
 
+    if (acc_started == 0) {
+    	if (acc_spi_read(0x00) == 0xAD) {
+    		acc_spi_write(0x2D, 0x00);
+    		acc_spi_write(0x28, 0x02);
+    		acc_spi_write(0x2C, 0x91);
+    		acc_spi_write(0x2D, 0x22);
+    	} else {
+    		return;
+    	}
+    	acc_started = 1;
+    }
+
     acc_fifo_sample_cnt = ((uint16_t)(acc_spi_read(0x0D) & 0x03) << 8) | (uint16_t)acc_spi_read(0x0C);
     // Get 3 samples into one pkt, three packts each timeout period
     if (acc_fifo_sample_cnt > 0) {
@@ -377,13 +390,10 @@ uint32_t ble_acc_init(ble_acc_t * p_acc)
                                     APP_TIMER_MODE_REPEATED,
                                     acc_timeout_handler));
 
-    APP_ERROR_CHECK(app_timer_start(m_acc_timer_id, APP_TIMER_TICKS(100, 0), NULL));
-
     // Initialize ACC registers
-    //acc_spi_write(0x1F, 0x52);
-    acc_spi_write(0x2D, 0x00);
-    acc_spi_write(0x28, 0x02);
-    acc_spi_write(0x2D, 0x02);
+    acc_spi_write(0x1F, 0x52);
+
+    APP_ERROR_CHECK(app_timer_start(m_acc_timer_id, APP_TIMER_TICKS(200, 0), NULL));
 
     return NRF_SUCCESS;
 }
