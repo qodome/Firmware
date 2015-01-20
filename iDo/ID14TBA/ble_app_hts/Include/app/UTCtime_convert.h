@@ -10,8 +10,8 @@
 
 #include "ble_date_time.h"
 
-void osal_ConvertUTCTime( ble_date_time_t *tm, uint32_t secTime );
+void osal_ConvertUTCTime(ble_date_time_t *tm, uint32_t secTime);
 
-uint32_t osal_ConvertUTCSecs( ble_date_time_t *tm );
+uint32_t osal_ConvertUTCSecs(ble_date_time_t *tm);
 
 #endif /* UTCTIME_CONVERT_H_ */

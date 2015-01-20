@@ -7,51 +7,86 @@
 #define __DATA_RECORDER__
 
 #include <stdint.h>
-#include <stdbool.h>
-#include "ble.h"
-#include "ble_srv_common.h"
+#include "nrf_types.h"
+#include "compiler_abstraction.h"
+#include "app_util.h"
 #include "ble_date_time.h"
 
-#define REC_ENTRY_PER_PAGE (1024 / 256)
-#define REC_DATA_PER_ENTRY  82
-#define REC_DATA_ENTRY_OFFSET   8
+#define BYTES_PER_PAGE			1024
+#define REC_ENTRY_PER_PAGE 		(BYTES_PER_PAGE / 256)
+#define REC_DATA_PER_ENTRY      123
+#define REC_DATA_ENTRY_OFFSET   6
+
+#define RECORDER_ERROR          0
+#define RECORDER_SUCCESS        1
 
 struct record_read_temperature {
-    uint8_t page_idx;
-    uint8_t record_entry_idx;
-    int8_t data_entry_idx;
-    uint32_t last_data_entry_unix_ts;
-    int16_t last_data_entry_temp;
+    uint8 page_idx;
+    uint8 record_entry_idx;
+    int8 data_entry_idx;
+    uint32 unix_ts;
+};
+
+struct for_task_param {
+    uint32 ts;
+    struct record_read_temperature *rec_ptr;
+    uint8 search_mode;
+    uint32 last_known_ts;
+    uint32 head_ts;
+    uint32 tail_ts;
 };
 
 struct record_position {
-    uint8_t page_idx;
-    uint8_t record_entry_idx;
-} __attribute__((packed));
+    int8 page_idx;
+    int8 record_entry_idx;
+};
 
 struct data_entry {
-    uint8_t     delta_time_temp_h;
-    uint8_t     delta_temp_l;
-    int8_t     rssi;
-} __attribute__((packed));
+    uint8     delta_time_temp_h;
+    uint8     delta_temp_l;
+};
 
 struct record_entry {
-    uint32_t unix_time;
-    int16_t base_temp;
-    int8_t rssi;
-    uint8_t dummy;
+    uint32 unix_time;
+    int16 base_temp;
     struct data_entry entries[REC_DATA_PER_ENTRY];
-    uint8_t magic[2];
-} __attribute__((packed));
+    uint16 end_delta;
+    uint8 magic[2];
+};
 
-void recorder_radio_notification_evt_handler_t(bool radio_active);
+#define STATS_MAX               0x10
+#define STATS_MIN               0x20
+#define STATS_AVERAGE           0x40
+#define STATS_DEFAULT           STATS_MAX
+#define QUERY_MAX_SEGMENT_CNT   255
+
+struct query_criteria {
+    uint8 stats_mode;
+    uint8 stats_sample_cnt;
+    uint8 stats_period_0;
+    uint8 stats_period_1;
+    uint8 stats_period_2;
+    ble_date_time_t tc;
+};
+
+struct query_db {
+    uint8 query_time_interval;
+    uint8 query_time_interval_flag;
+    uint16 query_time_interval_cnt;
+    uint8 query_valid;
+    uint8 query_mode;
+    uint8 query_sample_cnt;
+    uint8 query_init_done;
+    uint32 query_period;
+    uint32 query_start_point_ts;
+};
+
 void recorder_init(void);
-void recorder_add_temperature(int16_t temp);
-void recorder_set_read_base_ts(ble_date_time_t *tc);
-int16_t recorder_get_temperature(ble_date_time_t *tc_out, int8_t *p_rssi);
+void recorder_add_temperature(int16 temp);
+void recorder_set_query_criteria(struct query_criteria *query_ptr);
+void recorder_get_query_result(struct query_criteria *query_result);
 
-void recorder_touch_wd_page(void);
-uint32_t recorder_get_wd_boot_count(void);
+void recorder_API_task(void * p_event_data , uint16_t event_size);
 
 uint8_t recorder_first_page(void);
 uint8_t recorder_last_page(void);

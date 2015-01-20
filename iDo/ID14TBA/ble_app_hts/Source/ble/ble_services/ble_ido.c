@@ -106,13 +106,10 @@ static void on_write(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
 			p_hts->evt_handler(p_hts, &evt);
 		}
 	} else if ((p_evt_write->handle == p_hts->intermediate_handle.value_handle) && (p_evt_write->len == 12)) {
-		ble_date_time_t  time;
-
 		if (memcmp(p_evt_write->data, "_QoDoMe_2014", 12) == 0) {
 			APP_ERROR_CHECK(ble_memdump_init());
 		} else {
-			ble_date_time_decode(&time, p_evt_write->data + 5);
-			recorder_set_read_base_ts(&time);
+			recorder_set_query_criteria((struct query_criteria *)(p_evt_write->data));
 		}
 	}
 }
@@ -128,8 +125,7 @@ static void _it_read_enable_fast_conn(void * p_event_data , uint16_t event_size)
 // Handle unix time read
 static void on_rw_authorize_request(ble_hts_t * p_hts, ble_gatts_evt_t * p_gatts_evt)
 {
-	uint8_t result_buf[7] = {0};
-	uint8_t temp_record[13] = {0};
+	uint8_t temp_record[12] = {0};
 	ble_gatts_rw_authorize_reply_params_t   auth_params;
 	ble_gatts_rw_authorize_reply_params_t * p_auth_params = &auth_params;
 	memset((void *)&auth_params, 0, sizeof(auth_params));
@@ -138,32 +134,11 @@ static void on_rw_authorize_request(ble_hts_t * p_hts, ble_gatts_evt_t * p_gatts
 
     if (p_auth_req->type == BLE_GATTS_AUTHORIZE_TYPE_READ) {
         if (p_auth_req->request.read.handle == p_hts->intermediate_handle.value_handle) {
-        	ble_date_time_t tc;
-        	int16_t temp_raw = 0;
-        	int32_t sign = -4;
-        	int32_t t32 = 0;
-        	int8_t rssi = 0;
-
-        	app_sched_event_put(NULL, 0, _it_read_enable_fast_conn);
-
-        	memset((uint8_t *)&tc, 0, sizeof(tc));
-        	temp_raw = recorder_get_temperature(&tc, &rssi);
-        	ble_date_time_encode(&tc, result_buf);
-            if (temp_raw & 0x8000) {
-                t32 = (int32_t)temp_raw | 0xFFFF0000;
-            } else {
-                t32 = temp_raw;
-            }
-            t32 = (sign << 24) | ((t32 * 625) & 0xFFFFFF);
-
-        	temp_record[0] = 0x02;
-        	memcpy((temp_record + 1), (uint8_t *)&t32, 4);
-        	memcpy((temp_record + 5), result_buf, 7);
-        	temp_record[12] = (uint8_t)rssi;
+        	recorder_get_query_result((struct query_criteria *)temp_record);
 
         	auth_params.type = BLE_GATTS_AUTHORIZE_TYPE_READ;
         	auth_params.params.read.p_data = temp_record;
-        	auth_params.params.read.len    = 13;
+        	auth_params.params.read.len    = 12;
         	auth_params.params.read.update = 1;
 
         	APP_ERROR_CHECK(sd_ble_gatts_rw_authorize_reply(p_hts->conn_handle, p_auth_params));
@@ -251,9 +226,7 @@ void ble_hts_on_ble_evt(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
  *
  * @return      Size of encoded data.
  */
-static uint8_t hts_measurement_encode(ble_hts_t      * p_hts,
-                                      ble_hts_meas_t * p_hts_meas,
-                                      uint8_t        * p_encoded_buffer)
+uint8_t hts_measurement_encode(ble_hts_meas_t *p_hts_meas, uint8_t *p_encoded_buffer)
 {
     uint8_t  flags = 0;
     uint8_t  len   = 1;
@@ -346,7 +319,7 @@ static uint32_t hts_measurement_char_add(ble_hts_t * p_hts)
 
     attr_char_value.p_uuid    = &ble_uuid;
     attr_char_value.p_attr_md = &attr_md;
-    attr_char_value.init_len  = hts_measurement_encode(p_hts, &initial_htm, encoded_htm);
+    attr_char_value.init_len  = hts_measurement_encode(&initial_htm, encoded_htm);
     attr_char_value.init_offs = 0;
     attr_char_value.max_len   = MAX_HTM_LEN;
     attr_char_value.p_value   = encoded_htm;
@@ -401,7 +374,7 @@ static uint32_t hts_intermediate_temp_char_add(ble_hts_t * p_hts)
 
 	attr_char_value.p_uuid    = &ble_uuid;
 	attr_char_value.p_attr_md = &attr_md;
-	attr_char_value.init_len  = hts_measurement_encode(p_hts, &initial_htm, encoded_htm);
+	attr_char_value.init_len  = hts_measurement_encode(&initial_htm, encoded_htm);
 	attr_char_value.init_offs = 0;
 	attr_char_value.max_len   = MAX_HTM_LEN;
 	attr_char_value.p_value   = encoded_htm;
@@ -565,7 +538,7 @@ uint32_t ble_hts_send_tm(ble_hts_t * p_hts, ble_hts_meas_t * p_hts_meas)
         uint16_t               hvx_len;
         ble_gatts_hvx_params_t hvx_params;
 
-        len     = hts_measurement_encode(p_hts, p_hts_meas, encoded_hts_meas);
+        len     = hts_measurement_encode(p_hts_meas, encoded_hts_meas);
         hvx_len = len;
 
         memset(&hvx_params, 0, sizeof(hvx_params));
@@ -601,7 +574,7 @@ uint32_t ble_hts_send_it(ble_hts_t * p_hts, ble_hts_meas_t * p_hts_meas)
         uint16_t               hvx_len;
         ble_gatts_hvx_params_t hvx_params;
 
-        len     = hts_measurement_encode(p_hts, p_hts_meas, encoded_hts_meas);
+        len     = hts_measurement_encode(p_hts_meas, encoded_hts_meas);
         hvx_len = len;
 
         memset(&hvx_params, 0, sizeof(hvx_params));

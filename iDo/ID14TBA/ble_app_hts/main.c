@@ -158,8 +158,8 @@ uint32_t notification_counts = 0;
  */
 void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p_file_name)
 {
-	uint8_t error_idx = 0;
-	uint32_t error_info = 0;
+	uint8_t error_idx;
+	uint32_t error_info;
 
 	error_cnt++;
 	last_error_code = error_code;
@@ -190,24 +190,6 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 {
 	persistent_record_error(PERSISTENT_ERROR_DEADBEEF, (uint32_t)line_num);
 	for(;;);
-}
-
-/**@brief Function for performing a battery measurement, and update the Battery Level characteristic in the Battery Service.
- */
-static void battery_level_update(void)
-{
-    uint32_t err_code;
-    uint8_t  battery_level = 0;
-
-    err_code = ble_bas_battery_level_update(&m_bas, battery_level);
-    if ((err_code != NRF_SUCCESS) &&
-        (err_code != NRF_ERROR_INVALID_STATE) &&
-        (err_code != BLE_ERROR_NO_TX_BUFFERS) &&
-        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING)
-    )
-    {
-        APP_ERROR_HANDLER(err_code);
-    }
 }
 
 uint16_t spi_read (uint8_t addr)
@@ -327,7 +309,7 @@ static void gap_params_init(void)
     uint32_t                err_code;
     ble_gap_conn_params_t   gap_conn_params;
     ble_gap_conn_sec_mode_t sec_mode;
-    uint8_t					dev_name[21] = {0};
+    uint8_t					dev_name[21];
 
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec_mode);
 
@@ -475,7 +457,7 @@ static void on_bas_evt(ble_bas_t * p_bas, ble_bas_evt_t *p_evt)
 
 static uint8_t bin_to_ascii(uint8_t b)
 {
-	uint8_t a = 0;
+	uint8_t a;
 
 	if (b > 15) {
 		return ' ';
@@ -518,9 +500,9 @@ static void services_init(void)
     ble_dis_init_t   dis_init;
 	ble_bas_init_t   bas_init;
 	ble_dfu_init_t   dfus_init;
-    static uint8_t	 sn[32] = {0};
-    uint8_t			*p_sn = NULL;
-    uint8_t			 idx = 0;
+    static uint8_t	 sn[32];
+    uint8_t			*p_sn;
+    uint8_t			 idx;
 
     // Initialize Health Thermometer Service
     memset(&hts_init, 0, sizeof(hts_init));
@@ -555,15 +537,6 @@ static void services_init(void)
 
     err_code = ble_dis_init(&dis_init);
     APP_ERROR_CHECK(err_code);
-
-    // Initialize register  Service.
-    //memset(&reg_init, 0, sizeof(reg_init));
-
-    //BLE_GAP_CONN_SEC_MODE_SET_OPEN(&reg_init.reg_type_attr_md.read_perm);
-    //BLE_GAP_CONN_SEC_MODE_SET_OPEN(&reg_init.reg_type_attr_md.write_perm);
-    //reg_init.evt_handler          = NULL;
-    //err_code = ble_reg_init(&m_reg, &reg_init);
-    //APP_ERROR_CHECK(err_code);
 
     // Initialize date_time  Service.
     memset(&time_init, 0, sizeof(time_init));
@@ -682,8 +655,8 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
 {
     uint32_t err_code = NRF_SUCCESS;
     uint8_t reason = 0;
-    static uint8_t dev_name_check[32] = {0};
-    uint8_t dev_name_new[32] = {0};
+    static uint8_t dev_name_check[32];
+    uint8_t dev_name_new[32];
     uint16_t len;
 
     switch (p_ble_evt->header.evt_id)
@@ -705,13 +678,12 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
         		persistent_set_dev_name(dev_name_new, strlen((char *)dev_name_new));
         	}
         	reason = p_ble_evt->evt.gap_evt.params.disconnected.reason;
-        	if (reason != BLE_HCI_CONNECTION_TIMEOUT)
-        	{
+        	if (reason != BLE_HCI_CONNECTION_TIMEOUT) {
         		// Intentional disconnect
         	} else {
         		// Disconnect due to timeout (radio signal loss?)
         	}
-        	m_conn_handle               = BLE_CONN_HANDLE_INVALID;
+        	m_conn_handle = BLE_CONN_HANDLE_INVALID;
         	advertising_start();
 
 #ifndef DEBUG_STATS
@@ -759,7 +731,7 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
 
 static void check_flash_status(void * p_event_data , uint16_t event_size)
 {
-	uint32_t event = 0;
+	uint32_t event;
 
 	event = *(uint32_t *)p_event_data;
     flash_helper_sys_event(event);
@@ -856,8 +828,7 @@ static void ble_stack_init(void)
  */
 static void power_manage(void)
 {
-    uint32_t err_code = sd_app_evt_wait();
-    APP_ERROR_CHECK(err_code);
+    APP_ERROR_CHECK(sd_app_evt_wait());
 }
 
 static void scheduler_init(void)

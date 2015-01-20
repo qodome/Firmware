@@ -28,7 +28,7 @@ uint8_t persistent_flash_page(void)
 
 void persistent_init(void)
 {
-	uint8_t i = 0, j = 0;
+	uint8_t i, j;
 
 	pidx = (uint8_t)PERSISTENT_PAGE_IDX;
 	HalFlashRead(pidx, 0, (uint8_t *)&prcd, sizeof(prcd));
@@ -70,7 +70,7 @@ void persistent_init(void)
 // Max length of device name: 20 (excluding tailing null)
 void persistent_set_dev_name(uint8_t *buf, uint16_t len)
 {
-    uint8_t idx = 0;
+    uint8_t idx;
 
     if (len > 20) {
     	len = 20;
@@ -88,7 +88,7 @@ void persistent_set_dev_name(uint8_t *buf, uint16_t len)
 // Caller provide dev name buffer, at least 21 bytes
 void persistent_get_dev_name(uint8_t *buf)
 {
-    uint8_t idx = 0;
+    uint8_t idx;
 
     for (idx = 0; idx < 20; idx++) {
     	buf[idx] = prcd.device_name[idx];

@@ -57,7 +57,7 @@ void CBCleanup(void)
 struct cmd_buffer *CBGetNextBufferForTX (int16 *tempPtr, uint8 *validFlag, ble_date_time_t *tempTSPtr)
 {
     struct cmd_buffer *ret = NULL;
-    uint8_t nested_critical_region = 0;
+    uint8_t nested_critical_region;
 
     sd_nvic_critical_region_enter(&nested_critical_region);
 
@@ -80,7 +80,7 @@ struct cmd_buffer *CBGetNextBufferForTX (int16 *tempPtr, uint8 *validFlag, ble_d
  */
 void CBPutBuffer (struct cmd_buffer *pCb)
 {
-	uint8_t nested_critical_region = 0;
+	uint8_t nested_critical_region;
 
     if (__cb_pop_idx == -1) {
         buf_stats.bug_count |= (1 << 1);
@@ -101,7 +101,7 @@ void CBPutBuffer (struct cmd_buffer *pCb)
  */
 void CBPushTemp (int16 temp)
 {
-	uint8_t nested_critical_region = 0;
+	uint8_t nested_critical_region;
     ble_date_time_t utc;
 
     if (date_time_initialized()) {
@@ -141,7 +141,7 @@ void CBPushTemp (int16 temp)
 uint8 CBDataAvailable(void)
 {
     uint8 ret = 0;
-    uint8_t nested_critical_region = 0;
+    uint8_t nested_critical_region;
 
     sd_nvic_critical_region_enter(&nested_critical_region);
 

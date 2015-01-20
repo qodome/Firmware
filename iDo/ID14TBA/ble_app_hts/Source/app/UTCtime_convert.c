@@ -31,9 +31,9 @@
 #define	YearLength(yr)	(IsLeapYear(yr) ? 366 : 365)
 #define	IsLeapYear(yr)	(!((yr) % 400) || (((yr) % 100) && !((yr) % 4)))
 
-static uint8_t monthLength( uint8_t lpyr, uint8_t mon );
+static uint8_t monthLength(uint8_t lpyr, uint8_t mon);
 
-void osal_ConvertUTCTime( ble_date_time_t *tm, uint32_t secTime )
+void osal_ConvertUTCTime(ble_date_time_t *tm, uint32_t secTime)
 {
 	// calculate the time less than a day - hours, minutes, seconds
 	{
@@ -47,16 +47,16 @@ void osal_ConvertUTCTime( ble_date_time_t *tm, uint32_t secTime )
 	{
 		uint16_t numDays = secTime / DAY;
 		tm->year = BEGYEAR;
-		while ( numDays >= YearLength( tm->year ) )
+		while (numDays >= YearLength(tm->year))
 		{
-			numDays -= YearLength( tm->year );
+			numDays -= YearLength(tm->year);
 			tm->year++;
 		}
 
 		tm->month = 0;
-		while ( numDays >= monthLength( IsLeapYear( tm->year ), tm->month ) )
+		while (numDays >= monthLength(IsLeapYear(tm->year), tm->month))
 		{
-			numDays -= monthLength( IsLeapYear( tm->year ), tm->month );
+			numDays -= monthLength(IsLeapYear(tm->year), tm->month);
 			tm->month++;
 		}
 
@@ -77,28 +77,28 @@ void osal_ConvertUTCTime( ble_date_time_t *tm, uint32_t secTime )
  *
  * @return  number of days in specified month
  */
-static uint8_t monthLength( uint8_t lpyr, uint8_t mon )
+static uint8_t monthLength(uint8_t lpyr, uint8_t mon)
 {
 	uint8_t days = 31;
 
-	if ( mon == 1 ) // feb
+	if (mon == 1) // feb
 	{
-		days = ( 28 + lpyr );
+		days = (28 + lpyr);
 	}
 	else
 	{
-		if ( mon > 6 ) // aug-dec
+		if (mon > 6) // aug-dec
 		{
 			mon--;
 		}
 
-		if ( mon & 1 )
+		if (mon & 1)
 		{
 			days = 30;
 		}
 	}
 
-	return ( days );
+	return (days);
 }
 
 /*********************************************************************
@@ -110,7 +110,7 @@ static uint8_t monthLength( uint8_t lpyr, uint8_t mon )
  *
  * @return  number of seconds since 00:00:00 on 01/01/2000 (UTC)
  */
-uint32_t osal_ConvertUTCSecs( ble_date_time_t *tm )
+uint32_t osal_ConvertUTCSecs(ble_date_time_t *tm)
 {
 	uint32_t seconds;
 
@@ -128,18 +128,18 @@ uint32_t osal_ConvertUTCSecs( ble_date_time_t *tm )
 		/* Next, complete months in current year */
 		{
 			int8_t month = tm->month;
-			while ( --month >= 0 )
+			while (--month >= 0)
 			{
-				days += monthLength( IsLeapYear( tm->year ), month );
+				days += monthLength(IsLeapYear(tm->year), month);
 			}
 		}
 
 		/* Next, complete years before current year */
 		{
 			uint16_t year = tm->year;
-			while ( --year >= BEGYEAR )
+			while (--year >= BEGYEAR)
 			{
-				days += YearLength( year );
+				days += YearLength(year);
 			}
 		}
 
@@ -147,6 +147,5 @@ uint32_t osal_ConvertUTCSecs( ble_date_time_t *tm )
 		seconds += (days * DAY);
 	}
 
-	return ( seconds );
+	return (seconds);
 }
-

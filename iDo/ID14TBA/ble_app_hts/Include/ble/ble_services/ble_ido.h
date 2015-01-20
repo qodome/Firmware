@@ -139,6 +139,9 @@ uint32_t ble_hts_send_it(ble_hts_t * p_hts, ble_hts_meas_t * p_hts_meas);
 // Send out Temperature Measurement (indication)
 uint32_t ble_hts_send_tm(ble_hts_t * p_hts, ble_hts_meas_t * p_hts_meas);
 
+// Fill in HTS report data
+uint8_t hts_measurement_encode(ble_hts_meas_t *p_hts_meas, uint8_t *p_encoded_buffer);
+
 #endif // BLE_HTS_H__
 
 /** @} */
