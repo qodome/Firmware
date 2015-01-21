@@ -88,7 +88,7 @@ void date_time_init(void);
 
 uint32_t date_time_get_relative(void);
 uint32_t date_time_get_wall(void);
-void date_time_set_wall(uint32_t t);
+void date_time_set_wall(uint32_t newTime);
 
 uint8_t date_time_initialized(void);
 

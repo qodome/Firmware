@@ -43,7 +43,7 @@ void persistent_init(void)
         prcd.device_name[4] = 'A';
         prcd.device_name[5] = 'C';
         prcd.device_name[6] = 'C';
-        prcd.device_name[7] = '3';
+        prcd.device_name[7] = '4';
         prcd.device_name[8] = 0;
 
         for (i = 0; i < PERSISTENT_ERROR_MAX; i++) {

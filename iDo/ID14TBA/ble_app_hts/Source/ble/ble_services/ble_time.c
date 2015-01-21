@@ -22,8 +22,9 @@
  *  qualification listings, this section of source code must not be modified.
  */
 
-#include "ble_time.h"
 #include <string.h>
+#include "nrf_types.h"
+#include "ble_time.h"
 #include "nordic_common.h"
 #include "app_util.h"
 #include "app_error.h"
@@ -32,8 +33,9 @@
 #include "app_timer.h"
 #include "nrf51.h"
 
-#define APP_TIMER_PRESCALER                  0                                          /**< Value of the RTC1 PRESCALER register. */
-#define TEMP_DATE_TIME_SAMPLE_PERIOD         APP_TIMER_TICKS(800, APP_TIMER_PRESCALER) /**< temperature measurement interval (ticks). */
+#define APP_TIMER_PRESCALER                 0                                          /**< Value of the RTC1 PRESCALER register. */
+#define TEMP_DATE_TIME_SAMPLE_PERIOD        APP_TIMER_TICKS(800, APP_TIMER_PRESCALER) /**< temperature measurement interval (ticks). */
+#define MAX_TIME_JUMP       				255  // We shall smooth the time jump within 300 seconds
 
 static app_timer_id_t temp_date_time_id;
 
@@ -41,6 +43,10 @@ static uint8_t last_st1_h = 0;
 uint32_t second_now = 0;
 uint32_t second_relative = 0;
 uint8_t data_time_initial_time_set = 0;
+// Second delta update flags
+uint8 OSAL_updateFlip = 0;
+uint8 OSAL_deltaSeconds = 0;
+uint8 OSAL_deltaDir = 0;          // 1: need to go faster, 2: need to go slower
 
 #ifdef DEBUG_STATS
 uint32_t power_on_seconds = 0;
@@ -98,8 +104,7 @@ static void on_write(ble_time_t * p_time, ble_evt_t * p_ble_evt)
 	{
 		ble_date_time_decode(&time, &(p_evt_write->data[0]));
 		if(time.month <= 12 && time.day <= 31 && time.hours < 24 && time.minutes < 60 && time.seconds < 60){
-			data_time_initial_time_set = 1;
-			second_now = osal_ConvertUTCSecs(&time);
+			date_time_set_wall(osal_ConvertUTCSecs(&time));
 		}
 	}
 }
@@ -119,8 +124,8 @@ static void on_rw_authorize_request(ble_time_t * p_time, ble_gatts_evt_t * p_gat
 			ble_gatts_rw_authorize_reply_params_t * p_auth_params = &auth_params;
 
 			memset((void *)&tm, 0, sizeof(tm));
-			if (data_time_initial_time_set != 0) {
-				osal_ConvertUTCTime(&tm, second_now);
+			if (date_time_initialized() != 0) {
+				osal_ConvertUTCTime(&tm, date_time_get_wall());
 			}
 
 			memset((void *)&auth_params, 0, sizeof(auth_params));
@@ -255,6 +260,41 @@ void date_time_init(void)//send_temp_callback callback
 	APP_ERROR_CHECK(err_code);
 }
 
+static void __recorder_rtc_tick_do_update(void)
+{
+    if (OSAL_deltaDir != 0) {
+        if (OSAL_deltaDir == 1) {           // Time need to go faster
+        	OSAL_updateFlip++;
+        	if (OSAL_updateFlip % 2 == 0) {
+        		// Accelerate second update
+    			second_now += 2;
+        		OSAL_deltaSeconds--;
+        		if (OSAL_deltaSeconds == 0) {
+        			OSAL_deltaDir = 0;
+        		}
+        	} else {
+        		second_now++;
+        	}
+        } else if (OSAL_deltaDir == 2) {    // Time need to go slower
+        	OSAL_updateFlip++;
+        	if (OSAL_updateFlip % 2 == 0) {
+        		// Skip second update
+        		OSAL_deltaSeconds--;
+        		if (OSAL_deltaSeconds == 0) {
+        			OSAL_deltaDir = 0;
+        		}
+        	} else {
+        		second_now++;
+        	}
+        }
+    } else {
+    	// second normal update
+    	second_now++;
+    }
+
+	second_relative++;
+}
+
 static void recorder_rtc_tick(void * p_context)
 {
 	uint32_t sleepTimeRegister = 0;
@@ -263,31 +303,25 @@ static void recorder_rtc_tick(void * p_context)
 	if (((uint8_t *)&sleepTimeRegister)[1] & 0x80) {
 		if (last_st1_h != 0x80) {
 			last_st1_h = 0x80;
-			second_now++;
-			second_relative++;
-
+			__recorder_rtc_tick_do_update();
 #ifdef DEBUG_STATS
 			power_on_seconds++;
 #endif
-
 		}
 	} else {
 		if (last_st1_h == 0x80) {
 			last_st1_h = 0x00;
-			second_now++;
-			second_relative++;
-
+			__recorder_rtc_tick_do_update();
 #ifdef DEBUG_STATS
 			power_on_seconds++;
 #endif
-
 		}
 	}
 }
 
 uint32_t date_time_get_relative(void)
 {
-	return second_now;
+	return second_relative;
 }
 
 uint32_t date_time_get_wall(void)
@@ -295,10 +329,24 @@ uint32_t date_time_get_wall(void)
 	return second_now;
 }
 
-void date_time_set_wall(uint32_t t)
+void date_time_set_wall(uint32_t newTime)
 {
-	data_time_initial_time_set = 1;
-	second_now = t;
+    if (data_time_initial_time_set == 1) {
+        if ((newTime > second_now) && ((newTime - second_now) <= MAX_TIME_JUMP)) {
+            OSAL_deltaSeconds = (uint8)(newTime - second_now);
+            OSAL_deltaDir = 1;
+        } else if ((newTime < second_now) && ((second_now - newTime) <= MAX_TIME_JUMP)) {
+            OSAL_deltaSeconds = (uint8)(second_now - newTime);
+            OSAL_deltaDir = 2;
+        } else {
+        	second_now = newTime;
+            OSAL_deltaDir = 0;
+        }
+    } else {
+    	data_time_initial_time_set = 1;
+    	second_now = newTime;
+        OSAL_deltaDir = 0;
+    }
 }
 
 uint8_t date_time_initialized(void)

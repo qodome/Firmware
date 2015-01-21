@@ -13,10 +13,11 @@
 #include "app_util.h"
 #include "app_error.h"
 
-uint32_t memdump_addr = 0;
-//static uint8 deleteService = 0;
 ble_memdump_t  m_memdump;
+
+uint32_t memdump_addr = 0;
 uint8_t memdump_flag = 0;
+uint8_t memdump_autoStep = 0;
 
 static void on_connect(ble_memdump_t * p_memdump, ble_evt_t * p_ble_evt)
 {
@@ -35,11 +36,15 @@ static void on_write(ble_memdump_t * p_memdump, ble_evt_t * p_ble_evt)
 
     if (p_evt_write->handle == p_memdump->memdump_handles.value_handle) {
         if (p_evt_write->len == sizeof(uint32_t)) {
-        	memdump_addr = (((uint32_t)p_evt_write->data[0]) << 24 |
+        	if (p_evt_write->data[0] & 0x80) {
+        		memdump_autoStep = 1;
+        	} else {
+        		memdump_autoStep = 0;
+        	}
+        	memdump_addr = (((uint32_t)(p_evt_write->data[0] & 0x7F)) << 24 |
         					((uint32_t)p_evt_write->data[1]) << 16 |
         					((uint32_t)p_evt_write->data[2]) << 8 |
         					((uint32_t)p_evt_write->data[3]));
-        	// FIXME
         }
     }
 }
@@ -67,7 +72,9 @@ static void on_rw_authorize_request(ble_memdump_t * p_memdump, ble_evt_t * p_ble
         for (idx = 0; idx < 16; idx++) {
         	mem_v.v[idx] = ((const uint8_t *)memdump_addr)[idx];
         }
-        memdump_addr += 16;
+        if (memdump_autoStep == 1) {
+        	memdump_addr += 16;
+        }
         memset((void *)p_auth_params, 0, sizeof(auth_params));
         auth_params.type =  BLE_GATTS_AUTHORIZE_TYPE_READ;
         auth_params.params.read.p_data = (uint8_t *)&mem_v;
@@ -115,6 +122,7 @@ static uint32_t hts_memdump_char_add(ble_memdump_t * p_memdump)
     memset(&char_md, 0, sizeof(char_md));
 
     char_md.char_props.read  = 1;
+    char_md.char_props.write  = 1;
     char_md.p_char_user_desc = NULL;
     char_md.p_char_pf        = NULL;
     char_md.p_user_desc_md   = NULL;
@@ -188,35 +196,3 @@ uint8_t memdump_flag_get(void)
 {
 	return memdump_flag;
 }
-/*
-uint8 MemDump_ServiceNeedDelete(void)
-{
-    return deleteService;
-}
-
-bStatus_t MemDump_AddService(void)
-{
-    uint8 status = SUCCESS;
-
-    status = GATTServApp_RegisterService( memdumpAttrTbl,
-                                         GATT_NUM_ATTRS( memdumpAttrTbl ),
-                                         &memdumpCBs );
-    if (status == SUCCESS) {
-        deleteService = 1;
-    }
-    return ( status );
-}
-
-bStatus_t MemDump_DelService(void)
-{
-    uint8 status = SUCCESS;
-    gattAttribute_t *pServ = NULL;
-
-    status = GATTServApp_DeregisterService(GATT_SERVICE_HANDLE(memdumpAttrTbl), &pServ );
-    if (status == SUCCESS) {
-        deleteService = 0;
-    }
-    return status;
-}
-
-*/
