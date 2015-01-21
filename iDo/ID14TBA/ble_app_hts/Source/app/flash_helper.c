@@ -39,6 +39,10 @@ void HalFlashErase(uint8_t page_idx)
 		persistent_record_error(PERSISTENT_ERROR_FLASH_ERASE, (uint32_t)page_idx);
 		return;
 	}
+	// Bypass flash helper
+	sd_flash_page_erase((uint32_t)page_idx);
+
+	/*
     if (flash_erase_cnt >= CMD_CONCURRENT_MAX) {
         APP_ERROR_CHECK(NRF_ERROR_INTERNAL);
         return;
@@ -47,6 +51,7 @@ void HalFlashErase(uint8_t page_idx)
         APP_ERROR_CHECK(NRF_ERROR_INTERNAL);
     }
     flash_page_erase_idx[flash_erase_cnt++] = page_idx;
+    */
 }
 
 void HalFlashWrite(uint32_t *addr, uint8_t *buf, uint16_t len)
@@ -56,6 +61,10 @@ void HalFlashWrite(uint32_t *addr, uint8_t *buf, uint16_t len)
 		persistent_record_error(PERSISTENT_ERROR_FLASH_WRITE, (uint32_t)addr);
 		return;
 	}
+	// Bypass flash helper
+	sd_flash_write(addr, (uint32_t *)buf, (len / 4));
+
+	/*
     if (flash_write_cnt >= CMD_CONCURRENT_MAX) {
         APP_ERROR_CHECK(NRF_ERROR_INTERNAL);
         return;
@@ -77,6 +86,7 @@ void HalFlashWrite(uint32_t *addr, uint8_t *buf, uint16_t len)
     flash_page_write_len[flash_write_cnt] = len;
     flash_page_write_dst[flash_write_cnt] = addr;
     flash_write_cnt++;
+    */
 }
 
 // Notify radio has been turned off

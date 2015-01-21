@@ -13,7 +13,6 @@
 #include "ble_conn_params.h"
 #include <stdlib.h>
 #include "nordic_common.h"
-#include "ble_hci.h"
 #include "app_timer.h"
 #include "ble_srv_common.h"
 #include "app_util.h"

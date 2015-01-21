@@ -19,8 +19,6 @@ C_SOURCE_FILES += ble_advdata.c
 C_SOURCE_FILES += softdevice_handler.c
 C_SOURCE_FILES += ble_conn_params.c
 C_SOURCE_FILES += crc16.c
-C_SOURCE_FILES += app_trace.c
-C_SOURCE_FILES += app_gpiote.c
 C_SOURCE_FILES += app_timer.c
 C_SOURCE_FILES += spi_master.c
 C_SOURCE_FILES += app_scheduler.c
@@ -35,6 +33,7 @@ C_SOURCE_FILES += persistent.c
 C_SOURCE_FILES += battery.c
 C_SOURCE_FILES += bootloader_util_gcc.c
 C_SOURCE_FILES += dfu_app_handler.c
+#C_SOURCE_FILES += pwrmgmt.c
 
 OUTPUT_FILENAME := ble_app_hts
 

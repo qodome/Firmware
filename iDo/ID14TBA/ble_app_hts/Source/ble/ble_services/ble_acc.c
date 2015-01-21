@@ -7,35 +7,10 @@
 
 #include <stdint.h>
 #include <string.h>
-#include "nordic_common.h"
-#include "nrf.h"
-#include "app_error.h"
-#include "nrf_gpio.h"
-#include "nrf51_bitfields.h"
-#include "ble.h"
-#include "ble_hci.h"
-#include "ble_srv_common.h"
-#include "ble_advdata.h"
-#include "ble_bas.h"
-#include "ble_dis.h"
-#include "ble_conn_params.h"
-#include "app_scheduler.h"
 #include "softdevice_handler.h"
 #include "app_timer.h"
-#include "app_gpiote.h"
-#include "ble_error_log.h"
-#include "app_gpiote.h"
-#include "app_trace.h"
-#include "nrf_sdm.h"
 #include "app_util_platform.h"
 #include "spi_master.h"
-#include "nrf_delay.h"
-#include "UTCtime_convert.h"
-#include "temp_service.h"
-#include "ble_time.h"
-#include "temp_state.h"
-#include "cmd_buffer.h"
-#include "recorder.h"
 #include "ble_acc.h"
 #include "ble_ido.h"
 
@@ -232,7 +207,7 @@ static void acc_timeout_handler(void * p_context)
     	if (acc_spi_read(0x00) == 0xAD) {
     		acc_spi_write(0x2D, 0x00);
     		acc_spi_write(0x28, 0x02);
-    		acc_spi_write(0x2C, 0x91);
+    		acc_spi_write(0x2C, 0x11);
     		acc_spi_write(0x2D, 0x22);
     	} else {
     		return;

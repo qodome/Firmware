@@ -18,18 +18,12 @@
 #include "ble_ido.h"
 #include <string.h>
 #include "nordic_common.h"
-#include "ble_l2cap.h"
-#include "ble_srv_common.h"
-#include "app_util.h"
 #include "ble_date_time.h"
 #include "UTCtime_convert.h"
-#include "ble_time.h"
 #include "app_error.h"
 #include "temp_service.h"
 #include "recorder.h"
-#include "ble_conn_params.h"
 #include "ble_memdump.h"
-#include "app_scheduler.h"
 
 #define OPCODE_LENGTH 1                                                    /**< Length of opcode inside Health Thermometer Measurement packet. */
 #define HANDLE_LENGTH 2                                                    /**< Length of handle inside Health Thermometer Measurement packet. */
@@ -45,7 +39,6 @@
 
 bool       m_is_notification_enabled = false;                     /**< Variable to indicate whether the notification is enabled by the peer.*/
 bool       m_is_indication_enabled = false;                     /**< Variable to indicate whether the notification is enabled by the peer.*/
-uint8_t    enable_fast_read = 0;
 
 /**@brief Function for handling the Connect event.
  *
@@ -55,7 +48,6 @@ uint8_t    enable_fast_read = 0;
 static void on_connect(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
 {
     p_hts->conn_handle = p_ble_evt->evt.gatts_evt.conn_handle;
-    enable_fast_read = 0;
 }
 
 /**@brief Function for handling the Disconnect event.
@@ -69,7 +61,6 @@ static void on_disconnect(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
     p_hts->conn_handle = BLE_CONN_HANDLE_INVALID;
     m_is_notification_enabled = false;					// FIXME: check if notify/indication disabled after BLE reconnection
     m_is_indication_enabled = false;
-    enable_fast_read = 0;
 }
 
 /**@brief Function for handling the Write event.
@@ -111,14 +102,6 @@ static void on_write(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
 		} else {
 			recorder_set_query_criteria((struct query_criteria *)(p_evt_write->data));
 		}
-	}
-}
-
-static void _it_read_enable_fast_conn(void * p_event_data , uint16_t event_size)
-{
-	if (enable_fast_read == 0) {
-		enable_fast_read = 1;
-		ble_conn_enable_fast_read();
 	}
 }
 

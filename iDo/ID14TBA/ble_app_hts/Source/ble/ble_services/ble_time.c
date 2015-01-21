@@ -25,8 +25,6 @@
 #include "ble_time.h"
 #include <string.h>
 #include "nordic_common.h"
-#include "ble_l2cap.h"
-#include "ble_srv_common.h"
 #include "app_util.h"
 #include "app_error.h"
 #include "UTCtime_convert.h"

@@ -27,10 +27,8 @@
 #include "nordic_common.h"
 #include "nrf.h"
 #include "app_error.h"
-#include "nrf_gpio.h"
 #include "nrf51_bitfields.h"
 #include "ble.h"
-#include "ble_hci.h"
 #include "ble_srv_common.h"
 #include "ble_advdata.h"
 #include "ble_bas.h"
@@ -40,14 +38,8 @@
 #include "app_scheduler.h"
 #include "softdevice_handler.h"
 #include "app_timer.h"
-#include "app_gpiote.h"
-#include "ble_error_log.h"
-#include "app_gpiote.h"
-#include "app_trace.h"
-#include "nrf_sdm.h"
 #include "app_util_platform.h"
 #include "spi_master.h"
-#include "nrf_delay.h"
 #include "UTCtime_convert.h"
 #include "temp_service.h"
 #include "ble_time.h"
@@ -62,6 +54,7 @@
 #include "ble_dfu.h"
 #include "dfu_app_handler.h"
 #include "ble_acc.h"
+#include "ble_hci.h"
 
 //lint -e553
 #ifdef SVCALL_AS_NORMAL_FUNCTION
@@ -101,8 +94,6 @@
 #define WATCHDOG_INTERVAL          					APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
 #define ADT_MONITOR_INTERVAL						APP_TIMER_TICKS(300000, APP_TIMER_PRESCALER)
 #define TX_POWER_INTERVAL          					APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
-
-#define APP_GPIOTE_MAX_USERS                 1                                          /**< Maximum number of users of the GPIOTE handler. */
 
 #define SEC_PARAM_TIMEOUT                    30                                         /**< Timeout for Pairing Request or Security Request (in seconds). */
 #define SEC_PARAM_BOND                       1                                          /**< Perform bonding. */
@@ -731,10 +722,12 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
 
 static void check_flash_status(void * p_event_data , uint16_t event_size)
 {
+	/*
 	uint32_t event;
 
 	event = *(uint32_t *)p_event_data;
     flash_helper_sys_event(event);
+    */
 }
 
 /**@brief Function for handling the Application's system events.
@@ -836,14 +829,6 @@ static void scheduler_init(void)
     APP_SCHED_INIT(SCHED_MAX_EVENT_DATA_SIZE, SCHED_QUEUE_SIZE);
 }
 
-/**@brief Function for initializing the GPIOTE handler module.
-
-*/
-static void gpiote_init(void)
-{
-    APP_GPIOTE_INIT(APP_GPIOTE_MAX_USERS);
-}
-
 /*
 * This function is root source for all temperatures (both measurement and intermediate)
 * Intermediate temperature is reported here, measurement is reported by another routine
@@ -894,10 +879,8 @@ int main(void)
     // Initialize.
 	wdt_init();
 	persistent_init();
-    app_trace_init();
     timers_init();
     date_time_init();
-    gpiote_init();
     ble_stack_init();
     temp_init(iDo_send_indication, iDo_send_notification);
     scheduler_init();
@@ -908,7 +891,7 @@ int main(void)
     temp_state_init();
     CBInit();
     recorder_init();
-    ble_radio_notification_init(APP_IRQ_PRIORITY_LOW, 0, flash_radio_notification_evt_handler_t);
+    //ble_radio_notification_init(APP_IRQ_PRIORITY_LOW, 0, flash_radio_notification_evt_handler_t);
 
     while (sd_ble_gap_tx_power_set(4) != NRF_SUCCESS);
 
