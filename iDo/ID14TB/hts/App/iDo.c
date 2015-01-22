@@ -88,6 +88,7 @@ contact Texas Instruments Incorporated at www.TI.com.
 #include "customize.h"
 #include "currenttime.h"
 #include "pwrmgmt.h"
+#include "qodome_public.h"
 
 /*********************************************************************
 * MACROS
@@ -407,7 +408,8 @@ void iDo_Init( uint8 task_id )
         GAP_SetParamValue( TGAP_GEN_DISC_ADV_INT_MIN, advInt );
         GAP_SetParamValue( TGAP_GEN_DISC_ADV_INT_MAX, advInt );
     }
-    
+
+	/* Skip the Bond Manager settings, they are already default values!
     // Setup the GAP Bond Manager
     {
         uint32 passkey = 0; // passkey "000000"
@@ -423,6 +425,7 @@ void iDo_Init( uint8 task_id )
         GAPBondMgr_SetParameter( GAPBOND_IO_CAPABILITIES, sizeof ( uint8 ), &ioCap );
         GAPBondMgr_SetParameter( GAPBOND_BONDING_ENABLED, sizeof ( uint8 ), &bonding );
     }
+    */
     
     // Add services
     GGS_AddService( GATT_ALL_SERVICES );            // GAP
@@ -436,6 +439,9 @@ void iDo_Init( uint8 task_id )
     VOID OADTarget_AddService();                    // OAD Profile
 #endif
         
+    // Set device name for iOS does not support this
+    QodomePublic_AddService();
+    
     // Enable clock divide on halt
     // This reduces active current while radio is active and CC254x MCU
     // is halted

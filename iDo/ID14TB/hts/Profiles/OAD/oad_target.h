@@ -56,7 +56,7 @@ extern "C"
  */
 
 #if !defined (OAD_IMAGE_VERSION)
-#define OAD_IMAGE_VERSION    0x0032
+#define OAD_IMAGE_VERSION    0x0034
 #endif
   
 #if !defined OAD_IMG_A_PAGE

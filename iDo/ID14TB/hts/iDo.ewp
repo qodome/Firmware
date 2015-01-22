@@ -478,6 +478,7 @@
           <state>$PROJ_DIR$\Profiles\DataRecorder</state>
           <state>$PROJ_DIR$\Profiles\MemDump</state>
           <state>$PROJ_DIR$\Profiles\CurrentTime</state>
+          <state>$PROJ_DIR$\Profiles\QodomePublic</state>
           <state>$PROJ_DIR$\App</state>
         </option>
         <option>
@@ -1561,6 +1562,7 @@
           <state>$PROJ_DIR$\Profiles\DataRecorder</state>
           <state>$PROJ_DIR$\Profiles\MemDump</state>
           <state>$PROJ_DIR$\Profiles\CurrentTime</state>
+          <state>$PROJ_DIR$\Profiles\QodomePublic</state>
           <state>$PROJ_DIR$\App</state>
         </option>
         <option>
@@ -2644,6 +2646,7 @@
           <state>$PROJ_DIR$\Profiles\DataRecorder</state>
           <state>$PROJ_DIR$\Profiles\MemDump</state>
           <state>$PROJ_DIR$\Profiles\CurrentTime</state>
+          <state>$PROJ_DIR$\Profiles\QodomePublic</state>
           <state>$PROJ_DIR$\App</state>
         </option>
         <option>
@@ -6766,6 +6769,12 @@
     </file>
     <file>
       <name>$PROJ_DIR$\Profiles\Roles\peripheral.h</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\Profiles\QodomePublic\qodome_public.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\Profiles\QodomePublic\qodome_public.h</name>
     </file>
     <file>
       <name>$PROJ_DIR$\Profiles\DataRecorder\recorder.c</name>

@@ -169,11 +169,11 @@ static uint8 gapBondMgr_TaskID;   // Task ID for internal task/event processing
 // GAPBonding Parameters
 static uint8 gapBond_PairingMode = GAPBOND_PAIRING_MODE_WAIT_FOR_REQ;
 static uint16 gapBond_InitiateWait = 1000;  // Default to 1 second
-static uint8 gapBond_MITM = FALSE;
+static uint8 gapBond_MITM = TRUE;
 static uint8 gapBond_IOCap = GAPBOND_IO_CAP_DISPLAY_ONLY;
 static uint8 gapBond_OOBDataFlag = FALSE;
 static uint8 gapBond_OOBData[KEYLEN] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-static uint8 gapBond_Bonding = FALSE;
+static uint8 gapBond_Bonding = TRUE;
 static uint8 gapBond_AutoFail = FALSE;
 static uint8 gapBond_AutoFailReason = SMP_PAIRING_FAILED_NOT_SUPPORTED;
 static uint8 gapBond_KeyDistList =
