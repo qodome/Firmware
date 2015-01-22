@@ -64,7 +64,6 @@ def work1():
             break
 
     # Retrieve Total Count from Result
-    initial_msg = msg
     total_fragments = Util.get_byte_from_ascii_str(msg, 1)
     Log.task_log(log_f_name, "Total fragments: " + str(total_fragments))
     ret, l = dm.write_char(handle, "2a1e", "FF0000000000000000000000")
@@ -94,13 +93,14 @@ def work1():
             task_done = 1
             return
 
+    last_msg = msg
     time.sleep(1)
     ret, msg = dm.read_char(handle, "2a1e", read_callback)
     if ret != DongleMgr.SUCCESS:
         Log.screen("Read 2a1e failed")
         task_done = 1
         return
-    if msg != initial_msg:
+    if msg != last_msg:
         Log.task_log(log_f_name, "FF query result does not match!")
         Log.task_log(log_f_name, "msg: " + msg)
         task_done = 1
