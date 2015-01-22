@@ -52,12 +52,16 @@ def work1():
         task_done = 1
         return
 
-    time.sleep(1)
-    ret, msg = dm.read_char(handle, "2a1e", read_callback)
-    if ret != DongleMgr.SUCCESS:
-        Log.screen("Read 2a1e failed")
-        task_done = 1
-        return
+    while 1:
+        time.sleep(1)
+        ret, msg = dm.read_char(handle, "2a1e", read_callback)
+        if ret != DongleMgr.SUCCESS:
+            Log.screen("Read 2a1e failed")
+            task_done = 1
+            return
+
+        if Util.get_byte_from_ascii_str(msg, 1) != 255:
+            break
 
     # Retrieve Total Count from Result
     initial_msg = msg
