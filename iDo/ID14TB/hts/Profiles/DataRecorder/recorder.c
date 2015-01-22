@@ -36,7 +36,9 @@ uint32 latest_sample_unix_ts;
 int16 latest_sample_temp;
 int8 rec_latest_entry_idx = -1;
 uint8 all_ff[4] = {0xff, 0xff, 0xff, 0xff};
+#ifdef TRACE_API_TIME
 uint32 recorder_api_task_period = 0;
+#endif
 
 struct record_read_temperature rec_read;
 struct query_db qdb;
@@ -557,9 +559,11 @@ uint8 __recorder_get_boundary_unix_time_callback(uint8 pg_idx, uint8 rec_idx, ui
                             rec_idx = nrec_idx;
                             head_ts = next_ts;
                             cnt++;
+#ifndef DISABLE_WD
                             if ((cnt % 16) == 0) {
                                 WD_KICK();
                             }
+#endif
                         }    
                     } else if (__recorder_get_current_head_info(pg_idx, rec_idx, &current_ts) == RECORDER_SUCCESS) {
                         task_param->tail_ts = current_ts;
@@ -646,75 +650,75 @@ static uint8 __recorder_get_next_end_ts(struct record_read_temperature *rec_ptr)
 
 void recorder_API_task(void)
 {
-    uint16 seg_cnt;
-    uint32 initial_ts;
+#ifdef TRACE_API_TIME
     uint32 time_tmp;
+#endif    
+    uint8 loop_cnt_max, idx;
     
+#ifdef TRACE_API_TIME    
     recorder_api_task_period = halSleepReadTimer();
-    osal_memset((void *)&record_query_result_buffer, 0, sizeof(record_query_result_buffer));
+#endif    
     
-    if (rec_read.unix_ts == 0) {        
+    if (qdb.query_time_boundary_continue < 2) {        
         // Count how many fragments do we have?
         // Return at most 255
-        __recorder_get_next_end_ts(&rec_read);
-        if (rec_read.unix_ts == 0) {
-            qdb.query_time_interval = 1;
-            qdb.query_time_interval_flag = 1;        
-            return;
+        if (qdb.query_time_boundary_continue == 0) {
+            __recorder_get_next_end_ts(&rec_read);
+            if (rec_read.unix_ts == 0) {
+                qdb.query_time_interval = 1;
+                qdb.query_time_interval_flag = 1;
+                osal_memset((void *)&record_query_result_buffer, 0, sizeof(record_query_result_buffer));        
+                return;
+            }
+            loop_cnt_max = 5;
+            qdb.query_time_boundary_initial_ts = rec_read.unix_ts;
+            qdb.query_time_boundary_continue = 1;
+            qdb.query_time_boundary_count = 1;
+        } else {
+            loop_cnt_max = 6;
         }
         
-        initial_ts = rec_read.unix_ts;
-        seg_cnt = 1;
-        do {
+        for (idx = 0; idx < loop_cnt_max; idx++) {
             if (__recorder_get_next_end_ts(&rec_read) == RECORDER_ERROR) {
                 break;
             }
-            seg_cnt++;
-            if ((seg_cnt % 8) == 0) {
-                WD_KICK();
+            qdb.query_time_boundary_count++;
+            if (rec_read.unix_ts == qdb.query_time_boundary_initial_ts) {
+                qdb.query_time_boundary_continue = 2;
+                rec_read.page_idx = qdb.query_time_boundary_count > 510 ? 0xFF : (uint8)(qdb.query_time_boundary_count / 2);
+                rec_read.unix_ts = 0;
+                qdb.query_time_interval = 1;
+                qdb.query_time_interval_flag = 1;
+                osal_memset((void *)&record_query_result_buffer, 0, sizeof(record_query_result_buffer));
+                break;
             }
-        } while ((rec_read.unix_ts != initial_ts) && seg_cnt < (QUERY_MAX_SEGMENT_CNT * 2));
-        
-        rec_read.page_idx = (uint8)(seg_cnt / 2);
-               
-        if (rec_read.page_idx > 0) {
-            rec_read.unix_ts = initial_ts;
-            qdb.query_time_interval_flag = 2;
-            record_query_result_buffer.stats_mode = 1;
-            record_query_result_buffer.stats_sample_cnt = rec_read.page_idx;
-            record_query_result_buffer.stats_period_0 = 0;
-            osal_ConvertUTCTime(&(record_query_result_buffer.tc), rec_read.unix_ts);
-            qdb.query_time_interval_cnt = 1;
-            return;
-        } else {
-            rec_read.unix_ts = 0;
-            qdb.query_time_interval = 1;
-            qdb.query_time_interval_flag = 1;        
-            return;
         }
-    }
-    
-    record_query_result_buffer.stats_mode = __recorder_get_next_end_ts(&rec_read);
-    if ((rec_read.unix_ts != 0) && (rec_read.page_idx > 0)) {
-        record_query_result_buffer.stats_sample_cnt = rec_read.page_idx;
-        record_query_result_buffer.stats_period_0 = qdb.query_time_interval_cnt / 2;
-        osal_ConvertUTCTime(&(record_query_result_buffer.tc), rec_read.unix_ts);
-        qdb.query_time_interval_cnt++;
-        if (qdb.query_time_interval_cnt >= (rec_read.page_idx * 2)) {
-            osal_memset((uint8 *)&qdb, 0, sizeof(qdb));
-            osal_memset((uint8 *)&rec_read, 0, sizeof(struct record_read_temperature));            
-            qdb.query_time_interval = 1;
-            qdb.query_time_interval_flag = 1; 
-        }
+        iDo_schedule_recorder_API_task();
     } else {
-        record_query_result_buffer.stats_mode = 0;            
+        record_query_result_buffer.stats_mode = __recorder_get_next_end_ts(&rec_read);
+        if ((rec_read.unix_ts != 0) && (rec_read.page_idx > 0)) {
+            record_query_result_buffer.stats_sample_cnt = rec_read.page_idx;
+            record_query_result_buffer.stats_period_0 = qdb.query_time_interval_cnt / 2;
+            osal_ConvertUTCTime(&(record_query_result_buffer.tc), rec_read.unix_ts);
+            qdb.query_time_interval_cnt++;
+            if (qdb.query_time_interval_cnt >= (rec_read.page_idx * 2)) {
+                osal_memset((uint8 *)&qdb, 0, sizeof(qdb));
+                osal_memset((uint8 *)&rec_read, 0, sizeof(struct record_read_temperature));            
+                qdb.query_time_interval = 1;
+                qdb.query_time_interval_flag = 1; 
+            }
+        } else {
+            record_query_result_buffer.stats_mode = 0;            
+        }
+        
+#ifdef TRACE_API_TIME        
+        time_tmp = halSleepReadTimer();
+        if (time_tmp < recorder_api_task_period) {
+            time_tmp += 0x01000000;
+        }
+        recorder_api_task_period = time_tmp - recorder_api_task_period;   
+#endif
     }
-    
-    time_tmp = halSleepReadTimer();
-    if (time_tmp < recorder_api_task_period) {
-        time_tmp += 0x01000000;
-    }
-    recorder_api_task_period = time_tmp - recorder_api_task_period;
 }
 
 /*
@@ -728,7 +732,8 @@ void recorder_set_query_criteria(struct query_criteria *query_ptr)
     // Query valid sample time intervals
     if (query_ptr->stats_mode == 0xFF) {
         qdb.query_time_interval = 1;
-        qdb.query_time_interval_flag = 1;        
+        qdb.query_time_interval_flag = 1;
+        osal_memset((void *)&record_query_result_buffer, 0xFF, sizeof(record_query_result_buffer));
         iDo_schedule_recorder_API_task();
         return;
     }
@@ -770,7 +775,9 @@ void recorder_get_query_result(struct query_criteria *query_result)
     
     if (qdb.query_time_interval == 1) {
         osal_memcpy((void *)query_result, (void *)&record_query_result_buffer, sizeof(record_query_result_buffer));
-        iDo_schedule_recorder_API_task();
+        if (qdb.query_time_boundary_continue >= 2) {
+            iDo_schedule_recorder_API_task();
+        }
     } else if (qdb.query_valid == 1) {
         read_cnt = 0;
         
@@ -791,9 +798,11 @@ void recorder_get_query_result(struct query_criteria *query_result)
                 return;
             }
             read_cnt++;
+#ifndef DISABLE_WD            
             if ((read_cnt % 200) == 0) {
                 WD_KICK();
             }
+#endif            
             
             // Go through samples one by one
             if (qdb.query_period == 0 && qdb.query_sample_cnt == 0) {

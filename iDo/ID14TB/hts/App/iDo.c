@@ -479,8 +479,10 @@ void iDo_Init( uint8 task_id )
     IEN2 &= ~0x1E;
     
     // Start watchdog, timeout period: 1s
+#ifndef DISABLE_WD
     WDCTL = BV(3);
     WD_KICK();
+#endif
     
     // Initialize custom name
     custom_init();
@@ -689,7 +691,7 @@ uint16 iDo_ProcessEvent( uint8 task_id, uint16 events )
 
 void iDo_schedule_recorder_API_task(void)
 {
-    osal_set_event(iDo_TaskID, IDO_SCHEDULE_RECORD_API_TASK);
+    osal_start_timerEx(iDo_TaskID, IDO_SCHEDULE_RECORD_API_TASK, 50);
 }
 
 void iDo_ScheduleCheckVDD(uint16 delay)

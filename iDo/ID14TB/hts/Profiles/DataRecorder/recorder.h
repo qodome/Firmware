@@ -67,6 +67,9 @@ struct query_criteria {
 struct query_db {
     uint8 query_time_interval;
     uint8 query_time_interval_flag;
+    uint8 query_time_boundary_continue;
+    uint16 query_time_boundary_count;
+    uint32 query_time_boundary_initial_ts;
     uint16 query_time_interval_cnt;
     uint8 query_valid;
     uint8 query_mode;

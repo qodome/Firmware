@@ -382,9 +382,10 @@ void halSleep( uint32 osal_timeout )
       // save interrupt enable registers and disable all interrupts
       HAL_SLEEP_IE_BACKUP_AND_DISABLE(ien0, ien1, ien2);
       HAL_ENABLE_INTERRUPTS();
-
+#ifndef DISABLE_WD
       WD_KICK();
-
+#endif
+      
 /*      
 #ifdef DEBUG_STATS
       if (last_tick_init_done == 1) {
@@ -448,7 +449,9 @@ void halSleep( uint32 osal_timeout )
       last_tick_init_done = 1;      
 #endif
 */      
+#ifndef DISABLE_WD
       WD_KICK();
+#endif
       
 #ifdef HAL_SLEEP_DEBUG_LED
       HAL_TURN_ON_LED3();
