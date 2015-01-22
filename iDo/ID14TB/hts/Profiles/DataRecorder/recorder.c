@@ -701,7 +701,7 @@ void recorder_API_task(void)
             record_query_result_buffer.stats_period_0 = qdb.query_time_interval_cnt / 2;
             osal_ConvertUTCTime(&(record_query_result_buffer.tc), rec_read.unix_ts);
             qdb.query_time_interval_cnt++;
-            if (qdb.query_time_interval_cnt >= (rec_read.page_idx * 2)) {
+            if (qdb.query_time_interval_cnt >= ((uint16)rec_read.page_idx * 2)) {
                 osal_memset((uint8 *)&qdb, 0, sizeof(qdb));
                 osal_memset((uint8 *)&rec_read, 0, sizeof(struct record_read_temperature));            
                 qdb.query_time_interval = 1;
