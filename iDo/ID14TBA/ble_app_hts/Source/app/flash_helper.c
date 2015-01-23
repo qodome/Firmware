@@ -13,7 +13,7 @@
 #include "nrf_types.h"
 #include "app_scheduler.h"
 
-#define OP_CACHE_MAX			8
+#define OP_CACHE_MAX			9
 
 typedef enum {
 	IDLE = 0,
@@ -35,7 +35,7 @@ uint16_t flash_sys_evt_error_cnt = 0;
 
 static uint8_t __HalFlashValidateReq(uint8_t page_idx)
 {
-	if ((page_idx != persistent_flash_first_page()) &&
+	if ((page_idx != persistent_flash_first_page()) && (page_idx != (persistent_flash_first_page() + 1)) &&
 			(page_idx < recorder_first_page() || page_idx > recorder_last_page())) {
 		persistent_record_error(PERSISTENT_ERROR_FLASH_ERASE, (uint32_t)page_idx);
 		return FAIL;
@@ -143,10 +143,9 @@ void HalFlashWrite(uint8_t page_idx, uint16_t offset, uint8_t *buf, uint16_t len
 	}
 }
 
-// Security write to overwrite device name and power management
-void HalFlashSecureWrite(uint8_t page_idx, uint16_t offset, uint8_t *buf, uint16_t len)
+uint8_t flash_queue_size(void)
 {
-
+	return opc_queue_depth;
 }
 
 void flash_time_to_shoot(void * p_event_data , uint16_t event_size)
@@ -184,13 +183,15 @@ void flash_helper_sys_event(uint32_t sys_evt)
 		if (opc_begin != opc_end) {
 			__HalFlashShootHead();
 		}
+		break;
+
 	case NRF_EVT_FLASH_OPERATION_ERROR:
 		if (opc_head_status != IN_PROGRESS) {
 			flash_sys_evt_error_cnt++;
 		}
 		opc_head_status = FAILED;
-
 		break;
+
 	default:
 		// No implementation needed.
 		break;

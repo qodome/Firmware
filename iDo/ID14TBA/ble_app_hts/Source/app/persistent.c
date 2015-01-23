@@ -60,6 +60,7 @@ static uint8_t __persistent_get_idx_from_bit_map(uint8_t *buf, uint8_t len)
 	return 0;
 }
 
+// FIXME: check the backup page status
 void persistent_init(void)
 {
 	uint8_t i;
@@ -93,10 +94,58 @@ void persistent_init(void)
 	}
 }
 
+/*
+ * Please make sure flash_helper's queue is clean!
+ */
 // Max length of device name: 20 (excluding tailing null)
-void persistent_set_dev_name(uint8_t *buf, uint16_t len)
+// This function prepare contents for the backup page
+void persistent_set_dev_name_prepare(uint8_t *buf, uint16_t len)
 {
-	// FIXME
+	uint32_t buf32[64];
+	uint8_t *ptr8;
+
+	HalFlashErase(pidx + 1);
+	HalFlashRead(pidx, 0, (uint8_t *)buf32, 256);
+	buf32[0] = 0xFFFFADDE;
+	if (len > 20) {
+		len = 20;
+	}
+	ptr8 = (uint8_t *)&(buf32[1]);
+	memcpy(ptr8, buf, len);
+	HalFlashWrite((pidx + 1), 0, (uint8_t *)buf32, 256);
+	HalFlashRead(pidx, 256, (uint8_t *)buf32, 256);
+	HalFlashWrite((pidx + 1), 256, (uint8_t *)buf32, 256);
+	HalFlashRead(pidx, 512, (uint8_t *)buf32, 256);
+	HalFlashWrite((pidx + 1), 512, (uint8_t *)buf32, 256);
+	HalFlashRead(pidx, 768, (uint8_t *)buf32, 256);
+	HalFlashWrite((pidx + 1), 768, (uint8_t *)buf32, 256);
+	buf32[0] = 0xEFBEADDE;
+	HalFlashWrite((pidx + 1), 0, (uint8_t *)buf32, 4);
+}
+
+/*
+ * Please make sure flash_helper's queue is clean!
+ */
+// This function does the persistent page overwrite
+void persistent_set_dev_name_finish(void)
+{
+	uint32_t buf32[64];
+
+	HalFlashErase(pidx);
+	HalFlashRead((pidx + 1), 0, (uint8_t *)buf32, 256);
+	buf32[0] = 0xFFFFADDE;
+	HalFlashWrite(pidx, 0, (uint8_t *)buf32, 256);
+	HalFlashRead((pidx + 1), 256, (uint8_t *)buf32, 256);
+	HalFlashWrite(pidx, 256, (uint8_t *)buf32, 256);
+	HalFlashRead((pidx + 1), 512, (uint8_t *)buf32, 256);
+	HalFlashWrite(pidx, 512, (uint8_t *)buf32, 256);
+	HalFlashRead((pidx + 1), 768, (uint8_t *)buf32, 256);
+	HalFlashWrite(pidx, 768, (uint8_t *)buf32, 256);
+	buf32[0] = 0xFFBEADDE;
+	HalFlashWrite(pidx, 0, (uint8_t *)buf32, 4);
+	HalFlashErase(pidx + 1);
+	buf32[0] = 0xEFBEADDE;
+	HalFlashWrite(pidx, 0, (uint8_t *)buf32, 4);
 }
 
 // Caller provide dev name buffer, at least 21 bytes
@@ -131,7 +180,7 @@ void persistent_record_error(uint8_t error_idx, uint32_t error_info)
 	}
 
 	// Write back
-
+	HalFlashWrite(pidx, (uint16_t)offset, (uint8_t *)&rcd, sizeof(rcd));
 }
 
 

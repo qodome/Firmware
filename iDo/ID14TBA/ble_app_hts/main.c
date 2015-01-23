@@ -55,6 +55,7 @@
 #include "dfu_app_handler.h"
 #include "ble_acc.h"
 #include "ble_hci.h"
+#include "ble_qodome_public.h"
 
 #define FIRMWARE_VERSION					"1.1.0(00)"
 #define SOFTWARE_VERSION					"0.0.0"
@@ -67,7 +68,7 @@
 #define APP_ADV_TIMEOUT_IN_SECONDS           0                                        /**< The advertising timeout in units of seconds. */
 
 #define APP_TIMER_PRESCALER                  0                                          /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_MAX_TIMERS                 11                                          /**< Maximum number of simultaneously created timers. */
+#define APP_TIMER_MAX_TIMERS                 12                                          /**< Maximum number of simultaneously created timers. */
 #define APP_TIMER_OP_QUEUE_SIZE              8                                          /**< Size of timer operation queues. */
 
 // Android parameter
@@ -109,16 +110,19 @@ ble_time_t m_time;
 ble_dfu_t m_dfu;
 ble_acc_t m_acc;
 
-static app_timer_id_t						m_battery_timer_id;
-static app_timer_id_t						m_watchdog_timer_id;
-static app_timer_id_t						m_adtmonitor_timer_id;
-static app_timer_id_t						m_txpower_timer_id;
+static app_timer_id_t m_battery_timer_id;
+static app_timer_id_t m_watchdog_timer_id;
+static app_timer_id_t m_adtmonitor_timer_id;
+static app_timer_id_t m_txpower_timer_id;
+static app_timer_id_t m_setdevname_timer_id;
 
 int8_t rssi = 0;
 int8_t tx_power = 4;
 uint16_t error_cnt = 0;
 uint32_t last_error_code = 0;
 uint8_t *last_error_file_name = NULL;
+uint8_t set_dev_name_status = 0;
+uint8_t new_dev_name[20];
 
 #ifdef DEBUG_STATS
 uint32_t ticks_max = 0;
@@ -134,6 +138,16 @@ uint32_t notification_counts = 0;
                                           BLE_STACK_HANDLER_SCHED_EVT_SIZE)          /**< Maximum size of scheduler events. */
 #define SCHED_QUEUE_SIZE                10                                          /**< Maximum number of events in the scheduler queue. */
 
+static void advertising_default(void);
+
+static void app_log_error(void * p_event_data , uint16_t event_size)
+{
+	uint32_t *ptr;
+
+    ptr = (uint32_t *)p_event_data;
+	persistent_record_error((uint8_t)ptr[0], ptr[1]);
+}
+
 /**@brief Function for error handling, which is called when an error has occurred.
  *
  * @warning This handler is an example only and does not fit a final product. You need to analyze
@@ -145,21 +159,20 @@ uint32_t notification_counts = 0;
  */
 void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p_file_name)
 {
-	uint8_t error_idx;
-	uint32_t error_info;
+    static uint32_t error_buf[2];
 
 	error_cnt++;
 	last_error_code = error_code;
 	last_error_file_name = (uint8_t *)p_file_name;
 
 	if ((uint8_t)error_code >= PERSISTENT_ERROR_SYS_MAX) {
-		error_idx = PERSISTENT_ERROR_SYS_MAX;
+		error_buf[0] = PERSISTENT_ERROR_SYS_MAX;
 	} else {
-		error_idx = (uint8_t)error_code;
+		error_buf[0] = (uint8_t)error_code;
 	}
-	error_info = (line_num & 0x0000FFFF) | (((uint32_t)p_file_name & 0x0000FFFF) << 16);
+	error_buf[1] = (line_num & 0x0000FFFF) | (((uint32_t)p_file_name & 0x0000FFFF) << 16);
 
-	persistent_record_error(error_idx, error_info);
+	app_sched_event_put((void *)&(error_buf[0]), 8, app_log_error);
 }
 
 /**@brief Callback function for asserts in the SoftDevice.
@@ -258,6 +271,26 @@ static void tx_power_timeout_handler(void *p_context)
 	}
 }
 
+static void set_dev_name_timeout_handler(void *p_context)
+{
+	if (set_dev_name_status == 1) {
+		if (flash_queue_size() == 0) {
+			set_dev_name_status = 2;
+			persistent_set_dev_name_prepare(new_dev_name, 20);
+		}
+		APP_ERROR_CHECK(app_timer_start(m_setdevname_timer_id, 100, NULL));
+	} else if (set_dev_name_status == 2) {
+		if (flash_queue_size() == 0) {
+			set_dev_name_status = 0;
+			persistent_set_dev_name_finish();
+			APP_ERROR_CHECK(app_timer_stop(m_setdevname_timer_id));
+            advertising_default();
+		} else {
+			APP_ERROR_CHECK(app_timer_start(m_setdevname_timer_id, 100, NULL));
+		}
+	}
+}
+
 static void timers_init(void)
 {
 	// Initialize timer module.
@@ -284,6 +317,11 @@ static void timers_init(void)
     APP_ERROR_CHECK(app_timer_create(&m_txpower_timer_id,
     							APP_TIMER_MODE_SINGLE_SHOT,
                                 tx_power_timeout_handler));
+
+    // Set device name operation.
+    APP_ERROR_CHECK(app_timer_create(&m_setdevname_timer_id,
+    							APP_TIMER_MODE_SINGLE_SHOT,
+    							set_dev_name_timeout_handler));
 }
 
 /**@brief Function for the GAP initialization.
@@ -565,6 +603,9 @@ static void services_init(void)
 
     // ACC service
     APP_ERROR_CHECK(ble_acc_init(&m_acc));
+
+    // Qodome Service
+    APP_ERROR_CHECK(ble_qodome_init());
 }
 
 /**@brief Function for starting advertising.
@@ -643,27 +684,32 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
     uint32_t err_code = NRF_SUCCESS;
     uint8_t reason = 0;
     static uint8_t dev_name_check[32];
+    static uint16_t len_check;
     uint8_t dev_name_new[32];
-    uint16_t len;
+    uint16_t len_new;
 
     switch (p_ble_evt->header.evt_id)
     {
         case BLE_GAP_EVT_CONNECTED:
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
-            APP_ERROR_CHECK(sd_ble_gap_device_name_get(dev_name_check, &len));
+            APP_ERROR_CHECK(sd_ble_gap_device_name_get(dev_name_check, &len_check));
             battery_request_measure();
-            advertising_default();
             sd_ble_gap_rssi_start(m_conn_handle);
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
         	sd_ble_gap_rssi_stop(m_conn_handle);
         	rssi = 0;
+
         	// If device name get changed, save that in persistent storage
-        	APP_ERROR_CHECK(sd_ble_gap_device_name_get(dev_name_new, &len));
-        	if (strcmp((char *)dev_name_check, (char *)dev_name_new) != 0) {
-        		persistent_set_dev_name(dev_name_new, strlen((char *)dev_name_new));
+        	APP_ERROR_CHECK(sd_ble_gap_device_name_get(dev_name_new, &len_new));
+        	if (len_check != len_new || memcmp(dev_name_check, dev_name_new, len_check) != 0) {
+        		set_dev_name_status = 1;
+        		dev_name_new[len_new] = 0;
+        		memcpy(new_dev_name, dev_name_new, 20);
+        		APP_ERROR_CHECK(app_timer_start(m_setdevname_timer_id, 10, NULL));
         	}
+
         	reason = p_ble_evt->evt.gap_evt.params.disconnected.reason;
         	if (reason != BLE_HCI_CONNECTION_TIMEOUT) {
         		// Intentional disconnect
@@ -854,7 +900,7 @@ int main(void)
     ////////////////////////////////////////////////////
 	//      I n i t i a l i z e    S y s t e m        //
 	////////////////////////////////////////////////////
-	wdt_init();
+	//wdt_init();
     timers_init();
     ble_stack_init();
     scheduler_init();

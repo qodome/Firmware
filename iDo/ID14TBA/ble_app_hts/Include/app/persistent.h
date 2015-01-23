@@ -39,7 +39,8 @@ struct persistent_page {
 void persistent_init(void);
 
 // Max length of device name: 20 (excluding tailing null)
-void persistent_set_dev_name(uint8_t *buf, uint16_t len);
+void persistent_set_dev_name_prepare(uint8_t *buf, uint16_t len);
+void persistent_set_dev_name_finish(void);
 
 // Caller provide dev name buffer, at least 21 bytes
 void persistent_get_dev_name(uint8_t *buf);
