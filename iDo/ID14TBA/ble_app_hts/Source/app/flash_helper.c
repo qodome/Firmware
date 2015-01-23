@@ -10,20 +10,93 @@
 #include "battery.h"
 #include "persistent.h"
 #include "recorder.h"
+#include "nrf_types.h"
+#include "app_scheduler.h"
 
-#define CMD_CONCURRENT_MAX  2
+#define OP_CACHE_MAX			8
 
-uint8_t flash_page_erase_idx[2] = {0};
-uint8_t flash_erase_cnt = 0;
-uint8_t flash_erase_wait_ack = 0;
+typedef enum {
+	IDLE = 0,
+	IN_PROGRESS,
+	BUSY_WAIT,
+	FAILED
+} OPC_HEAD_STATUS_T;
 
-uint32_t flash_b_buffer[256/4] = {0};
-uint32_t flash_s_buffer[32/4] = {0};
-uint32_t *flash_page_write_buf[2] = {NULL, NULL};
-uint32_t *flash_page_write_dst[2] = {NULL, NULL};
-uint16_t flash_page_write_len[2] = {0};
-uint8_t flash_write_cnt = 0;
-uint8_t flash_write_wait_ack = 0;
+struct flash_op_cache opc[OP_CACHE_MAX];
+uint8_t opc_begin = 0;
+uint8_t opc_end = 0;
+uint8_t opc_queue_depth = 0;
+uint8_t opc_max_queue_depth = 0;
+OPC_HEAD_STATUS_T opc_head_status = IDLE;
+
+uint16_t opc_queue_overflow_cnt = 0;
+uint16_t flash_interrupt_schedule_fail_cnt = 0;
+uint16_t flash_sys_evt_error_cnt = 0;
+
+static uint8_t __HalFlashValidateReq(uint8_t page_idx)
+{
+	if ((page_idx != persistent_flash_first_page()) &&
+			(page_idx < recorder_first_page() || page_idx > recorder_last_page())) {
+		persistent_record_error(PERSISTENT_ERROR_FLASH_ERASE, (uint32_t)page_idx);
+		return FAIL;
+	} else {
+		return SUCCESS;
+	}
+}
+
+// Since all tasks are invoked from scheduler, lock protection is not necessary
+static uint8_t __HalFlashQueueTask(uint8_t is_write, uint8_t page_idx, uint16_t offset, uint8_t *buf, uint16_t len)
+{
+	uint16_t idx;
+
+	if (((opc_end + 1) % OP_CACHE_MAX) == opc_begin) {
+		opc_queue_overflow_cnt++;
+		return FAIL;
+	}
+
+	opc[opc_end].is_write = is_write;
+	opc[opc_end].pg_idx = page_idx;
+	opc[opc_end].pg_offset = offset;
+	opc[opc_end].len = len;
+	for (idx = 0; idx < len; idx++) {
+		opc[opc_end].buf[idx] = buf[idx];
+	}
+	opc_end = (opc_end + 1) % OP_CACHE_MAX;
+	opc_queue_depth++;
+	if (opc_queue_depth > opc_max_queue_depth) {
+		opc_max_queue_depth = opc_queue_depth;
+	}
+	return SUCCESS;
+}
+
+static void __HalFlashRemoveHead(void)
+{
+	opc_begin = (opc_begin + 1) % OP_CACHE_MAX;
+	opc_head_status = IDLE;
+	opc_queue_depth--;
+}
+
+static void __HalFlashShootHead(void)
+{
+	uint32_t ret;
+	uint32_t info;
+
+	if (opc[opc_begin].is_write == 1) {
+		ret = sd_flash_write((uint32_t *)((uint32_t)opc[opc_begin].pg_idx * 1024 + (uint32_t)opc[opc_begin].pg_offset), (uint32_t *)(opc[opc_begin].buf), (opc[opc_begin].len / 4));
+	} else {
+		ret = sd_flash_page_erase((uint32_t)opc[opc_begin].pg_idx);
+	}
+	if (ret == NRF_SUCCESS) {
+		opc_head_status = IN_PROGRESS;
+	} else if (ret == NRF_ERROR_BUSY) {
+		// Not good time
+		opc_head_status = BUSY_WAIT;
+	} else {
+		info = (uint32_t)opc[opc_begin].is_write << 24 | (uint32_t)opc[opc_begin].pg_idx << 16 | (uint32_t)opc[opc_begin].pg_offset;
+		__HalFlashRemoveHead();
+		persistent_record_error((uint8_t)ret, info);
+	}
+}
 
 void HalFlashRead(uint8_t page_idx, uint16_t offset, uint8_t *buf, uint16_t len)
 {
@@ -34,116 +107,92 @@ void HalFlashRead(uint8_t page_idx, uint16_t offset, uint8_t *buf, uint16_t len)
 
 void HalFlashErase(uint8_t page_idx)
 {
-	if ((page_idx != persistent_flash_page()) &&
-			(page_idx < recorder_first_page() || page_idx > recorder_last_page())) {
-		persistent_record_error(PERSISTENT_ERROR_FLASH_ERASE, (uint32_t)page_idx);
+	uint8_t is_head;
+
+	if (__HalFlashValidateReq(page_idx) == FAIL) {
 		return;
 	}
-	// Bypass flash helper
-	sd_flash_page_erase((uint32_t)page_idx);
 
-	/*
-    if (flash_erase_cnt >= CMD_CONCURRENT_MAX) {
-        APP_ERROR_CHECK(NRF_ERROR_INTERNAL);
-        return;
-    }
-    if (flash_page_erase_idx[flash_erase_cnt] != 0) {
-        APP_ERROR_CHECK(NRF_ERROR_INTERNAL);
-    }
-    flash_page_erase_idx[flash_erase_cnt++] = page_idx;
-    */
+	is_head = (opc_begin == opc_end) ? 1 : 0;
+	if (__HalFlashQueueTask(0, page_idx, 0, NULL, 0) == FAIL) {
+		return;
+	}
+	if (is_head == 1) {
+		__HalFlashShootHead();
+	}
 }
 
-void HalFlashWrite(uint32_t *addr, uint8_t *buf, uint16_t len)
+void HalFlashWrite(uint8_t page_idx, uint16_t offset, uint8_t *buf, uint16_t len)
 {
-	if (((uint8_t)((uint32_t)addr / 1024) != persistent_flash_page()) &&
-			((uint8_t)((uint32_t)addr / 1024) < recorder_first_page() || (uint8_t)((uint32_t)addr / 1024) > recorder_last_page())) {
-		persistent_record_error(PERSISTENT_ERROR_FLASH_WRITE, (uint32_t)addr);
+	uint8_t is_head;
+
+	if (__HalFlashValidateReq(page_idx) == FAIL) {
 		return;
 	}
-	// Bypass flash helper
-	sd_flash_write(addr, (uint32_t *)buf, (len / 4));
 
-	/*
-    if (flash_write_cnt >= CMD_CONCURRENT_MAX) {
-        APP_ERROR_CHECK(NRF_ERROR_INTERNAL);
-        return;
-    }
-    if (flash_page_write_len[flash_write_cnt] != 0) {
-        APP_ERROR_CHECK(NRF_ERROR_INTERNAL);
-    }
-    // Handle big/small buffers
-    if (len > 32 && len <= 256) {
-        memcpy((uint8_t *)flash_b_buffer, buf, len);
-        flash_page_write_buf[flash_write_cnt] = flash_b_buffer;
-    } else if (len <= 32) {
-        memcpy((uint8_t *)flash_s_buffer, buf, len);
-        flash_page_write_buf[flash_write_cnt] = flash_s_buffer;
-    } else {
-    	flash_page_write_buf[flash_write_cnt] = (uint32_t *)buf;
-    }
+	if (len > WRITE_BUFFER_MAX_SIZE) {
+		persistent_record_error(NRF_ERROR_DATA_SIZE, (uint32_t)len);
+	}
 
-    flash_page_write_len[flash_write_cnt] = len;
-    flash_page_write_dst[flash_write_cnt] = addr;
-    flash_write_cnt++;
-    */
+	is_head = (opc_begin == opc_end) ? 1 : 0;
+	if (__HalFlashQueueTask(1, page_idx, offset, buf, len) == FAIL) {
+		return;
+	}
+	if (is_head == 1) {
+		__HalFlashShootHead();
+	}
 }
 
-// Notify radio has been turned off
+// Security write to overwrite device name and power management
+void HalFlashSecureWrite(uint8_t page_idx, uint16_t offset, uint8_t *buf, uint16_t len)
+{
+
+}
+
+void flash_time_to_shoot(void * p_event_data , uint16_t event_size)
+{
+	// We need to trigger those failed operation,
+	// which are marked FAILED by flash_helper_sys_event()
+	if (opc_head_status == FAILED || opc_head_status == BUSY_WAIT) {
+		__HalFlashShootHead();
+	}
+}
+
+// This event handler is invoked from interrupt context, need to do schedule!
 void flash_radio_notification_evt_handler_t(bool radio_active)
 {
-	uint32_t err_code = NRF_SUCCESS;
-
-    // Finish flash operations
-	if (flash_erase_cnt > 0 && flash_erase_wait_ack == 0 && flash_write_wait_ack == 0) {
-        err_code = sd_flash_page_erase((uint32_t)flash_page_erase_idx[0]);
-        if (err_code == NRF_SUCCESS) {
-        	flash_erase_wait_ack = 1;
-        }
-    } else if (flash_write_cnt > 0 && flash_erase_wait_ack == 0 && flash_write_wait_ack == 0) {
-    	err_code = sd_flash_write(flash_page_write_dst[0], flash_page_write_buf[0], (flash_page_write_len[0]/4));
-    	if (err_code == NRF_SUCCESS) {
-    		flash_write_wait_ack = 1;
-    	}
-    }
+    // Schedule next flash operations
+	if (app_sched_event_put(NULL, 0, flash_time_to_shoot) != NRF_SUCCESS) {
+		flash_interrupt_schedule_fail_cnt++;
+	}
 
 	// Ask battery if need to measure battery level
 	battery_on_radio_off_evt();
 }
 
+// This function will be called in app_scheduler
 void flash_helper_sys_event(uint32_t sys_evt)
 {
-    switch(sys_evt)
-    {
-        case NRF_EVT_FLASH_OPERATION_SUCCESS:
-        case NRF_EVT_FLASH_OPERATION_ERROR:
-            if (flash_erase_wait_ack == 1) {
-                flash_erase_wait_ack = 0;
-                flash_page_erase_idx[0] = 0;
-                flash_erase_cnt--;
-                if (flash_erase_cnt > 0) {
-                    flash_page_erase_idx[0] = flash_page_erase_idx[1];
-                    flash_page_erase_idx[1] = 0;
-                }
-            } else if (flash_write_wait_ack == 1) {
-                flash_write_wait_ack = 0;
-                flash_page_write_buf[0] = NULL;
-                flash_page_write_dst[0] = NULL;
-                flash_page_write_len[0] = 0;
-                flash_write_cnt--;
-                if (flash_write_cnt > 0) {
-                    flash_page_write_buf[0] = flash_page_write_buf[1];
-                    flash_page_write_dst[0] = flash_page_write_dst[1];
-                    flash_page_write_len[0] = flash_page_write_len[1];
-                    flash_page_write_buf[1] = NULL;
-                    flash_page_write_dst[1] = NULL;
-                    flash_page_write_len[1] = 0;
-                }
-            }
-            break;
-        default:
-            // No implementation needed.
-            break;
-    }
-}
+	switch(sys_evt)
+	{
+	case NRF_EVT_FLASH_OPERATION_SUCCESS:
+		if (opc_head_status != IN_PROGRESS) {
+			flash_sys_evt_error_cnt++;
+			break;
+		}
+		__HalFlashRemoveHead();
+		if (opc_begin != opc_end) {
+			__HalFlashShootHead();
+		}
+	case NRF_EVT_FLASH_OPERATION_ERROR:
+		if (opc_head_status != IN_PROGRESS) {
+			flash_sys_evt_error_cnt++;
+		}
+		opc_head_status = FAILED;
 
+		break;
+	default:
+		// No implementation needed.
+		break;
+	}
+}

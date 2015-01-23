@@ -33,6 +33,7 @@ C_SOURCE_FILES += persistent.c
 C_SOURCE_FILES += battery.c
 C_SOURCE_FILES += bootloader_util_gcc.c
 C_SOURCE_FILES += dfu_app_handler.c
+C_SOURCE_FILES += ble_flash.c
 #C_SOURCE_FILES += pwrmgmt.c
 
 OUTPUT_FILENAME := ble_app_hts

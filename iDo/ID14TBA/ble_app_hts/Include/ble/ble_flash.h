@@ -95,6 +95,7 @@ uint32_t ble_flash_page_erase(uint8_t page_num);
  * @return     NRF_SUCCESS.
  */
 uint32_t ble_flash_word_write(uint32_t * p_address, uint32_t value);
+void flash_word_unprotected_write(uint32_t * p_address, uint32_t value);
 
 /**@brief Function for writing a data block to flash.
  *

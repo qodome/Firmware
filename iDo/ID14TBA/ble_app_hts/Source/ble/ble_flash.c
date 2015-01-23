@@ -81,7 +81,7 @@ static void flash_page_erase(uint32_t * p_page)
  * @param[in]  p_address   Pointer to flash location to be written.
  * @param[in]  value       Value to write to flash.
  */
-static void flash_word_unprotected_write(uint32_t * p_address, uint32_t value)
+void flash_word_unprotected_write(uint32_t * p_address, uint32_t value)
 {
     // Turn on flash write enable and wait until the NVMC is ready.
     NRF_NVMC->CONFIG = (NVMC_CONFIG_WEN_Wen << NVMC_CONFIG_WEN_Pos);

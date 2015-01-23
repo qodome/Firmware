@@ -245,9 +245,7 @@ uint32_t ble_time_init(ble_time_t * p_time, const ble_time_init_t * p_time_init)
 	return NRF_SUCCESS;
 }
 
-
-
-void date_time_init(void)//send_temp_callback callback
+void ble_time_init_timer(void)
 {
 	uint32_t err_code;
 	// Create timers ..

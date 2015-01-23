@@ -56,11 +56,6 @@
 #include "ble_acc.h"
 #include "ble_hci.h"
 
-//lint -e553
-#ifdef SVCALL_AS_NORMAL_FUNCTION
-#include "ser_phy_debug_app.h"
-#endif
-
 #define FIRMWARE_VERSION					"1.1.0(00)"
 #define SOFTWARE_VERSION					"0.0.0"
 
@@ -105,13 +100,14 @@
 
 #define DEAD_BEEF                            0xDEADBEEF                                 /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
-static uint16_t                              m_conn_handle = BLE_CONN_HANDLE_INVALID;   /**< Handle of the current connection. */
-static ble_gap_adv_params_t                  m_adv_params;                              /**< Parameters to be passed to the stack when starting advertising. */
-ble_bas_t                             m_bas;                                     /**< Structure used to identify the battery service. */
-static ble_hts_t                             m_hts;                                     /**< Structure used to identify the health thermometer service. */
-static ble_time_t                            m_time;                                     /**< Structure used to identify the health thermometer service. */
-static ble_dfu_t							 m_dfu;
-static ble_acc_t							 m_acc;
+static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;   /**< Handle of the current connection. */
+static ble_gap_adv_params_t m_adv_params;                              /**< Parameters to be passed to the stack when starting advertising. */
+
+ble_bas_t m_bas;
+ble_hts_t m_hts;
+ble_time_t m_time;
+ble_dfu_t m_dfu;
+ble_acc_t m_acc;
 
 static app_timer_id_t						m_battery_timer_id;
 static app_timer_id_t						m_watchdog_timer_id;
@@ -722,12 +718,10 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
 
 static void check_flash_status(void * p_event_data , uint16_t event_size)
 {
-	/*
 	uint32_t event;
 
 	event = *(uint32_t *)p_event_data;
     flash_helper_sys_event(event);
-    */
 }
 
 /**@brief Function for handling the Application's system events.
@@ -829,28 +823,6 @@ static void scheduler_init(void)
     APP_SCHED_INIT(SCHED_MAX_EVENT_DATA_SIZE, SCHED_QUEUE_SIZE);
 }
 
-/*
-* This function is root source for all temperatures (both measurement and intermediate)
-* Intermediate temperature is reported here, measurement is reported by another routine
-*/
-void iDo_send_indication(ble_hts_meas_t *p) // send_temp_handler
-{
-	ble_hts_send_tm(&m_hts, p);
-
-#ifdef DEBUG_STATS
-	indication_counts ++;
-#endif
-}
-
-void iDo_send_notification(ble_hts_meas_t *p)
-{
-	ble_hts_send_it(&m_hts, p);
-
-#ifdef DEBUG_STATS
-	notification_counts ++;
-#endif
-}
-
 static void wdt_init(void)
 {
 	NRF_WDT->CONFIG = (WDT_CONFIG_HALT_Pause << WDT_CONFIG_HALT_Pos) | ( WDT_CONFIG_SLEEP_Run << WDT_CONFIG_SLEEP_Pos);
@@ -873,29 +845,39 @@ int main(void)
 	static uint32_t  ticks_now = 0;
 	static uint32_t  ticks_diff = 0;
 #endif
-	// Protect bootloader/boot_settings/code
+	/////////////////////////////////////////////////////
+	//          P r o t e c t    F l a s h             //
+	/////////////////////////////////////////////////////
 	protect_flash();
+	persistent_init();		// Persistent storage shall be initialized before radio is turned on
 
-    // Initialize.
+    ////////////////////////////////////////////////////
+	//      I n i t i a l i z e    S y s t e m        //
+	////////////////////////////////////////////////////
 	wdt_init();
-	persistent_init();
     timers_init();
-    date_time_init();
     ble_stack_init();
-    temp_init(iDo_send_indication, iDo_send_notification);
     scheduler_init();
+    ble_radio_notification_init(APP_IRQ_PRIORITY_LOW, 0, flash_radio_notification_evt_handler_t);
+
+    ////////////////////////////////////////////////////
+    //      I n i t i a l i z e    S e r v i c e      //
+    ////////////////////////////////////////////////////
+	ble_time_init_timer();
+    temp_state_init();
+    temp_init_timer_spi();
+    CBInit();
+    recorder_init();
+    // FIXME: initialize power management module
+    //while (sd_ble_gap_tx_power_set(4) != NRF_SUCCESS);
+
+    /////////////////////////////////////////////////////
+    //  I n i t i a l i z e    B L E   S e r v i c e   //
+    /////////////////////////////////////////////////////
     gap_params_init();
     advertising_init();
     services_init();
     conn_params_init();
-    temp_state_init();
-    CBInit();
-    recorder_init();
-    //ble_radio_notification_init(APP_IRQ_PRIORITY_LOW, 0, flash_radio_notification_evt_handler_t);
-
-    while (sd_ble_gap_tx_power_set(4) != NRF_SUCCESS);
-
-    // Start execution.
     advertising_start();
 
     // Enter main loop.

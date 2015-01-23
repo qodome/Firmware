@@ -13,4 +13,7 @@ typedef int8_t int8;
 typedef int16_t int16;
 typedef int32_t int32;
 
+#define FAIL          	0
+#define SUCCESS        	1
+
 #endif

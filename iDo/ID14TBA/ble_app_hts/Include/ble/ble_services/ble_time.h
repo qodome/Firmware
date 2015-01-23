@@ -84,7 +84,7 @@ uint32_t ble_time_init(ble_time_t * p_time, const ble_time_init_t * p_time_init)
  */
 void ble_time_on_ble_evt(ble_time_t * p_time, ble_evt_t * p_ble_evt);
 
-void date_time_init(void);
+void ble_time_init_timer(void);
 
 uint32_t date_time_get_relative(void);
 uint32_t date_time_get_wall(void);

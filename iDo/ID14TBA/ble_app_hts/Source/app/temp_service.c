@@ -35,9 +35,7 @@ uint32_t temp_tm_counts_30s= 0;
 #endif
 
 static struct cmd_buffer *lastReadBuffer = NULL;
-
-iDo_send_indication_callback send_indication = NULL;
-iDo_send_notification_callback send_notification = NULL;
+extern ble_hts_t m_hts;
 
 uint16_t temp_service_get_tm_interval()
 {
@@ -129,9 +127,7 @@ static void __do_send_tm(int16_t temp_raw, uint8_t flag, ble_date_time_t *ptc)
 		memcpy((void *)&(adt_meas.time_stamp), (void *)ptc, sizeof(ble_date_time_t));
 	}
 
-	if (send_indication != NULL) {
-		send_indication(&adt_meas);
-	}
+	ble_hts_send_tm(&m_hts, &adt_meas);
 }
 
 static void __temp_tm_timeout_handler(void * p_event_data , uint16_t event_size)
@@ -208,9 +204,7 @@ static void __do_send_it(int16_t temp_raw)
 	}
 #endif
 
-	if (send_notification != NULL) {
-		send_notification(&adt_meas);
-	}
+	ble_hts_send_it(&m_hts, &adt_meas);
 }
 
 // Function scheduled background
@@ -274,13 +268,9 @@ static void sps_timeout_handler(void * p_context)
 	APP_ERROR_CHECK(app_sched_event_put(NULL, 0, __sps_timeout_handler));
 }
 
-void temp_init(iDo_send_indication_callback indication_callback,
-				iDo_send_notification_callback notification_callback)
+void temp_init_timer_spi(void)
 {
 	uint32_t err_code;
-
-	send_indication = indication_callback;
-	send_notification = notification_callback;
 
 	//Structure for SPI master configuration, initialized by default values.
 	spi_master_config_t spi_config = SPI_MASTER_INIT_DEFAULT;

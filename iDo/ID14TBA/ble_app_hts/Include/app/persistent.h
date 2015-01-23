@@ -6,6 +6,8 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include "nrf_types.h"
+#include "pwrmgmt.h"
 
 #define PERSISTENT_ERROR_SYS_MAX		18
 
@@ -16,24 +18,21 @@
 #define PERSISTENT_ERROR_DEADBEEF		(5 + PERSISTENT_ERROR_SYS_MAX)
 
 #define PERSISTENT_ERROR_MAX			30
-
-#define PERSISTENT_ERROR_ENTRY			7
+#define PERSISTENT_ERROR_ENTRY			3
+#define PERSISTENT_PWR_MAX				25
 
 struct error_record {
-	uint32_t count;
+	uint32_t count_bit;										// One bit for one error count
 	uint32_t error_info[PERSISTENT_ERROR_ENTRY];
 };
 
-struct persistent_record {
-	uint8_t dn_magic[8];
-	uint8_t device_name[20];
-	uint8_t pad0[4];
-#ifdef DEBUG_STATS
-	uint8_t boot_cnt_magic[8];
-	uint32_t boot_cnt;
-	uint8_t pad1[20];
-#endif
-	struct error_record error_log[PERSISTENT_ERROR_MAX];
+struct persistent_page {
+	uint8_t page_magic[4];
+	uint8_t dev_name[20];
+	uint8_t boot_cnt_bits[16];								// One bit for one boot count
+	uint32_t pwr_idx_bits;									// Number of 0bits indicates current index
+	struct error_record error_log[PERSISTENT_ERROR_MAX];	// This structure does not get refreshed
+	struct pwrmgmt_data pwr_log[PERSISTENT_PWR_MAX];		// This structure gets refreshed every 25 hours
 } __attribute__((packed));
 
 // Initialize persistent data
@@ -48,6 +47,11 @@ void persistent_get_dev_name(uint8_t *buf);
 // Record error info
 void persistent_record_error(uint8_t error_idx, uint32_t error_info);
 
-uint8_t persistent_flash_page(void);
+// Power management API
+void persistent_pwrmgmt_set_latest(struct pwrmgmt_data *pwr_ptr);
+uint8_t persistent_pwrmgmt_get_latest(struct pwrmgmt_data *pwr_ptr);
+
+// Flash range validation
+uint8_t persistent_flash_first_page(void);
 
 #endif

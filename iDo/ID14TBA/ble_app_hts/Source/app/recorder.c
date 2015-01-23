@@ -129,7 +129,6 @@ void recorder_init(void)
 void recorder_add_temperature(int16 temp)
 {
     uint32 ts;
-    uint32 addr;
 
     if (date_time_initialized() == 0) {
         // If wall time is not initialized yet, skip recording
@@ -148,10 +147,9 @@ void recorder_add_temperature(int16 temp)
             // Temperature recording stopped for a while, open new block
             
             // First dump data into flash
-            addr = ((uint32)rec_next_write.page_idx * 2048 + (uint32)rec_next_write.record_entry_idx * sizeof(struct record_entry)) / 4;
             rec_latest.magic[0] = 0x52;
             rec_latest.magic[1] = 0x44;
-            HalFlashWrite((uint32 *)addr, (uint8 *)&rec_latest, sizeof(struct record_entry));
+            HalFlashWrite(rec_next_write.page_idx, (uint16)rec_next_write.record_entry_idx * sizeof(struct record_entry), (uint8 *)&rec_latest, sizeof(struct record_entry));
                 
             // Cleanup stale temperature records
             memset(&rec_latest, 0, sizeof(struct record_entry));
@@ -181,10 +179,9 @@ void recorder_add_temperature(int16 temp)
             rec_latest_entry_idx++;
             if (rec_latest_entry_idx >= REC_DATA_PER_ENTRY) {
                 // Latest record full, dump into flash
-                addr = ((uint32)rec_next_write.page_idx * 2048 + (uint32)rec_next_write.record_entry_idx * sizeof(struct record_entry)) / 4;
                 rec_latest.magic[0] = 0x52;
                 rec_latest.magic[1] = 0x44;
-                HalFlashWrite((uint32 *)addr, (uint8 *)&rec_latest, sizeof(struct record_entry));
+                HalFlashWrite(rec_next_write.page_idx, (uint16)rec_next_write.record_entry_idx * sizeof(struct record_entry), (uint8 *)&rec_latest, sizeof(struct record_entry));
                 
                 // Cleanup stale temperature records
                 memset(&rec_latest, 0, sizeof(struct record_entry));

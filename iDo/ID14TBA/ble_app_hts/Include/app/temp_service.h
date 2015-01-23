@@ -10,11 +10,7 @@
 
 #include "ble_ido.h"
 
-typedef void (*iDo_send_indication_callback)(ble_hts_meas_t *p);
-typedef void (*iDo_send_notification_callback)(ble_hts_meas_t *p);
-
-void temp_init(iDo_send_indication_callback indication_callback,
-				iDo_send_notification_callback notification_callback);
+void temp_init_timer_spi(void);
 
 uint16_t temp_service_get_tm_interval();
 void temp_service_set_tm_intreval(uint16_t interval);
