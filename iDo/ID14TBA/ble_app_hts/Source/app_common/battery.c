@@ -34,9 +34,8 @@
 #include "battery.h"
 #include "app_util.h"
 
-#define ADC_REF_VOLTAGE_IN_MILLIVOLTS        1200                                      /**< Reference voltage (in milli volts) used by ADC while doing conversion. */
-#define ADC_PRE_SCALING_COMPENSATION         3                                         /**< The ADC is configured to use VDD with 1/3 prescaling as input. And hence the result of conversion is to be multiplied by 3 to get the actual value of the battery voltage.*/
-#define DIODE_FWD_VOLT_DROP_MILLIVOLTS       270                                       /**< Typical forward voltage drop of the diode (Part no: SD103ATW-7-F) that is connected in series with the voltage supply. This is the voltage drop when the forward current is 1mA. Source: Data sheet of 'SURFACE MOUNT SCHOTTKY BARRIER DIODE ARRAY' available at www.diodes.com. */
+#define ADC_REF_VOLTAGE_IN_MILLIVOLTS        1200			/**< Reference voltage (in milli volts) used by ADC while doing conversion. */
+#define ADC_PRE_SCALING_COMPENSATION         3				/**< The ADC is configured to use VDD with 1/3 prescaling as input. And hence the result of conversion is to be multiplied by 3 to get the actual value of the battery voltage.*/
 
 /**@brief Macro to convert the result of ADC conversion in millivolts.
  *
@@ -44,10 +43,11 @@
  * @retval     Result converted to millivolts.
  */
 #define ADC_RESULT_IN_MILLI_VOLTS(ADC_VALUE)\
-        ((((ADC_VALUE) * ADC_REF_VOLTAGE_IN_MILLIVOLTS) / 255) * ADC_PRE_SCALING_COMPENSATION)
+        ((((ADC_VALUE) * ADC_REF_VOLTAGE_IN_MILLIVOLTS) / 1023) * ADC_PRE_SCALING_COMPENSATION)
 
-extern ble_bas_t m_bas;
-static uint8_t batt_sample_needed = 0;
+uint8_t batt_sample_needed = 0;
+uint8_t batt_sample_in_progress = 0;
+uint16_t batt_lvl_in_milli_volts = 0;
 
 /**@brief Function for handling the ADC interrupt.
  * @details  This function will fetch the conversion result from the ADC, convert the value into
@@ -57,34 +57,14 @@ void ADC_IRQHandler(void)
 {
     if (NRF_ADC->EVENTS_END != 0)
     {
-    	uint8_t     adc_result;
-    	uint16_t    batt_lvl_in_milli_volts;
-    	uint8_t     percentage_batt_lvl;
-    	uint32_t    err_code;
+    	uint32_t adc_result;
 
-    	NRF_ADC->EVENTS_END     = 0;
-    	adc_result              = NRF_ADC->RESULT;
-    	NRF_ADC->TASKS_STOP     = 1;
+    	NRF_ADC->EVENTS_END = 0;
+    	adc_result = NRF_ADC->RESULT & 0x3FF;
+    	NRF_ADC->TASKS_STOP = 1;
 
-    	// We do not have voltage diode
-    	//batt_lvl_in_milli_volts = ADC_RESULT_IN_MILLI_VOLTS(adc_result) +
-    	//		DIODE_FWD_VOLT_DROP_MILLIVOLTS;
     	batt_lvl_in_milli_volts = ADC_RESULT_IN_MILLI_VOLTS(adc_result);
-    	percentage_batt_lvl     = battery_level_in_percent(batt_lvl_in_milli_volts);
-
-    	err_code = ble_bas_battery_level_update(&m_bas, percentage_batt_lvl);
-    	if (
-    			(err_code != NRF_SUCCESS)
-    			&&
-    			(err_code != NRF_ERROR_INVALID_STATE)
-    			&&
-    			(err_code != BLE_ERROR_NO_TX_BUFFERS)
-    			&&
-    			(err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING)
-    	)
-    	{
-    		APP_ERROR_HANDLER(err_code);
-    	}
+    	batt_sample_in_progress = 0;
     }
 }
 
@@ -92,13 +72,24 @@ void battery_on_radio_off_evt(void)
 {
 	if (batt_sample_needed == 1) {
 		batt_sample_needed = 0;
+		batt_sample_in_progress = 1;
 		battery_start();
 	}
 }
 
 void battery_request_measure(void)
 {
-	batt_sample_needed = 1;
+	if (batt_sample_in_progress == 0) {
+		batt_sample_needed = 1;
+	}
+}
+
+uint16_t battery_get_last_measure(void)
+{
+	if (batt_sample_in_progress == 0) {
+		batt_sample_needed = 1;
+	}
+	return batt_lvl_in_milli_volts;
 }
 
 void battery_start(void)
@@ -107,7 +98,7 @@ void battery_start(void)
 
     // Configure ADC
     NRF_ADC->INTENSET   = ADC_INTENSET_END_Msk;
-    NRF_ADC->CONFIG     = (ADC_CONFIG_RES_8bit                        << ADC_CONFIG_RES_Pos)     |
+    NRF_ADC->CONFIG     = (ADC_CONFIG_RES_10bit                        << ADC_CONFIG_RES_Pos)     |
                           (ADC_CONFIG_INPSEL_SupplyOneThirdPrescaling << ADC_CONFIG_INPSEL_Pos)  |
                           (ADC_CONFIG_REFSEL_VBG                      << ADC_CONFIG_REFSEL_Pos)  |
                           (ADC_CONFIG_PSEL_Disabled                   << ADC_CONFIG_PSEL_Pos)    |

@@ -27,11 +27,16 @@ struct error_record {
 };
 
 struct persistent_page {
+	/* DEADBEEF */
 	uint8_t page_magic[4];
+	/* Device name */
 	uint8_t dev_name[20];
+	/* Boot count for debug */
 	uint8_t boot_cnt_bits[16];								// One bit for one boot count
-	uint32_t pwr_idx_bits;									// Number of 0bits indicates current index
+	/* Error log */
 	struct error_record error_log[PERSISTENT_ERROR_MAX];	// This structure does not get refreshed
+	/* Power management */
+	uint8_t pwr_idx_bits[4];									// Number of 0bits indicates current index
 	struct pwrmgmt_data pwr_log[PERSISTENT_PWR_MAX];		// This structure gets refreshed every 25 hours
 } __attribute__((packed));
 
@@ -39,8 +44,8 @@ struct persistent_page {
 void persistent_init(void);
 
 // Max length of device name: 20 (excluding tailing null)
-void persistent_set_dev_name_prepare(uint8_t *buf, uint16_t len);
-void persistent_set_dev_name_finish(void);
+void persistent_flash_backup_prepare(uint16_t offset, uint8_t *buf, uint16_t len);
+void persistent_flash_backup_finish(void);
 
 // Caller provide dev name buffer, at least 21 bytes
 void persistent_get_dev_name(uint8_t *buf);

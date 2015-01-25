@@ -274,7 +274,7 @@ uint32_t ble_bas_init(ble_bas_t * p_bas, const ble_bas_init_t * p_bas_init)
     return battery_level_char_add(p_bas, p_bas_init);
 }
 
-
+/*
 uint32_t ble_bas_battery_level_update(ble_bas_t * p_bas, uint8_t battery_level)
 {
     uint32_t err_code = NRF_SUCCESS;
@@ -320,3 +320,4 @@ uint32_t ble_bas_battery_level_update(ble_bas_t * p_bas, uint8_t battery_level)
 
     return err_code;
 }
+*/

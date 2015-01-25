@@ -7,14 +7,14 @@
 #include <stdint.h>
 #include "nrf_types.h"
 
+#ifdef OPTIMIZE_POWER
 #define TX_HIGH         0
 #define TX_LOW          1
-#define RX_HIGH         2
-#define RX_LOW          3
-#define CONNECT         4
-#define DISCONNECT      5
-#define MEASURE_TEMP    6
-#define PWR_MAX         7
+#endif
+#define CONNECT         0
+#define DISCONNECT      1
+#define MEASURE_TEMP    2
+#define PWR_MAX         3
 
 
 struct pwrmgmt_data {

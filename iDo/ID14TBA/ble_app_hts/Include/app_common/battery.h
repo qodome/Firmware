@@ -31,6 +31,8 @@ void battery_start(void);
 
 void battery_request_measure(void);
 
+uint16_t battery_get_last_measure(void);
+
 void battery_on_radio_off_evt(void);
 
 #endif // BATTERY_H__

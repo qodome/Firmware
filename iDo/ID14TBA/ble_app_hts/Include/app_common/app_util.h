@@ -186,34 +186,29 @@ static __INLINE uint32_t uint32_decode(const uint8_t * p_encoded_data)
 */
 static __INLINE uint8_t battery_level_in_percent(const uint16_t mvolts)
 {
-    uint8_t battery_level;
-
-    if (mvolts >= 3000)
-    {
-        battery_level = 100;
+    if (mvolts >= 2980) {
+        return 100;
+    } else if (mvolts >= 2945) {
+        return 90;
+    } else if (mvolts >= 2910) {
+        return 80;
+    } else if (mvolts >= 2900) {
+        return 70;
+    } else if (mvolts >= 2890) {
+        return 60;
+    } else if (mvolts >= 2870) {
+        return 50;
+    } else if (mvolts >= 2850) {
+        return 40;
+    } else if (mvolts >= 2805) {
+        return 30;
+    } else if (mvolts >= 2760) {
+        return 20;
+    } else if (mvolts >= 2480) {
+        return 10;
+    } else {
+        return 0;
     }
-    else if (mvolts > 2900)
-    {
-        battery_level = 100 - ((3000 - mvolts) * 58) / 100;
-    }
-    else if (mvolts > 2740)
-    {
-        battery_level = 42 - ((2900 - mvolts) * 24) / 160;
-    }
-    else if (mvolts > 2440)
-    {
-        battery_level = 18 - ((2740 - mvolts) * 12) / 300;
-    }
-    else if (mvolts > 2100)
-    {
-        battery_level = 6 - ((2440 - mvolts) * 6) / 340;
-    }
-    else
-    {
-        battery_level = 0;
-    }
-
-    return battery_level;
 }
 
 /**@brief Function for checking if a pointer value is aligned to a 4 byte boundary.

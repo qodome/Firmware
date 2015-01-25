@@ -4,13 +4,16 @@
 #include <string.h>
 #include "pwrmgmt.h"
 #include "ble_time.h"
+#include "persistent.h"
+#include "battery.h"
+#include "app_adv.h"
 
 #define PWR_VOLTAGE_DELAY               5000
 #define PWR_VOLTAGE_CNT                 10
-//#define PWR_TX_HIGH_FACTOR              1.1     // FIXME: this factor should be measured
-//#define PWR_RX_HIGH_FACTOR              1.1     // FIXME: measure???
-//#define PWR_TX_RX_HIGH_FACTOR           1.21    // FIXME
+#ifdef OPTIMIZE_POWER
+#define PWR_TX_HIGH_FACTOR              1.1     // FIXME: this factor should be measured
 #define PWR_CONNECT_DUMMY_TX_H          55      // FIXME: need recalculate
+#endif
 #define PWR_CONNECT_DUMMY_TX_N          50
 #define PWR_BATTERY_LIFE_PKT_CNT        16200000UL
 #define PWR_BATTERY_LIFE_TEMP_SAMPLE    6660000UL
@@ -18,48 +21,40 @@
 #define PWR_TIMEOUT_RCD_MAX             6
 #define PWR_TIMEOUT_CHECK_PERIOD        3600    // 1 hour
 
-/*
- * iOS connect: 50 packets single direction
- * Android connect: 
- */
-
-static struct pwrmgmt_data pd;
-static uint8 pcnt = PWR_VOLTAGE_CNT;
-static uint32 pvsum = 0;
-static uint16 pvavg = 0;
-static uint8 pinit = 0;
-static uint32 ptlast = 0;
-static uint8 ptxmode = 0;       // TX power low: 0; TX power high: 1
-static uint8 prxmode = 0;       // RX power normal: 0; RX power high: 1   FIXME: ignore rx factor 
-static uint8 pconn_status = 0;  // Not connected: 0; Connected: 1
-static uint32 pwr_timeout_ts[PWR_TIMEOUT_RCD_MAX] = {0};
+struct pwrmgmt_data pd;
+uint8 pcnt = PWR_VOLTAGE_CNT;
+uint32 pvsum = 0;
+uint16 pvavg = 0;
+uint8 pinit_done = 0;
+uint32 ptlast = 0;
+uint8 pconn_status = 0;  // Not connected: 0; Connected: 1
+#ifdef OPTIMIZE_POWER
+uint8 ptxmode = 0;       // TX power low: 0; TX power high: 1
+uint32 pwr_timeout_ts[PWR_TIMEOUT_RCD_MAX] = {0};
+#endif
 /* 
  * connection interval shall be cleaned up per connection
  */
-static uint32 conn_interval = 0;
-static uint32 conn_latency = 0;
-static uint32 adv_param = ((uint32)DEFAULT_ADVERTISING_INTERVAL * (uint32)625) / (uint32)1000;
+uint32 conn_interval = 0;
+uint32 conn_latency = 0;
+uint32 adv_param = ((uint32)APP_ADV_INTERVAL * (uint32)625) / (uint32)1000;
 
-#ifdef OPTIMIZE_POWER
-static uint32 lostConnectionTime = 0;
-#endif
-
-extern void iDo_ScheduleCheckVDD(uint16 delay);
+extern void schedule_vdd_check(uint16_t delay);
 extern void iDo_StopVDDCheck(void);
 
+#ifdef OPTIMIZE_POWER
 void pwrmgmt_tx_high(void);
 void pwrmgmt_tx_low(void);
-void pwrmgmt_rx_high(void);
-void pwrmgmt_rx_low(void);
+#endif
 void pwrmgmt_connect(void);
 void pwrmgmt_disconnect(void);
 void pwrmgmt_temp_measure(void);
 
 static pwrmgmt_callback_t pwr_call[PWR_MAX] = {
+#ifdef OPTIMIZE_POWER
     pwrmgmt_tx_high,
     pwrmgmt_tx_low,
-    pwrmgmt_rx_high,
-    pwrmgmt_rx_low,
+#endif
     pwrmgmt_connect,
     pwrmgmt_disconnect,
     pwrmgmt_temp_measure,
@@ -67,16 +62,17 @@ static pwrmgmt_callback_t pwr_call[PWR_MAX] = {
 
 void pwrmgmt_init(void)
 {
-    if (custom_mgmt_initialized() == 1 && custom_mgmt_get(&pd) == 0) {
-        pinit = 1;
-    } else {
+	// Do we have pwr management records in persistent storage?
+	if (persistent_pwrmgmt_get_latest(&pd) == SUCCESS) {
+		pinit_done = 1;
+	} else {
         memset((uint8 *)&pd, 0, sizeof(pd));
-        pinit = 0;
+        pinit_done = 0;
         pcnt = PWR_VOLTAGE_CNT;
         pvsum = 0;
-        // Initial delay: 5s
-        iDo_ScheduleCheckVDD(10000);
-    }
+        // Initial delay: 10s
+        schedule_vdd_check(10000);
+	}
     ptlast = date_time_get_relative();
 }
 
@@ -84,18 +80,19 @@ void pwrmgmt_checkvdd_callback(void)
 {
     uint16 v;
 
-    if (battGetMeasure(&v) == 1) {
+    battery_request_measure();
+    v = battery_get_last_measure();
+    if (v > 0) {
         pvsum += v;
         pcnt--;
     }
     if (pcnt > 0) {
-        iDo_ScheduleCheckVDD(PWR_VOLTAGE_DELAY);
+    	schedule_vdd_check(PWR_VOLTAGE_DELAY);
     } else {
-        iDo_StopVDDCheck();
         pvavg = (uint16)(pvsum / PWR_VOLTAGE_CNT);
 
         pd.initial_v_adc = pvavg;
-        pinit = 1;
+        pinit_done = 1;
 
         pwrmgmt_flash_dump();
     }
@@ -109,24 +106,20 @@ static void pwrmgmt_glean_stats(void)
 
     if (pconn_status == 0) {
         pkt_cnt = (delta * (uint32)1000) / adv_param;
-        if ((ptxmode == 1) && (prxmode == 1)) {
-            pkt_cnt = pkt_cnt * (uint32)12 / (uint32)10;
-        } else if (ptxmode == 1) {
-            pkt_cnt = pkt_cnt * (uint32)11 / (uint32)10;
-        } else if (prxmode == 1) {
+#ifdef OPTIMIZE_POWER
+        if (ptxmode == 1) {
             pkt_cnt = pkt_cnt * (uint32)11 / (uint32)10;
         }
+#endif
         pd.adv_pkt_cnt += pkt_cnt;
     } else {
         if (conn_interval > 0) {
             pkt_cnt = (delta * (uint32)800) / (conn_interval * (conn_latency + 1));
-            if ((ptxmode == 1) && (prxmode == 1)) {
-                pkt_cnt = pkt_cnt * (uint32)12 / (uint32)10;
-            } else if (ptxmode == 1) {
-                pkt_cnt = pkt_cnt * (uint32)11 / (uint32)10;
-            } else if (prxmode == 1) {
+#ifdef OPTIMIZE_POWER
+            if (ptxmode == 1) {
                 pkt_cnt = pkt_cnt * (uint32)11 / (uint32)10;
             }
+#endif
             pd.connected_pkt_cnt += pkt_cnt;
         }
     }
@@ -138,7 +131,7 @@ static void pwrmgmt_glean_stats(void)
 /*
  * If status changed, log result in pd
  */
-
+#ifdef OPTIMIZE_POWER
 void pwrmgmt_tx_high(void)
 {
     if (ptxmode == 0) {
@@ -154,36 +147,22 @@ void pwrmgmt_tx_low(void)
     }
     ptxmode = 0;
 }
-
-void pwrmgmt_rx_high(void)
-{
-    if (prxmode == 0) {
-        pwrmgmt_glean_stats();
-    } 
-    prxmode = 1;
-}
-
-void pwrmgmt_rx_low(void)
-{
-    if (prxmode == 1) {
-        pwrmgmt_glean_stats();
-    }
-    prxmode = 0;
-}
+#endif
 
 void pwrmgmt_connect(void)
 {               
     pwrmgmt_glean_stats();
     pd.connect_cnt++;
+#ifdef OPTIMIZE_POWER
     if (ptxmode == 1) {
         pd.connected_pkt_cnt += PWR_CONNECT_DUMMY_TX_H;
     } else {
         pd.connected_pkt_cnt += PWR_CONNECT_DUMMY_TX_N;
     }
-    pconn_status = 1;
-#ifdef OPTIMIZE_POWER    
-    lostConnectionTime = 0;
+#else
+    pd.connected_pkt_cnt += PWR_CONNECT_DUMMY_TX_N;
 #endif
+    pconn_status = 1;
 }
 
 void pwrmgmt_disconnect(void)
@@ -234,13 +213,13 @@ uint8 pwrmgmt_battery_usage(void)
 uint8 pwrmgmt_battery_percent(void)
 {
     uint8 base_capacity, guess_capacity, calculated_capacity;
-    uint8 usage, ret;
+    uint8 usage;
     uint16 voltage_lvl;
 
-    if (pinit == 0) {
+    if (pinit_done == 0) {
         return 0xFF;
     } else {
-        base_capacity = battGuessCapacity(pd.initial_v_adc);
+        base_capacity = battery_level_in_percent(pd.initial_v_adc);
         usage = pwrmgmt_battery_usage();
 
         if (base_capacity > usage) {
@@ -250,9 +229,9 @@ uint8 pwrmgmt_battery_percent(void)
         }
         
         // Double check battery voltage
-        ret = battGetMeasure(&voltage_lvl);
-        if (ret == 1) {
-            guess_capacity = battGuessCapacity(voltage_lvl);
+        voltage_lvl = battery_get_last_measure();
+        if (voltage_lvl > 0) {
+            guess_capacity = battery_level_in_percent(voltage_lvl);
             if ((guess_capacity == 100) && (calculated_capacity < 40)) {
                 memset((uint8 *)&pd, 0, sizeof(pd));
                 pd.initial_v_adc = voltage_lvl;
@@ -270,11 +249,11 @@ uint8 pwrmgmt_battery_percent(void)
 void pwrmgmt_flash_dump(void)
 {
     pwrmgmt_glean_stats();
-    HalAdcSetReference( HAL_ADC_REF_125V );
-    pd.battery_voltage = HalAdcRead(HAL_ADC_CHANNEL_VDD, HAL_ADC_RESOLUTION_14);
-    custom_mgmt_set(&pd);
+    pd.battery_voltage = battery_get_last_measure();
+    persistent_pwrmgmt_set_latest(&pd);
 }
 
+#ifdef OPTIMIZE_POWER
 /*
  * Dynamic tune rx power settings here, this callback will
  * be triggered every 60 secs
@@ -297,19 +276,6 @@ uint8 pwrmgmt_hb(void)
         HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_STD);
         pwrmgmt_event(RX_LOW);
     }
-
-#ifdef OPTIMIZE_POWER    
-    // If disconnected due to timeout after 10 minutes, lower tx/rx power
-    if ((lostConnectionTime != 0) && (date_time_get_relative() - lostConnectionTime) >= 14400) {        // FIXME: tune this parameter
-        // Lower power
-        HCI_EXT_SetTxPowerCmd(LL_EXT_TX_POWER_MINUS_23_DBM);
-        pwrmgmt_event(TX_LOW);
-        HCI_EXT_SetRxGainCmd(HCI_EXT_RX_GAIN_STD);
-        pwrmgmt_event(RX_LOW);
-                
-        return 1;       // stop me!
-    }
-#endif
     
     return 0;   // continue
 }
@@ -326,9 +292,6 @@ void pwrmgmt_timeout(void)
         }
     }
     pwr_timeout_ts[min_idx] = date_time_get_relative();
-
-#ifdef OPTIMIZE_POWER    
-    lostConnectionTime = date_time_get_relative();
-#endif
 }
+#endif
 

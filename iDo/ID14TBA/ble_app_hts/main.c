@@ -56,19 +56,18 @@
 #include "ble_acc.h"
 #include "ble_hci.h"
 #include "ble_qodome_public.h"
+#include "pwrmgmt.h"
+#include "app_adv.h"
 
 #define FIRMWARE_VERSION					"1.1.0(00)"
 #define SOFTWARE_VERSION					"0.0.0"
 
 #define IS_SRVC_CHANGED_CHARACT_PRESENT      0                                          /**< Include or not the service_changed characteristic. if not enabled, the server's database cannot be changed for the lifetime of the device*/
 #define MANUFACTURER_NAME                    "Qodome Co., Ltd."                      /**< Manufacturer. Will be passed to Device Information Service. */
-#define MODEL_NUM                            "ID14TBA"                            /**< Model number. Will be passed to Device Information Service. */
-
-#define APP_ADV_INTERVAL                     MSEC_TO_UNITS(/*1285*/128, UNIT_0_625_MS)       /**< The advertising interval (in units of 0.625 ms. This value corresponds to 25 ms). */
-#define APP_ADV_TIMEOUT_IN_SECONDS           0                                        /**< The advertising timeout in units of seconds. */
+#define MODEL_NUM                            "ID15TBA"                            /**< Model number. Will be passed to Device Information Service. */
 
 #define APP_TIMER_PRESCALER                  0                                          /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_MAX_TIMERS                 12                                          /**< Maximum number of simultaneously created timers. */
+#define APP_TIMER_MAX_TIMERS                 13                                          /**< Maximum number of simultaneously created timers. */
 #define APP_TIMER_OP_QUEUE_SIZE              8                                          /**< Size of timer operation queues. */
 
 // Android parameter
@@ -110,19 +109,24 @@ ble_time_t m_time;
 ble_dfu_t m_dfu;
 ble_acc_t m_acc;
 
-static app_timer_id_t m_battery_timer_id;
+static app_timer_id_t m_pwrmgmt_timer_id;
 static app_timer_id_t m_watchdog_timer_id;
 static app_timer_id_t m_adtmonitor_timer_id;
+static app_timer_id_t m_flash_timer_id;
+static app_timer_id_t m_checkvdd_timer_id;
+#ifdef OPTIMIZE_POWER
 static app_timer_id_t m_txpower_timer_id;
-static app_timer_id_t m_setdevname_timer_id;
+#endif
 
+#ifdef OPTIMIZE_POWER
 int8_t rssi = 0;
 int8_t tx_power = 4;
+#endif
 uint16_t error_cnt = 0;
 uint32_t last_error_code = 0;
 uint8_t *last_error_file_name = NULL;
-uint8_t set_dev_name_status = 0;
-uint8_t new_dev_name[20];
+uint8_t flash_write_w_backup_status = 0;
+uint8_t flash_write_w_backup_data[24];
 
 #ifdef DEBUG_STATS
 uint32_t ticks_max = 0;
@@ -262,6 +266,7 @@ static void adt_monitor_timeout_handler(void * p_context)
 	}
 }
 
+#ifdef OPTIMIZE_POWER
 static void tx_power_timeout_handler(void *p_context)
 {
 	UNUSED_PARAMETER(p_context);
@@ -270,25 +275,64 @@ static void tx_power_timeout_handler(void *p_context)
 		APP_ERROR_CHECK(app_timer_start(m_txpower_timer_id, TX_POWER_INTERVAL, NULL));
 	}
 }
+#endif
 
-static void set_dev_name_timeout_handler(void *p_context)
+void flash_trigger_refresh_pwr_mgmt_info(struct pwrmgmt_data *ptr)
 {
-	if (set_dev_name_status == 1) {
+	flash_write_w_backup_status = 3;
+	flash_write_w_backup_data[0] = 0xFE;
+	flash_write_w_backup_data[1] = flash_write_w_backup_data[2] = flash_write_w_backup_data[3] = 0xFF;
+	memcpy(&(flash_write_w_backup_data[4]), (uint8_t *)ptr, sizeof(struct pwrmgmt_data));
+	APP_ERROR_CHECK(app_timer_start(m_flash_timer_id, 10, NULL));
+}
+
+static void flash_write_timeout_handler(void *p_context)
+{
+	if (flash_write_w_backup_status == 1) {
 		if (flash_queue_size() == 0) {
-			set_dev_name_status = 2;
-			persistent_set_dev_name_prepare(new_dev_name, 20);
-		}
-		APP_ERROR_CHECK(app_timer_start(m_setdevname_timer_id, 100, NULL));
-	} else if (set_dev_name_status == 2) {
-		if (flash_queue_size() == 0) {
-			set_dev_name_status = 0;
-			persistent_set_dev_name_finish();
-			APP_ERROR_CHECK(app_timer_stop(m_setdevname_timer_id));
+			flash_write_w_backup_status = 0;
+			persistent_flash_backup_finish();
+			APP_ERROR_CHECK(app_timer_stop(m_flash_timer_id));
             advertising_default();
 		} else {
-			APP_ERROR_CHECK(app_timer_start(m_setdevname_timer_id, 100, NULL));
+			APP_ERROR_CHECK(app_timer_start(m_flash_timer_id, 100, NULL));
 		}
+	} else if (flash_write_w_backup_status == 2) {
+		if (flash_queue_size() == 0) {
+			flash_write_w_backup_status = 1;
+			persistent_flash_backup_prepare(4, flash_write_w_backup_data, 20);
+		}
+		APP_ERROR_CHECK(app_timer_start(m_flash_timer_id, 100, NULL));
+	} else if (flash_write_w_backup_status == 3) {
+		if (flash_queue_size() == 0) {
+			flash_write_w_backup_status = 1;
+			persistent_flash_backup_prepare(520, flash_write_w_backup_data, 24);
+		}
+		APP_ERROR_CHECK(app_timer_start(m_flash_timer_id, 100, NULL));
 	}
+}
+
+static void check_vdd_timeout_handler(void *p_context)
+{
+	UNUSED_PARAMETER(p_context);
+	pwrmgmt_checkvdd_callback();
+}
+
+static void pwrmgmt_timeout_handler(void *p_context)
+{
+	UNUSED_PARAMETER(p_context);
+	static uint8_t pwrmgmt_cnt = 0;
+
+	pwrmgmt_cnt++;
+	if (pwrmgmt_cnt >= 12) {
+		pwrmgmt_cnt = 0;
+		pwrmgmt_flash_dump();
+	}
+}
+
+void schedule_vdd_check(uint16_t delay)
+{
+	APP_ERROR_CHECK(app_timer_start(m_checkvdd_timer_id, APP_TIMER_TICKS(delay, APP_TIMER_PRESCALER), NULL));
 }
 
 static void timers_init(void)
@@ -297,9 +341,9 @@ static void timers_init(void)
     APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_MAX_TIMERS, APP_TIMER_OP_QUEUE_SIZE, false);
 
     // Create battery timer.
-    APP_ERROR_CHECK(app_timer_create(&m_battery_timer_id,
+    APP_ERROR_CHECK(app_timer_create(&m_pwrmgmt_timer_id,
                                 APP_TIMER_MODE_REPEATED,
-                                battery_level_meas_timeout_handler));
+                                pwrmgmt_timeout_handler));
 
     // Create&&start watchdog timer.
     APP_ERROR_CHECK(app_timer_create(&m_watchdog_timer_id,
@@ -313,15 +357,22 @@ static void timers_init(void)
                                 adt_monitor_timeout_handler));
     APP_ERROR_CHECK(app_timer_start(m_adtmonitor_timer_id, ADT_MONITOR_INTERVAL, NULL));
 
+    // Flash write with backup operations.
+    APP_ERROR_CHECK(app_timer_create(&m_flash_timer_id,
+    							APP_TIMER_MODE_SINGLE_SHOT,
+    							flash_write_timeout_handler));
+
+    // Timer used to check initial battery voltage during init.
+    APP_ERROR_CHECK(app_timer_create(&m_checkvdd_timer_id,
+    							APP_TIMER_MODE_SINGLE_SHOT,
+    							check_vdd_timeout_handler));
+
+#ifdef OPTIMIZE_POWER
     // Create TX power setting timer.
     APP_ERROR_CHECK(app_timer_create(&m_txpower_timer_id,
     							APP_TIMER_MODE_SINGLE_SHOT,
                                 tx_power_timeout_handler));
-
-    // Set device name operation.
-    APP_ERROR_CHECK(app_timer_create(&m_setdevname_timer_id,
-    							APP_TIMER_MODE_SINGLE_SHOT,
-    							set_dev_name_timeout_handler));
+#endif
 }
 
 /**@brief Function for the GAP initialization.
@@ -461,25 +512,6 @@ static void on_acc_evt(ble_acc_t * p_hts, ble_acc_evt_t *p_evt)
 	}
 }
 
-// Battery service event handler
-static void on_bas_evt(ble_bas_t * p_bas, ble_bas_evt_t *p_evt)
-{
-	switch (p_evt->evt_type) {
-	case BLE_BAS_EVT_NOTIFICATION_ENABLED:
-		// Start battery timer
-		APP_ERROR_CHECK(app_timer_start(m_battery_timer_id, BATTERY_LEVEL_MEAS_INTERVAL, NULL));
-		break;
-
-	case BLE_BAS_EVT_NOTIFICATION_DISABLED:
-		APP_ERROR_CHECK(app_timer_stop(m_battery_timer_id));
-		break;
-
-	default:
-		// No implementation needed.
-		break;
-	}
-}
-
 static uint8_t bin_to_ascii(uint8_t b)
 {
 	uint8_t a;
@@ -520,7 +552,6 @@ static void services_init(void)
 {
     uint32_t         err_code;
     ble_hts_init_t   hts_init;
-    //ble_reg_init_t   reg_init;
     ble_time_init_t  time_init;
     ble_dis_init_t   dis_init;
 	ble_bas_init_t   bas_init;
@@ -576,14 +607,12 @@ static void services_init(void)
     memset(&bas_init, 0, sizeof(bas_init));
 
     // Here the sec level for the Battery Service can be changed/increased.
-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&bas_init.battery_level_char_attr_md.cccd_write_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&bas_init.battery_level_char_attr_md.cccd_write_perm);
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&bas_init.battery_level_char_attr_md.read_perm);
     BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&bas_init.battery_level_char_attr_md.write_perm);
 
-    //BLE_GAP_CONN_SEC_MODE_SET_OPEN(&bas_init.battery_level_report_read_perm);
-
-    bas_init.evt_handler          = on_bas_evt;
-    bas_init.support_notification = true;
+    bas_init.evt_handler          = NULL;
+    bas_init.support_notification = false;
     bas_init.p_report_ref         = NULL;
     bas_init.initial_batt_level   = 100;
 
@@ -694,20 +723,26 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
             APP_ERROR_CHECK(sd_ble_gap_device_name_get(dev_name_check, &len_check));
             battery_request_measure();
+#ifdef OPTIMIZE_POWER
             sd_ble_gap_rssi_start(m_conn_handle);
+#endif
+            pwrmgmt_event(CONNECT);
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
+        	pwrmgmt_event(DISCONNECT);
+#ifdef OPTIMIZE_POWER
         	sd_ble_gap_rssi_stop(m_conn_handle);
         	rssi = 0;
+#endif
 
         	// If device name get changed, save that in persistent storage
         	APP_ERROR_CHECK(sd_ble_gap_device_name_get(dev_name_new, &len_new));
         	if (len_check != len_new || memcmp(dev_name_check, dev_name_new, len_check) != 0) {
-        		set_dev_name_status = 1;
+        		flash_write_w_backup_status = 2;
         		dev_name_new[len_new] = 0;
-        		memcpy(new_dev_name, dev_name_new, 20);
-        		APP_ERROR_CHECK(app_timer_start(m_setdevname_timer_id, 10, NULL));
+        		memcpy(flash_write_w_backup_data, dev_name_new, 20);
+        		APP_ERROR_CHECK(app_timer_start(m_flash_timer_id, 10, NULL));
         	}
 
         	reason = p_ble_evt->evt.gap_evt.params.disconnected.reason;
@@ -724,8 +759,6 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
         		NVIC_SystemReset();
         	}
 #endif
-
-        	APP_ERROR_CHECK(app_timer_stop(m_battery_timer_id));
 
             break;
 
@@ -747,9 +780,11 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             }
             break;
 
+#ifdef OPTIMIZE_POWER
         case BLE_GAP_EVT_RSSI_CHANGED:
             rssi = p_ble_evt->evt.gap_evt.params.rssi_changed.rssi;
             break;
+#endif
 
         // The following case is the key to CCCD issue
         case BLE_GATTS_EVT_SYS_ATTR_MISSING:
@@ -914,8 +949,9 @@ int main(void)
     temp_init_timer_spi();
     CBInit();
     recorder_init();
-    // FIXME: initialize power management module
-    //while (sd_ble_gap_tx_power_set(4) != NRF_SUCCESS);
+    pwrmgmt_init();
+    APP_ERROR_CHECK(app_timer_start(m_pwrmgmt_timer_id, APP_TIMER_TICKS(300000, APP_TIMER_PRESCALER), NULL));
+    APP_ERROR_CHECK(sd_ble_gap_tx_power_set(4) != NRF_SUCCESS);
 
     /////////////////////////////////////////////////////
     //  I n i t i a l i z e    B L E   S e r v i c e   //

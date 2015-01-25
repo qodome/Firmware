@@ -14,20 +14,21 @@
 #include "temp_state.h"
 #include "cmd_buffer.h"
 #include "temp_service.h"
+#include "pwrmgmt.h"
 
-#define APP_TIMER_PRESCALER			0
-#define IC_SPS_SAMPLE_PERIOD		APP_TIMER_TICKS(100, APP_TIMER_PRESCALER)
-#define IT_SAMPLE_PERIOD_FAST		APP_TIMER_TICKS(2000, APP_TIMER_PRESCALER)
-#define IT_SAMPLE_PERIOD_SLOW		APP_TIMER_TICKS(10000, APP_TIMER_PRESCALER)
+#define APP_TIMER_PRESCALER					0
+#define IC_SPS_SAMPLE_PERIOD				APP_TIMER_TICKS(100, APP_TIMER_PRESCALER)
+#define IT_SAMPLE_PERIOD					APP_TIMER_TICKS(5000, APP_TIMER_PRESCALER)
 
-#define MEASUREMENT_INTERVAL_DEFAULT	5	//FIXME		// default interval 30 seconds
+#define MEASUREMENT_INTERVAL_DEFAULT		30
 
-static app_timer_id_t	m_sps_timer_id, m_it_timer_id, m_tm_timer_id;
+static app_timer_id_t m_sps_timer_id, m_it_timer_id, m_tm_timer_id;
 bool m_tm_enabled = false;
 bool m_it_enabled = false;
-static uint32_t m_it_timeout_ticks = IT_SAMPLE_PERIOD_FAST;
+static uint32_t m_it_timeout_ticks = IT_SAMPLE_PERIOD;
 uint16_t m_tm_interval = MEASUREMENT_INTERVAL_DEFAULT;
 uint32_t m_tm_interval_ticks = APP_TIMER_TICKS(MEASUREMENT_INTERVAL_DEFAULT * 1000, APP_TIMER_PRESCALER);
+int16_t lastTemp = 0;
 
 #ifdef DEBUG_STATS
 uint32_t adt_sample_sps_counts = 0;
@@ -167,6 +168,7 @@ static void temp_it_timeout_handler(void  *p_context)
 	uint32_t err_code;
 
 	spi_write(0x01,0x40);
+	pwrmgmt_event(MEASURE_TEMP);
 
 	err_code = app_timer_start(m_sps_timer_id, IC_SPS_SAMPLE_PERIOD, NULL);
 	APP_ERROR_CHECK(err_code);
@@ -211,8 +213,6 @@ static void __do_send_it(int16_t temp_raw)
 static void __sps_timeout_handler(void * p_event_data , uint16_t event_size)
 {
 	int16_t result = 0;
-	static int16_t lastTemp = 0;
-	static uint32_t staleCount = 0;
 
 	spi_write(0x01, 0x60);
 	result = spi_read(0x02);
@@ -226,28 +226,6 @@ static void __sps_timeout_handler(void * p_event_data , uint16_t event_size)
     	result &= 0x1FFF;
     }
 
-	if (((result - lastTemp) >= 2) || ((lastTemp - result) >= 2)) {
-		if (staleCount >= 10) {
-			staleCount = 0;
-			m_it_timeout_ticks = IT_SAMPLE_PERIOD_FAST;
-
-			if (m_it_enabled == true || m_tm_enabled == true) {
-				APP_ERROR_CHECK(app_timer_stop(m_it_timer_id));
-				APP_ERROR_CHECK(app_timer_start(m_it_timer_id, m_it_timeout_ticks, NULL));
-			}
-		}
-		staleCount = 0;
-	} else {
-		staleCount++;
-		if (staleCount == 10) {
-			m_it_timeout_ticks = IT_SAMPLE_PERIOD_SLOW;
-
-			if (m_it_enabled == true || m_tm_enabled == true) {
-				APP_ERROR_CHECK(app_timer_stop(m_it_timer_id));
-				APP_ERROR_CHECK(app_timer_start(m_it_timer_id, m_it_timeout_ticks, NULL));
-			}
-		}
-	}
 	lastTemp = result;
 
 	temp_state_update(result);
