@@ -253,6 +253,15 @@ void pwrmgmt_flash_dump(void)
     persistent_pwrmgmt_set_latest(&pd);
 }
 
+void pwrmgmt_on_conn_params_evt(ble_conn_params_evt_t * p_evt)
+{
+    if(p_evt->evt_type == BLE_CONN_PARAMS_EVT_SUCCEEDED)
+    {
+        conn_interval = p_evt->conn_interval;
+        conn_latency = p_evt->slave_latency;
+    }
+}
+
 #ifdef OPTIMIZE_POWER
 /*
  * Dynamic tune rx power settings here, this callback will

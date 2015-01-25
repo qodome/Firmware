@@ -37,6 +37,7 @@ typedef struct
 {
     ble_conn_params_evt_type_t evt_type;                            /**< Type of event. */
     uint16_t conn_interval;											// connection interval
+    uint16_t slave_latency;
 } ble_conn_params_evt_t;
 
 /**@brief Connection Parameters Module event handler type. */

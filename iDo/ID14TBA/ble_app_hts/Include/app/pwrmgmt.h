@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 #include "nrf_types.h"
+#include "ble_conn_params.h"
 
 #ifdef OPTIMIZE_POWER
 #define TX_HIGH         0
@@ -36,5 +37,6 @@ uint8 pwrmgmt_battery_percent(void);
 void pwrmgmt_flash_dump(void);
 uint8 pwrmgmt_hb(void);
 void pwrmgmt_timeout(void);
+void pwrmgmt_on_conn_params_evt(ble_conn_params_evt_t * p_evt);
 
 #endif

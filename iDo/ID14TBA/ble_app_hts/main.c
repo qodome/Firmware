@@ -70,25 +70,26 @@
 #define APP_TIMER_MAX_TIMERS                 13                                          /**< Maximum number of simultaneously created timers. */
 #define APP_TIMER_OP_QUEUE_SIZE              8                                          /**< Size of timer operation queues. */
 
-// Android parameter
-#define PERIPHERAL_AND_MIN_CONN_INTERVAL            MSEC_TO_UNITS(1000, UNIT_1_25_MS)   /* Minimum acceptable connection interval. */
-#define PERIPHERAL_AND_MAX_CONN_INTERVAL            MSEC_TO_UNITS(1500, UNIT_1_25_MS)   /* Maximum acceptable connection interval. */
-#define PERIPHERAL_AND_SLAVE_LATENCY                1                                	/* Slave latency. */
-#define PERIPHERAL_AND_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(8000, UNIT_10_MS)     /* Connection supervisory timeout. */
-// iOS parameter
+// Try iOS parameter first
 #define PERIPHERAL_IOS_MIN_CONN_INTERVAL            MSEC_TO_UNITS(500, UNIT_1_25_MS)    /* Minimum acceptable connection interval. */
 #define PERIPHERAL_IOS_MAX_CONN_INTERVAL            MSEC_TO_UNITS(1000, UNIT_1_25_MS)   /* Maximum acceptable connection interval. */
 #define PERIPHERAL_IOS_SLAVE_LATENCY                1                                   /* Slave latency. */
 #define PERIPHERAL_IOS_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(6000, UNIT_10_MS)     /* Connection supervisory timeout. */
+// Then Android parameter
+#define PERIPHERAL_AND_MIN_CONN_INTERVAL            MSEC_TO_UNITS(1000, UNIT_1_25_MS)   /* Minimum acceptable connection interval. */
+#define PERIPHERAL_AND_MAX_CONN_INTERVAL            MSEC_TO_UNITS(1500, UNIT_1_25_MS)   /* Maximum acceptable connection interval. */
+#define PERIPHERAL_AND_SLAVE_LATENCY                1                                	/* Slave latency. */
+#define PERIPHERAL_AND_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(8000, UNIT_10_MS)     /* Connection supervisory timeout. */
 // Parameter update
 #define PERIPHERAL_FIRST_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(0, APP_TIMER_PRESCALER)
 #define PERIPHERAL_NEXT_CONN_PARAMS_UPDATE_DELAY    APP_TIMER_TICKS(100, APP_TIMER_PRESCALER)
 #define PERIPHERAL_MAX_CONN_PARAMS_UPDATE_COUNT     2
 
-#define BATTERY_LEVEL_MEAS_INTERVAL          		APP_TIMER_TICKS(480000, APP_TIMER_PRESCALER)	// 480 seconds
 #define WATCHDOG_INTERVAL          					APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
 #define ADT_MONITOR_INTERVAL						APP_TIMER_TICKS(300000, APP_TIMER_PRESCALER)
+#ifdef OPTIMIZE_POWER
 #define TX_POWER_INTERVAL          					APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
+#endif
 
 #define SEC_PARAM_TIMEOUT                    30                                         /**< Timeout for Pairing Request or Security Request (in seconds). */
 #define SEC_PARAM_BOND                       1                                          /**< Perform bonding. */
@@ -136,14 +137,14 @@ uint32_t indication_counts = 0;
 uint32_t notification_counts = 0;
 #endif
 
-// YOUR_JOB: Modify these according to requirements (e.g. if other event types are to pass through
-//           the scheduler).
+// Scheduler settings
 #define SCHED_MAX_EVENT_DATA_SIZE       MAX(APP_TIMER_SCHED_EVT_SIZE,\
                                           BLE_STACK_HANDLER_SCHED_EVT_SIZE)          /**< Maximum size of scheduler events. */
 #define SCHED_QUEUE_SIZE                10                                          /**< Maximum number of events in the scheduler queue. */
 
 static void advertising_default(void);
 
+// All flash log operations shall happen in scheduler context
 static void app_log_error(void * p_event_data , uint16_t event_size)
 {
 	uint32_t *ptr;
@@ -152,15 +153,7 @@ static void app_log_error(void * p_event_data , uint16_t event_size)
 	persistent_record_error((uint8_t)ptr[0], ptr[1]);
 }
 
-/**@brief Function for error handling, which is called when an error has occurred.
- *
- * @warning This handler is an example only and does not fit a final product. You need to analyze
- *          how your product is supposed to react in case of error.
- *
- * @param[in] error_code  Error code supplied to the handler.
- * @param[in] line_num    Line number where the handler is called.
- * @param[in] p_file_name Pointer to the file name.
- */
+// APP_ERROR_CHECK handler
 void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p_file_name)
 {
     static uint32_t error_buf[2];
@@ -179,17 +172,7 @@ void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p
 	app_sched_event_put((void *)&(error_buf[0]), 8, app_log_error);
 }
 
-/**@brief Callback function for asserts in the SoftDevice.
- *
- * @details This function will be called in case of an assert in the SoftDevice.
- *
- * @warning This handler is an example only and does not fit a final product. You need to analyze
- *          how your product is supposed to react in case of Assert.
- * @warning On assert from the SoftDevice, the system can only recover on reset.
- *
- * @param[in]   line_num   Line number of the failing ASSERT call.
- * @param[in]   file_name  File name of the failing ASSERT call.
- */
+// SoftDevice
 void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 {
 	persistent_record_error(PERSISTENT_ERROR_DEADBEEF, (uint32_t)line_num);
@@ -529,19 +512,15 @@ static uint8_t bin_to_ascii(uint8_t b)
 
 static void reset_prepare(void)
 {
-	uint32_t err_code;
-
 	temp_tm_stop();
 	temp_it_stop();
 	spi_write(0x01, 0x60);
 
 	if (m_conn_handle != BLE_CONN_HANDLE_INVALID) {
 		// Disconnect from peer.
-		err_code = sd_ble_gap_disconnect(m_conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-		APP_ERROR_CHECK(err_code);
+		APP_ERROR_CHECK(sd_ble_gap_disconnect(m_conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION));
 	}
-	err_code = ble_conn_params_stop();
-	APP_ERROR_CHECK(err_code);
+	APP_ERROR_CHECK(ble_conn_params_stop());
 }
 
 /**@brief Function for initializing services that will be used by the application.
@@ -647,36 +626,6 @@ static void advertising_start(void)
     APP_ERROR_CHECK(err_code);
 }
 
-/**@brief Function for handling the Connection Parameters Module.
- *
- * @details This function will be called for all events in the Connection Parameters Module which
- *          are passed to the application.
- *          @note All this function does is to disconnect. This could have been done by simply
- *                setting the disconnect_on_fail config parameter, but instead we use the event
- *                handler mechanism to demonstrate its use.
- *
- * @param[in]   p_evt   Event received from the Connection Parameters Module.
- */
-static void on_conn_params_evt(ble_conn_params_evt_t * p_evt)
-{
-    uint32_t err_code;
-
-    if(p_evt->evt_type == BLE_CONN_PARAMS_EVT_FAILED)
-    {
-        err_code = sd_ble_gap_disconnect(m_conn_handle, BLE_HCI_CONN_INTERVAL_UNACCEPTABLE);
-        APP_ERROR_CHECK(err_code);
-    }
-}
-
-/**@brief Function for handling a Connection Parameters error.
- *
- * @param[in]   nrf_error   Error code containing information about what went wrong.
- */
-static void conn_params_error_handler(uint32_t nrf_error)
-{
-    APP_ERROR_HANDLER(nrf_error);
-}
-
 /**@brief Function for initializing the Connection Parameters module.
  */
 static void conn_params_init(void)
@@ -692,8 +641,8 @@ static void conn_params_init(void)
     cp_init.max_conn_params_update_count   = PERIPHERAL_MAX_CONN_PARAMS_UPDATE_COUNT;
     cp_init.start_on_notify_cccd_handle    = BLE_GATT_HANDLE_INVALID;
     cp_init.disconnect_on_fail             = false;
-    cp_init.evt_handler                    = on_conn_params_evt;
-    cp_init.error_handler                  = conn_params_error_handler;
+    cp_init.evt_handler                    = pwrmgmt_on_conn_params_evt;
+    cp_init.error_handler                  = NULL;
 
     cp_init.secondary_min_conn_interval = PERIPHERAL_AND_MIN_CONN_INTERVAL;
     cp_init.secondary_max_conn_interval = PERIPHERAL_AND_MAX_CONN_INTERVAL;
