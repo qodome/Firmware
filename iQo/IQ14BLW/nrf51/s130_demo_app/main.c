@@ -55,8 +55,8 @@
 #define CENTRAL_CONN_SUP_TIMEOUT                MSEC_TO_UNITS(4000, UNIT_10_MS)   /* Connection supervisory timeout (4 seconds). */
 
 // Android parameter
-#define PERIPHERAL_AND_MIN_CONN_INTERVAL            MSEC_TO_UNITS(100, UNIT_1_25_MS)   /* Minimum acceptable connection interval. */
-#define PERIPHERAL_AND_MAX_CONN_INTERVAL            MSEC_TO_UNITS(150, UNIT_1_25_MS)   /* Maximum acceptable connection interval. */
+#define PERIPHERAL_AND_MIN_CONN_INTERVAL            MSEC_TO_UNITS(80, UNIT_1_25_MS)   /* Minimum acceptable connection interval. */
+#define PERIPHERAL_AND_MAX_CONN_INTERVAL            MSEC_TO_UNITS(100, UNIT_1_25_MS)   /* Maximum acceptable connection interval. */
 #define PERIPHERAL_AND_SLAVE_LATENCY                1                                   /* Slave latency. */
 #define PERIPHERAL_AND_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(4000, UNIT_10_MS)     /* Connection supervisory timeout. */
 // iOS parameter
@@ -1462,7 +1462,7 @@ static void ble_stack_init(void)
     LOG_DEBUG("%s: Enabling SoftDevice...", __FUNCTION__);
 
     // Initialize the SoftDevice handler module.
-    SOFTDEVICE_HANDLER_INIT(NRF_CLOCK_LFCLKSRC_XTAL_20_PPM, false);
+    SOFTDEVICE_HANDLER_INIT(NRF_CLOCK_LFCLKSRC_RC_250_PPM_8000MS_CALIBRATION, false);
 
     // Register with the SoftDevice handler module for BLE events.
     err_code = softdevice_ble_evt_handler_set(ble_evt_dispatch);
@@ -1636,7 +1636,7 @@ int main(void)
     // Initialize peripheral
     board_configure();
 	timers_init();
-    intermcu_init(intermcu_spi_cb);
+    //intermcu_init(intermcu_spi_cb);
 	ble_stack_init();
     scheduler_init();
     services_init();
@@ -1657,11 +1657,10 @@ int main(void)
     advertising_start();
     scan_start(); 
 
-    nrf_pwm_init(8, 9, 10, 12, PWM_MODE_LED_255);
-    nrf_pwm_set_value(0, 0);
-    nrf_pwm_set_value(1, 0);
-    nrf_pwm_set_value(2, 0);
-    nrf_pwm_set_value(3, 0);
+    nrf_pwm_init(18, 17, 15, PWM_MODE_LED_255);
+    nrf_pwm_set_value(0, 1);
+    nrf_pwm_set_value(1, 10);
+    nrf_pwm_set_value(2, 20);
 
     //do_work();
     for (;;) {

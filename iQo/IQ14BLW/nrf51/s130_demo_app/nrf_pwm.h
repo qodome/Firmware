@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 // This define sets the number of PWM channels to use, valid options are 1, 2, 3 and 4
-#define PWM_NUM_CHANNELS        4
+#define PWM_NUM_CHANNELS        3
 
 // To change the timer used for the PWM library replace the three defines below
 #define PWM_TIMER               NRF_TIMER1
