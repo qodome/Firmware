@@ -207,12 +207,13 @@ int main(void)
     bool     dfu_start = false;
     bool     app_reset = (NRF_POWER->GPREGRET == BOOTLOADER_DFU_START);
     bool	 app_reboot = false;
+    uint32_t flash_page_address = 0x00036c00;
 
     // Check application forced reboot
     /*
      * @@@@ FIXME this address is hard coded persistent page defined in hts @@@@
      */
-    uint8_t *ptr = (uint8_t *)0x00036c00;
+    uint8_t *ptr = (uint8_t *)flash_page_address;
     uint8_t boot_magic[8] = {'B', 'O', 'O', 'T', 'O', 'A', 'D', 0};
     uint8_t test_buf[8] = {0};
 
@@ -221,6 +222,26 @@ int main(void)
     	app_reboot = true;
     }
 
+    // Turn on flash erase enable and wait until the NVMC is ready.
+    NRF_NVMC->CONFIG = (NVMC_CONFIG_WEN_Een << NVMC_CONFIG_WEN_Pos);
+    while (NRF_NVMC->READY == NVMC_READY_READY_Busy)
+    {
+        // Do nothing.
+    }
+    // Erase page.
+    NRF_NVMC->ERASEPAGE = flash_page_address;
+    while (NRF_NVMC->READY == NVMC_READY_READY_Busy)
+    {
+        // Do nothing.
+    }
+    // Turn off flash erase enable and wait until the NVMC is ready.
+    NRF_NVMC->CONFIG = (NVMC_CONFIG_WEN_Ren << NVMC_CONFIG_WEN_Pos);
+    while (NRF_NVMC->READY == NVMC_READY_READY_Busy)
+    {
+        // Do nothing
+    }
+
+    // Initialize watchdog
     wdt_init();
 
     // This check ensures that the defined fields in the bootloader corresponds with actual

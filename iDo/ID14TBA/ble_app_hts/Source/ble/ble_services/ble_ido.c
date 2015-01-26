@@ -105,7 +105,6 @@ static void on_write(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
 	}
 }
 
-// Handle unix time read
 static void on_rw_authorize_request(ble_hts_t * p_hts, ble_gatts_evt_t * p_gatts_evt)
 {
 	uint8_t temp_record[12] = {0};

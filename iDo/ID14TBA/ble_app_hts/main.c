@@ -67,7 +67,7 @@
 #define MODEL_NUM                            "ID15TBA"                            /**< Model number. Will be passed to Device Information Service. */
 
 #define APP_TIMER_PRESCALER                  0                                          /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_MAX_TIMERS                 13                                          /**< Maximum number of simultaneously created timers. */
+#define APP_TIMER_MAX_TIMERS                 14                                          /**< Maximum number of simultaneously created timers. */
 #define APP_TIMER_OP_QUEUE_SIZE              8                                          /**< Size of timer operation queues. */
 
 // Try iOS parameter first
@@ -662,9 +662,9 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
     uint32_t err_code = NRF_SUCCESS;
     uint8_t reason = 0;
     static uint8_t dev_name_check[32];
-    static uint16_t len_check;
+    static uint16_t len_check = 32;
     uint8_t dev_name_new[32];
-    uint16_t len_new;
+    uint16_t len_new = 32;
 
     switch (p_ble_evt->header.evt_id)
     {
@@ -900,7 +900,7 @@ int main(void)
     recorder_init();
     pwrmgmt_init();
     APP_ERROR_CHECK(app_timer_start(m_pwrmgmt_timer_id, APP_TIMER_TICKS(300000, APP_TIMER_PRESCALER), NULL));
-    APP_ERROR_CHECK(sd_ble_gap_tx_power_set(4) != NRF_SUCCESS);
+    APP_ERROR_CHECK(sd_ble_gap_tx_power_set(4));
 
     /////////////////////////////////////////////////////
     //  I n i t i a l i z e    B L E   S e r v i c e   //

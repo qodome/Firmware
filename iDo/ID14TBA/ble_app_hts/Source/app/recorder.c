@@ -14,6 +14,7 @@
 #include "app_error.h"
 #include "app_scheduler.h"
 #include "ble_ido.h"
+#include "app_timer.h"
 
 extern uint32_t CodeOrigin;
 extern uint32_t CodeLength;
@@ -33,17 +34,20 @@ int16 latest_sample_temp;
 int8 rec_latest_entry_idx = -1;
 uint8 all_ff[4] = {0xff, 0xff, 0xff, 0xff};
 uint32 recorder_api_task_period = 0;
+uint8 recorder_f_page = 0;
+uint8 recorder_l_page = 0;
 
 struct record_read_temperature rec_read;
 struct query_db qdb;
 struct query_criteria record_query_result_buffer;
+static app_timer_id_t m_recorder_task_timer_id;
 
 uint8 __recorder_get_current_tail_next_head_info(uint8 pg_idx, uint8 rec_idx, uint32 head_ts, uint32 *tail_ts_ptr,
                                                 uint8 *npg_ptr, uint8 *nrec_ptr, uint32 *nhead_ts_ptr);
+void recorder_API_task(void * p_event_data , uint16_t event_size);
 
 #define RECORDER_FOR_CONTINUE   1
 #define RECORDER_FOR_RETURN     2
-//#define RECORDER_FOR_BREAK      3
 typedef uint8 (*recorder_for_callback)(uint8 pg_idx, uint8 rec_idx, uint8 *cb_ret_ptr, struct for_task_param *task_param);
 
 static uint8 __recorder_get_first_page(void)
@@ -82,6 +86,11 @@ uint8_t recorder_first_page(void)
 uint8_t recorder_last_page(void)
 {
 	return (uint8_t)((PSTORAGE_DATA_START_ADDR / PSTORAGE_FLASH_PAGE_SIZE) & 0xFF) - 1;
+}
+
+static void recorder_task_timeout_handler(void *p_context)
+{
+	APP_ERROR_CHECK(app_sched_event_put(NULL, 0, recorder_API_task));
 }
 
 /*
@@ -124,6 +133,14 @@ void recorder_init(void)
     rec_read.page_idx = available_page_idx;
     rec_read.data_entry_idx = -1;
     memset((uint8 *)&qdb, 0, sizeof(qdb));
+
+    recorder_f_page = recorder_first_page();
+    recorder_l_page = recorder_last_page();
+
+    // Recorder API task timer
+    APP_ERROR_CHECK(app_timer_create(&m_recorder_task_timer_id,
+    				APP_TIMER_MODE_SINGLE_SHOT,
+    				recorder_task_timeout_handler));
 }
 
 void recorder_add_temperature(int16 temp)
@@ -615,9 +632,7 @@ static void __recorder_fill_info(uint32 ts, int16 temp)
 
 void recorder_API_task(void * p_event_data , uint16_t event_size)
 {
-    uint16 seg_cnt;
-    uint32 initial_ts;
-    uint32 time_tmp;
+    uint32 time_tmp1, time_tmp2;
     uint16 read_cnt;
     int16 min_temp = 0x7FFF, max_temp = -1;
     int32 acc_temp = 0;
@@ -625,73 +640,67 @@ void recorder_API_task(void * p_event_data , uint16_t event_size)
     int16 current_temp, next_temp, result_temp;
     uint32 current_ts, next_ts, result_ts;
     ble_date_time_t tm;
+    uint8 loop_cnt_max, idx;
 
-    recorder_api_task_period = NRF_RTC1->COUNTER;
-    memset((void *)&record_query_result_buffer, 0, sizeof(record_query_result_buffer));
+    time_tmp1 = NRF_RTC1->COUNTER;
 
     if (qdb.query_time_interval == 1) {
         ////////////////////////////////////////////////////////////////////////////////////
         ///////////////////// Q u e r y   A P I   I n t e r v a l //////////////////////////
         ////////////////////////////////////////////////////////////////////////////////////
-        if (rec_read.unix_ts == 0) {
+        if (qdb.query_time_boundary_continue < 2) {
             // Count how many fragments do we have?
             // Return at most 255
-            __recorder_get_next_end_ts(&rec_read);
-            if (rec_read.unix_ts == 0) {
-                qdb.query_time_interval = 1;
-                qdb.query_time_interval_flag = 1;
-                return;
+            if (qdb.query_time_boundary_continue == 0) {
+                __recorder_get_next_end_ts(&rec_read);
+                if (rec_read.unix_ts == 0) {
+                    qdb.query_time_interval = 1;
+                    qdb.query_time_interval_flag = 1;
+                    memset((void *)&record_query_result_buffer, 0, sizeof(record_query_result_buffer));
+                    return;
+                }
+                loop_cnt_max = 5;
+                qdb.query_time_boundary_initial_ts = rec_read.unix_ts;
+                qdb.query_time_boundary_continue = 1;
+                qdb.query_time_boundary_count = 1;
+            } else {
+                loop_cnt_max = 6;
             }
 
-            initial_ts = rec_read.unix_ts;
-            seg_cnt = 1;
-            do {
+            for (idx = 0; idx < loop_cnt_max; idx++) {
                 if (__recorder_get_next_end_ts(&rec_read) == RECORDER_ERROR) {
                     break;
                 }
-                seg_cnt++;
-            } while ((rec_read.unix_ts != initial_ts) && seg_cnt < (QUERY_MAX_SEGMENT_CNT * 2));
-
-            rec_read.page_idx = (uint8)(seg_cnt / 2);
-
-            if (rec_read.page_idx > 0) {
-                rec_read.unix_ts = initial_ts;
-                qdb.query_time_interval_flag = 2;
-                record_query_result_buffer.stats_mode = 1;
-                record_query_result_buffer.stats_sample_cnt = rec_read.page_idx;
-                record_query_result_buffer.stats_period_0 = 0;
-                osal_ConvertUTCTime(&(record_query_result_buffer.tc), rec_read.unix_ts);
-                qdb.query_time_interval_cnt = 1;
-                return;
-            } else {
-                rec_read.unix_ts = 0;
-                qdb.query_time_interval = 1;
-                qdb.query_time_interval_flag = 1;
-                return;
+                qdb.query_time_boundary_count++;
+                if (rec_read.unix_ts == qdb.query_time_boundary_initial_ts) {
+                    qdb.query_time_boundary_continue = 2;
+                    rec_read.page_idx = qdb.query_time_boundary_count > 510 ? 0xFF : (uint8)(qdb.query_time_boundary_count / 2);
+                    rec_read.unix_ts = 0;
+                    qdb.query_time_interval = 1;
+                    qdb.query_time_interval_flag = 1;
+                    memset((void *)&record_query_result_buffer, 0, sizeof(record_query_result_buffer));
+                    break;
+                }
             }
-        }
-
-        record_query_result_buffer.stats_mode = __recorder_get_next_end_ts(&rec_read);
-        if ((rec_read.unix_ts != 0) && (rec_read.page_idx > 0)) {
-            record_query_result_buffer.stats_sample_cnt = rec_read.page_idx;
-            record_query_result_buffer.stats_period_0 = qdb.query_time_interval_cnt / 2;
-            osal_ConvertUTCTime(&(record_query_result_buffer.tc), rec_read.unix_ts);
-            qdb.query_time_interval_cnt++;
-            if (qdb.query_time_interval_cnt >= (rec_read.page_idx * 2)) {
-                memset((uint8 *)&qdb, 0, sizeof(qdb));
-                memset((uint8 *)&rec_read, 0, sizeof(struct record_read_temperature));
-                qdb.query_time_interval = 1;
-                qdb.query_time_interval_flag = 1;
-            }
+            APP_ERROR_CHECK(app_timer_start(m_recorder_task_timer_id, APP_TIMER_TICKS(50, 0), NULL));
         } else {
-            record_query_result_buffer.stats_mode = 0;
+            record_query_result_buffer.stats_mode = __recorder_get_next_end_ts(&rec_read);
+            if ((rec_read.unix_ts != 0) && (rec_read.page_idx > 0)) {
+                record_query_result_buffer.stats_sample_cnt = rec_read.page_idx;
+                record_query_result_buffer.stats_period_0 = qdb.query_time_interval_cnt / 2;
+                osal_ConvertUTCTime(&tm, rec_read.unix_ts);
+                ble_date_time_encode(&tm, &(record_query_result_buffer.tc[0]));
+                qdb.query_time_interval_cnt++;
+                if (qdb.query_time_interval_cnt >= ((uint16)rec_read.page_idx * 2)) {
+                    memset((uint8 *)&qdb, 0, sizeof(qdb));
+                    memset((uint8 *)&rec_read, 0, sizeof(struct record_read_temperature));
+                    qdb.query_time_interval = 1;
+                    qdb.query_time_interval_flag = 1;
+                }
+            } else {
+                record_query_result_buffer.stats_mode = 0;
+            }
         }
-
-        time_tmp = NRF_RTC1->COUNTER;
-        if (time_tmp < recorder_api_task_period) {
-            time_tmp += 0x01000000;
-        }
-        recorder_api_task_period = time_tmp - recorder_api_task_period;
     } else {
         ////////////////////////////////////////////////////////////////////////////////////
         ////////////////////// Q u e r y   A P I   S a m p l e s  //////////////////////////
@@ -782,6 +791,12 @@ void recorder_API_task(void * p_event_data , uint16_t event_size)
             }
         }
     }
+
+    time_tmp2 = NRF_RTC1->COUNTER;
+    if (time_tmp2 < time_tmp1) {
+        time_tmp2 += 0x01000000;
+    }
+    recorder_api_task_period = time_tmp2 - time_tmp1;
 }
 
 /*
@@ -789,8 +804,11 @@ void recorder_API_task(void * p_event_data , uint16_t event_size)
  */
 void recorder_set_query_criteria(struct query_criteria *query_ptr)
 {
+	ble_date_time_t tm;
+
     memset((uint8 *)&qdb, 0, sizeof(qdb));
     memset((uint8 *)&rec_read, 0, sizeof(struct record_read_temperature));
+    memset((void *)&record_query_result_buffer, 0xFF, sizeof(record_query_result_buffer));
 
     // Query valid sample time intervals
     if (query_ptr->stats_mode == 0xFF) {
@@ -814,10 +832,11 @@ void recorder_set_query_criteria(struct query_criteria *query_ptr)
     	} else {
     		qdb.query_valid = 1;
     	}
-    	qdb.query_start_point_ts = osal_ConvertUTCSecs(&(query_ptr->tc));
+    	ble_date_time_decode(&tm, &(query_ptr->tc[0]));
+    	qdb.query_start_point_ts = osal_ConvertUTCSecs(&tm);
         qdb.query_init_done = 0;
     }
-    APP_ERROR_CHECK(app_sched_event_put(NULL, 0, recorder_API_task));
+    APP_ERROR_CHECK(app_timer_start(m_recorder_task_timer_id, APP_TIMER_TICKS(50, 0), NULL));
     return;
 }
 
@@ -826,7 +845,13 @@ void recorder_set_query_criteria(struct query_criteria *query_ptr)
  */
 void recorder_get_query_result(struct query_criteria *query_result)
 {
-
-    memcpy((void *)query_result, (void *)&record_query_result_buffer, sizeof(record_query_result_buffer));
-    APP_ERROR_CHECK(app_sched_event_put(NULL, 0, recorder_API_task));
+	memcpy((void *)query_result, (void *)&record_query_result_buffer, sizeof(record_query_result_buffer));
+	if (qdb.query_time_interval == 1) {
+		if (qdb.query_time_boundary_continue >= 2) {
+			APP_ERROR_CHECK(app_timer_start(m_recorder_task_timer_id, APP_TIMER_TICKS(50, 0), NULL));
+		}
+	} else {
+		memcpy((void *)query_result, (void *)&record_query_result_buffer, sizeof(record_query_result_buffer));
+		APP_ERROR_CHECK(app_timer_start(m_recorder_task_timer_id, APP_TIMER_TICKS(50, 0), NULL));
+	}
 }

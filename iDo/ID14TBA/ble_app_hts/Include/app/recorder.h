@@ -66,12 +66,15 @@ struct query_criteria {
     uint8 stats_period_0;
     uint8 stats_period_1;
     uint8 stats_period_2;
-    ble_date_time_t tc;
+    uint8 tc[7];
 };
 
 struct query_db {
     uint8 query_time_interval;
     uint8 query_time_interval_flag;
+    uint8 query_time_boundary_continue;
+    uint16 query_time_boundary_count;
+    uint32 query_time_boundary_initial_ts;
     uint16 query_time_interval_cnt;
     uint8 query_valid;
     uint8 query_mode;

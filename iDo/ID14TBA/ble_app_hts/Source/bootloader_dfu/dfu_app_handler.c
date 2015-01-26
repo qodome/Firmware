@@ -68,18 +68,18 @@ static void bootloader_start(void)
 
 	// Signal bootloader
 	do {
-		err_code = sd_flash_page_erase((uint32_t)persistent_flash_first_page());
+		err_code = sd_flash_page_erase((uint32_t)(persistent_flash_first_page() + 1));
 		APP_ERROR_CHECK(sd_app_evt_wait());
 	} while (err_code == NRF_ERROR_BUSY);
 
 	do {
-		err_code = sd_flash_write((uint32_t *)((uint32_t)persistent_flash_first_page() * 1024), (uint32_t *)boot_magic, 2);
+		err_code = sd_flash_write((uint32_t *)((uint32_t)(persistent_flash_first_page() + 1) * 1024), (uint32_t *)boot_magic, 2);
 	} while (err_code == NRF_ERROR_BUSY);
 
     loop_cnt = 0;
     do {
     	APP_ERROR_CHECK(sd_app_evt_wait());
-    	HalFlashRead(persistent_flash_first_page(), 0, test_read, 8);
+    	HalFlashRead((persistent_flash_first_page() + 1), 0, test_read, 8);
     	if (memcmp(boot_magic, test_read, 8) == 0) {
     		break;
     	}
