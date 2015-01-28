@@ -6,7 +6,7 @@ include ./Makefile.custom
 # application source
 C_SOURCE_FILES += main.c
 C_SOURCE_FILES += uart.c
-C_SOURCE_FILES += app_timer.c
+C_SOURCE_FILES += app_timer_lock.c
 C_SOURCE_FILES += softdevice_handler.c
 C_SOURCE_FILES += nrf_assert.c
 C_SOURCE_FILES += ble_memdump.c

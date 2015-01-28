@@ -32,6 +32,7 @@
 #include "nrf_pwm.h"
 #include "ble_led.h"
 #include "intermcu_spi.h"
+#include "nrf_gpio.h"
 
 /* Addresses of peer peripherals that are expeted to run Heart Rate Service. */
 #define NUMBER_OF_PERIPHERALS                   1
@@ -76,11 +77,11 @@
 // Application Timer
 #define APP_TIMER_PRESCALER             0                                           /**< Value of the RTC1 PRESCALER register. */
 #define APP_TIMER_MAX_TIMERS            8                                           /**< Maximum number of simultaneously created timers. */
-#define APP_TIMER_OP_QUEUE_SIZE         8                                           /**< Size of timer operation queues. */
+#define APP_TIMER_OP_QUEUE_SIZE         12                                           /**< Size of timer operation queues. */
 
 // Scheduler
 #define SCHED_MAX_EVENT_DATA_SIZE       sizeof(app_timer_event_t)                   /**< Maximum size of scheduler events. Note that scheduler BLE stack events do not contain any data, as the events are being pulled from the stack in the event handler. */
-#define SCHED_QUEUE_SIZE                4                                          /**< Maximum number of events in the scheduler queue. */
+#define SCHED_QUEUE_SIZE                12                                          /**< Maximum number of events in the scheduler queue. */
 
 #define TARGET_UUID                     0x1809                             /**< Target device name that application is looking for. */
 #define UUID16_SIZE                2                                  /**< Size of 16 bit UUID */
@@ -153,21 +154,24 @@ typedef struct
 void softdevice_assert_callback(uint32_t pc, uint16_t line_num, const uint8_t *file_name);
 void app_assert_callback(uint32_t line_num, const uint8_t *file_name);
 
-#define LED_STEP_INTERVAL					APP_TIMER_TICKS(20, APP_TIMER_PRESCALER)
-#define LED_STEP_SIZE						2
+#define LED_TIME_STEP_SIZE					10
+#define LED_TIME_STEP_COUNT					20
+#define LED_TIME_STEP_INTERVAL				APP_TIMER_TICKS(LED_TIME_STEP_SIZE, APP_TIMER_PRESCALER)
+//#define LED_STEP_SIZE						2
 static app_timer_id_t led_dim_timer_id[4];
-static uint8_t led_current[4] = {0};
-static uint8_t led_target[4] = {0};
-static uint8_t led_turning[4] = {0};
-static uint8_t led_step_size[4] = {0};
-static uint8_t led_step_cnt[4] = {0};
-static uint8_t led_recalculate[4] = {0};
+uint8_t led_current[4] = {0};
+uint8_t led_target[4] = {0};
+uint8_t led_turning[4] = {0};
+uint8_t led_step_period[4] = {0};
+uint8_t led_step_period_remaining[4] = {0};
+uint8_t led_step_size[4] = {0};
+uint8_t led_step_cnt[4] = {0};
+uint16_t led_error_cnt = 0;
 static uint8_t led_tag[4] = {0, 1, 2, 3};
 
 static ble_memdump_t                            m_memdump;
 static ble_led_t								m_led;
 static ble_gap_scan_params_t                    m_scan_param;
-uint8_t led_uuid_type = 0;
 
 static const ble_gap_conn_params_t m_connection_param =
 {
@@ -230,50 +234,19 @@ void led_set_light(uint8_t idx, uint8_t target)
 		delta = led_current[idx] - target;
 	}
 
-#ifdef LED_STEP_SIZE
-	if (delta <= LED_STEP_SIZE) {
-		led_step_size[idx] = delta;
-		led_step_cnt[idx] = 1;
-	} else {
-		led_step_size[idx] = LED_STEP_SIZE;
-		led_step_cnt[idx] = delta / LED_STEP_SIZE;
-		if (delta % LED_STEP_SIZE != 0) {
-			led_step_cnt[idx]++;
-		}
-	}
-	led_recalculate[idx] = 0;
-#else
-	if (delta <= 20) {
+	if (delta <= LED_TIME_STEP_COUNT) {
 		led_step_size[idx] = 1;
-		led_step_cnt[idx] = delta;
-		led_recalculate[idx] = 0;
+		led_step_cnt[idx] = LED_TIME_STEP_COUNT;
+		led_step_period[idx] = LED_TIME_STEP_COUNT / delta;
+		led_step_period_remaining[idx] = led_step_period[idx];
 	} else {
-		led_step_size[idx] = delta / 20;
-		led_step_cnt[idx] = 20;
-		led_recalculate[idx] = 1;
+		led_step_size[idx] = delta / LED_TIME_STEP_COUNT;
+		led_step_cnt[idx] = LED_TIME_STEP_COUNT;
+		led_step_period[idx] = 1;
+		led_step_period_remaining[idx] = 1;
 	}
-#endif
 
-	if (led_turning[idx] == 1) {
-		led_current[idx] += led_step_size[idx];
-		led_step_cnt[idx]--;
-		if (led_recalculate[idx] != 0) {
-			led_step_size[idx] = (led_target[idx] - led_current[idx]) / led_step_cnt[idx];
-		}
-	} else {
-		led_current[idx] -= led_step_size[idx];
-		led_step_cnt[idx]--;
-		if (led_recalculate[idx] != 0) {
-			led_step_size[idx] = (led_current[idx] - led_target[idx]) / led_step_cnt[idx];
-		}
-	}
-	nrf_pwm_set_value(idx, led_current[idx]);
-
-	if (led_step_cnt[idx] > 0) {
-		app_timer_start(led_dim_timer_id[idx], LED_STEP_INTERVAL, &led_tag[idx]);
-	} else {
-		led_turning[idx] = 0;
-	}
+	APP_ERROR_CHECK(app_timer_start(led_dim_timer_id[idx], LED_TIME_STEP_INTERVAL, &led_tag[idx]));
 }
 
 // Application error handler
@@ -591,193 +564,59 @@ static __INLINE void write_event_handle(ble_evt_t *p_ble_evt)
 // LED dimmer
 static void led_dim_timeout_handler(void * p_context)
 {
-	uint8_t idx;
+	uint8_t idx, delta;
 
 	idx = *(uint8_t *)p_context;
 
-	if (led_step_cnt[idx] > 1) {
+	led_step_period_remaining[idx]--;
+	if (led_step_period_remaining[idx] == 0) {
 		if (led_turning[idx] == 1) {
 			led_current[idx] += led_step_size[idx];
-			led_step_cnt[idx]--;
-			if (led_recalculate[idx] != 0) {
-				led_step_size[idx] = (led_target[idx] - led_current[idx]) / led_step_cnt[idx];
-			}
-		} else {
+		} else if (led_turning[idx] == 0xFF) {
 			led_current[idx] -= led_step_size[idx];
-			led_step_cnt[idx]--;
-			if (led_recalculate[idx] != 0) {
-				led_step_size[idx] = (led_current[idx] - led_target[idx]) / led_step_cnt[idx];
-			}
 		}
 		nrf_pwm_set_value(idx, led_current[idx]);
-		app_timer_start(led_dim_timer_id[idx], LED_STEP_INTERVAL, &led_tag[idx]);
+
+		if (led_step_cnt[idx] > 0) {
+			led_step_cnt[idx]--;
+		} else {
+			return;
+		}
+		if (led_step_cnt[idx] == 0) {
+			led_turning[idx] = 0;
+			if (led_current[idx] != led_target[idx]) {
+				led_error_cnt++;
+			}
+			return;
+		}
+
+		if (led_target[idx] > led_current[idx]) {
+			led_turning[idx] = 1;
+			delta = led_target[idx] - led_current[idx];
+		} else if (led_current[idx] > led_target[idx]) {
+			led_turning[idx] = 0xFF;
+			delta = led_current[idx] - led_target[idx];
+		}
+
+		if (delta <= led_step_cnt[idx]) {
+			led_step_size[idx] = 1;
+			led_step_period[idx] = led_step_cnt[idx] / delta;
+			led_step_period_remaining[idx] = led_step_period[idx];
+		} else {
+			led_step_size[idx] = delta / led_step_cnt[idx];
+			led_step_period[idx] = 1;
+			led_step_period_remaining[idx] = 1;
+		}
 	} else {
-		led_current[idx] = led_target[idx];
-		led_step_cnt[idx] = 0;
-		led_turning[idx] = 0;
-		nrf_pwm_set_value(idx, led_target[idx]);
+		led_step_cnt[idx]--;
+	}
+
+	if (led_step_cnt[idx] > 0) {
+		APP_ERROR_CHECK(app_timer_start(led_dim_timer_id[idx], LED_TIME_STEP_INTERVAL, &led_tag[idx]));
+	} else {
+		APP_ERROR_CHECK(app_timer_stop(led_dim_timer_id[idx]));
 	}
 }
-
-/**@brief Function that handles BLE events
- *        It handles the events that comes in given time. That evoids skipping events that should be handled and are not handled in calling function.
- *        In case when expected event appears or getting timeout it returns that to calling function to be processed there.
- *
- * @param[in]   expected_event   Expected event.
- * @param[in]   timeout_ms       Timeout for waiting for expected event.
- * @param[in]   p_evt_buf        Pointer to buffer to be filled in with an event, or NULL to retrieve the event length. This buffer must be 4-byte aligned in memory.
- * @param[in]   evt_buf_len      The length of the buffer, on return it is filled with the event length.
- *
- * @return
- * @retval      NRF_SUCCESS Event pulled and stored into the supplied buffer.
- * @retval      NRF_ERROR_INVALID_ADDR Invalid or not sufficiently aligned pointer supplied.
- * @retval      NRF_ERROR_NOT_FOUND No events ready to be pulled.
- * @retval      NRF_ERROR_DATA_SIZE Event ready but could not fit into the supplied buffer.
-*/
-#if 0
-uint32_t event_handle(uint8_t expected_event, uint32_t timeout_ms, uint8_t *p_evt_buf, uint16_t evt_buf_len)
-{
-    uint16_t  evt_len       = 0;
-    ble_evt_t *p_ble_evt    = (ble_evt_t *) p_evt_buf;
-    uint32_t  error_code    = NRF_ERROR_NOT_FOUND;
-    uint16_t  peripheral_id = ID_NOT_FOUND;
-
-    if (timeout_ms != EVENT_HANDLER_NONBLOCKING) 
-    {
-    	scheduler_flag = 0;
-    	app_timer_start(scheduler_timer_id, timeout_ms, NULL);
-    }
-    
-    do
-    {
-        evt_len = evt_buf_len;
-        error_code = sd_ble_evt_get(p_evt_buf, &evt_len);
-            
-        if (error_code == NRF_SUCCESS)
-        {
-            /*Catching expected event*/
-            if (expected_event == p_ble_evt->header.evt_id)
-            {
-                return NRF_SUCCESS;
-            }
-            
-            /*Event handler*/
-
-            switch (p_ble_evt->header.evt_id)
-            {
-                case BLE_GAP_EVT_TIMEOUT:
-                    if (gsp_ble_evt->evt.gap_evt.params.timeout.src == BLE_GAP_TIMEOUT_SRC_ADVERTISING)
-                    {
-                        gs_advertising_is_running = false;
-
-                        LOG_INFO("Advertisement stopped.");
-                        if ((error_code = advertise()) != NRF_SUCCESS)
-                        {
-                            LOG_DEBUG("Restarting advertisement failed - error code = 0x%x", error_code);
-                            LOG_INFO("Restarting advertisement failed.");
-                        }
-                    }
-                break;
-                case BLE_GAP_EVT_CONNECTED:
-                    /*Expected connection from peer central, peer peripherals are handled in connect()*/
-                    if(p_ble_evt->evt.gap_evt.params.connected.role == BLE_GAP_ROLE_PERIPH) //If this side is BLE_GAP_ROLE_PERIPH then BLE_GAP_EVT_CONNECTED comes from peer central
-                    {
-                        connect_peer_central(p_ble_evt);
-                    }
-                    else if(p_ble_evt->evt.gap_evt.params.connected.role == BLE_GAP_ROLE_CENTRAL) //If this side is BLE_GAP_ROLE_CENTRAL then BLE_GAP_EVT_CONNECTED comes from peer peropheral
-                    {
-                        //Disconnecting peripheral
-                        if ((error_code = sd_ble_gap_disconnect(p_ble_evt->evt.gap_evt.conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION)) != NRF_SUCCESS)
-                        {
-                            LOG_INFO("Disconnection of non-central failed.");
-                            LOG_DEBUG("Disconnecting failed for conn handle = 0x%x, error - code = 0x%x", p_ble_evt->evt.gap_evt.conn_handle, error_code);
-                        }
-                        else
-                        {
-                            LOG_DEBUG("Disconnected for conn handle = 0x%x", p_ble_evt->evt.gap_evt.conn_handle);
-                        }
-                    }
-                break;
-                case BLE_GAP_EVT_DISCONNECTED:
-                    disconnect_event_handle(p_ble_evt);
-                    break;
-                case BLE_GATTS_EVT_WRITE:
-                    write_event_handle(p_ble_evt);
-                    break;
-                case BLE_EVT_TX_COMPLETE:
-                    gs_tx_buffer = TX_BUFFER_READY;
-                    break;
-                case BLE_GATTS_EVT_SYS_ATTR_MISSING:
-                    sd_ble_gatts_sys_attr_set(p_ble_evt->evt.gatts_evt.conn_handle, NULL, 0);
-                    break;
-                case BLE_GATTC_EVT_HVX:
-                    /*Handled in main loop - in do_work()*/
-                    break;
-                case BLE_GAP_EVT_CONN_PARAM_UPDATE_REQUEST:
-                    if ((peripheral_id = peripheral_id_get(p_ble_evt->evt.gap_evt.conn_handle)) != ID_NOT_FOUND )
-                    {
-                        ble_gap_conn_params_t conn_params;
-                        memcpy(&conn_params, &p_ble_evt->evt.gap_evt.params.conn_param_update_request.conn_params, sizeof(ble_gap_conn_params_t));
-                        if ((error_code = sd_ble_gap_conn_param_update(gs_peripheral[peripheral_id].conn_handle, &conn_params)) == NRF_SUCCESS)
-                        {
-                            LOG_INFO("(Peripheral %i) Requests to change connection parameters (timeout = 0x%x, min conn. interval = 0x%x, max conn. interval = 0x%x, latency = 0x%x).", peripheral_id, conn_params.conn_sup_timeout, conn_params.min_conn_interval, conn_params.max_conn_interval, conn_params.slave_latency);
-                        }
-                        else
-                        {
-                            LOG_DEBUG("(Peripheral %i) Updating connection parameters failed - error code = 0x%x", peripheral_id, error_code);
-                        }
-                    }
-                    break;
-                case BLE_GAP_EVT_CONN_PARAM_UPDATE:
-                    if ((peripheral_id = peripheral_id_get(p_ble_evt->evt.gap_evt.conn_handle)) != ID_NOT_FOUND )
-                    {
-                        LOG_INFO("(Peripheral %i) Connection parameters updated.", peripheral_id);
-                    }
-                    break;
-                case BLE_GATTC_EVT_WRITE_RSP:
-                    if ((peripheral_id = peripheral_id_get(p_ble_evt->evt.gattc_evt.conn_handle)) != ID_NOT_FOUND )
-                    {
-                        LOG_DEBUG("(Peripheral %i) Write confirmed", peripheral_id);
-                        LOG_INFO("(Peripheral %i) CCCD update confirmed.", peripheral_id);
-                    }
-                    break;
-                case BLE_GAP_EVT_SEC_PARAMS_REQUEST:
-                    LOG_INFO("Pairing not supported.");
-                    if ((error_code = sd_ble_gap_sec_params_reply(p_ble_evt->evt.gap_evt.conn_handle, BLE_GAP_SEC_STATUS_PAIRING_NOT_SUPP, NULL, NULL)) != NRF_SUCCESS)
-                    {
-                       LOG_DEBUG("(Central) sd_ble_gap_sec_params_reply() error code 0x%x", error_code);
-                    }
-                    break;
-                case BLE_GAP_EVT_AUTH_STATUS:
-                    if(p_ble_evt->evt.gap_evt.params.auth_status.auth_status != BLE_GAP_SEC_STATUS_PAIRING_NOT_SUPP)
-                    {
-                        LOG_DEBUG("BLE_GAP_EVT_AUTH_STATUS = 0x%x", p_ble_evt->evt.gap_evt.params.auth_status.auth_status);
-                    }
-                    break;
-                default:
-                    LOG_DEBUG("Unhandled event: header: 0x%x", p_ble_evt->header.evt_id);
-                    break;
-            }
-        }
-        if (timeout_ms == EVENT_HANDLER_NONBLOCKING) /* No event received, abort */
-        {
-            return error_code;
-        }
-        if (NRF_ERROR_NOT_FOUND == error_code) /* No event received, continue */
-        {
-            sd_app_evt_wait(); 
-            sd_nvic_ClearPendingIRQ(SD_EVT_IRQn);
-            continue;
-        }
-        if (error_code != NRF_SUCCESS)
-        {
-            return error_code;
-        }
-    } while (scheduler_flag == 0);
- 
-    return NRF_ERROR_NOT_FOUND;
-}
-#endif
 
 /*****************************************************************************
 * Functions related to service setup, advertisement, discovery, device connection
@@ -791,411 +630,6 @@ static void services_init(void)
     APP_ERROR_CHECK(ble_memdump_init(&m_memdump));
     APP_ERROR_CHECK(ble_led_init(&m_led));
 }
-
-/**@brief Function connects to given peer peripheral.
- *
- * @param[in]   peripheral_id   Peripheral to be cannected.
- *
- * @return
- * @retval      NRF_SUCCESS if connected, otherwise NRF error code.
-*/
-#if 0
-static uint32_t connect(uint16_t peripheral_id)
-{
-    uint32_t              error_code  = NRF_ERROR_NOT_FOUND;
-    ble_gap_scan_params_t scan_params = {0};
-    ble_gap_conn_params_t conn_params = {0};
-    
-    scan_params.selective         = 0;
-    scan_params.active            = 0x01; /* Active scanning */
-    scan_params.interval          = SCAN_INTERVAL;
-    scan_params.window            = SCAN_WINDOW;
-    scan_params.timeout           = SCAN_TIMEOUT;
-
-    conn_params.min_conn_interval = PERIPHERAL_MIN_CONN_INTERVAL;
-    conn_params.max_conn_interval = PERIPHERAL_MAX_CONN_INTERVAL;
-    conn_params.slave_latency     = PERIPHERAL_SLAVE_LATENCY;
-    conn_params.conn_sup_timeout  = PERIPHERAL_CONN_SUP_TIMEOUT;
-
-    LOG_DEBUG("(Peripheral %i) Connecting.", peripheral_id);
-    
-    if ((error_code = sd_ble_gap_connect(&gs_hb_peripheral_address[peripheral_id], &scan_params, &conn_params)) != NRF_SUCCESS)
-    {
-        LOG_DEBUG("(Peripheral %i) Connection error - code = 0x%x", peripheral_id, error_code);
-        return error_code;
-    }
-        
-    if ((error_code = event_handle(BLE_GAP_EVT_CONNECTED, 2000, gs_evt_buf, sizeof(gs_evt_buf))) == NRF_SUCCESS)
-    {
-        LOG_DEBUG("(Peripheral %i) Connection established.", peripheral_id);
-        LOG_INFO("(Peripheral %i) Connected.", peripheral_id);
-        gs_peripheral[peripheral_id].conn_handle = gsp_ble_evt->evt.gap_evt.conn_handle;
-    }
-    else
-    {
-        LOG_DEBUG("(Peripheral %i) Connection error: error code 0x%x", peripheral_id, error_code);
-        if (error_code == NRF_ERROR_NOT_FOUND)
-        {
-            gs_peripheral[peripheral_id].conn_handle = BLE_CONN_HANDLE_INVALID;
-            sd_ble_gap_connect_cancel();
-            LOG_INFO("(Peripheral %i) Device not found.", peripheral_id);
-        }
-    }
-    return error_code;
-}
-
-
-/**@brief Function discovers service, characteristic and descriptor for Heart Rate Service at given peer peripheral.
- *
- *  Function looks for Heart Rate Server and its handle that is used to write notification requests.
- *  If found the handle is kept in gs_peripheral[peripheral_id].descriptor_handle that is later used when writing CCCD.
- *
- * @param[in]   peripheral_id   Peripheral to be cannected.
- *
- * @return
- * @retval      NRF_SUCCESS if discovery done without NRF errors
- *              otherwise NRF error code.
- *              Getting NRF_SUCCESS doesn't guarante finding the right handle. It needs to be verified as found in gs_peripheral[peripheral_id].descriptor_handle.
-*/
-static uint32_t discovery(uint16_t peripheral_id)
-{
-    uint32_t                 error_code           = NRF_ERROR_NOT_FOUND;
-    ble_gattc_handle_range_t handle_range         = {0};
-    uint8_t                  i                    = 0;
-    uint8_t                  service_found        = 0;
-    uint8_t                  characteristic_found = 0;
-                             
-    gs_peripheral[peripheral_id].descriptor_handle = INVALID_DESCRIPTOR_HANDLE; /*Means that handle has not been found.*/
-    
-    /* Service discovery */
-    handle_range.start_handle = 0x0001;
-    handle_range.end_handle = BLE_GATTC_HANDLE_END;
-    do
-    {
-        if ((error_code = sd_ble_gattc_primary_services_discover(gs_peripheral[peripheral_id].conn_handle, handle_range.start_handle, NULL)) != NRF_SUCCESS)
-        {
-            LOG_DEBUG("(Peripheral %i) Service discovery: error code 0x%x", peripheral_id, error_code);
-            return error_code;
-        }
-        if ((error_code = event_handle(BLE_GATTC_EVT_PRIM_SRVC_DISC_RSP, 2000, gs_evt_buf, sizeof(gs_evt_buf))) != NRF_SUCCESS)
-        {
-            LOG_DEBUG("(Peripheral %i) service discovery response: error code 0x%x", peripheral_id, error_code);
-            return error_code;
-        }
-        if (gsp_ble_evt->evt.gattc_evt.gatt_status != BLE_GATT_STATUS_SUCCESS)
-        {
-            LOG_DEBUG("(Peripheral %i) Service discovery response: status code 0x%x", peripheral_id, error_code);
-            return NRF_ERROR_NOT_FOUND;
-        }
-        for (i = 0; i < gsp_ble_evt->evt.gattc_evt.params.prim_srvc_disc_rsp.count; i++)
-        {
-            if ((gsp_ble_evt->evt.gattc_evt.params.prim_srvc_disc_rsp.services[i].uuid.uuid == HEART_RATE_SERVICE )
-                && (gsp_ble_evt->evt.gattc_evt.params.prim_srvc_disc_rsp.services[i].uuid.type == BLE_UUID_TYPE_BLE))
-            {
-                LOG_DEBUG("Service found UUID 0x%04X", gsp_ble_evt->evt.gattc_evt.params.prim_srvc_disc_rsp.services[i].uuid.uuid);
-                handle_range.start_handle = gsp_ble_evt->evt.gattc_evt.params.prim_srvc_disc_rsp.services[i].handle_range.start_handle;
-                if (gsp_ble_evt->evt.gattc_evt.params.prim_srvc_disc_rsp.count > i + 1)
-                {
-                    handle_range.end_handle = gsp_ble_evt->evt.gattc_evt.params.prim_srvc_disc_rsp.services[i + 1].handle_range.start_handle - 1;
-                }
-                service_found = 1;
-                break;
-            }
-        }
-        if (service_found == 0)
-        {
-            handle_range.start_handle = gsp_ble_evt->evt.gattc_evt.params.prim_srvc_disc_rsp.services[gsp_ble_evt->evt.gattc_evt.params.prim_srvc_disc_rsp.count - 1].handle_range.end_handle;
-        }
-    } while ((service_found == 0) && (gsp_ble_evt->evt.gattc_evt.params.prim_srvc_disc_rsp.count > 0));
-    
-    if (service_found == 0)
-    {
-        LOG_DEBUG("ISSUE (Peripheral %i) Service not found", peripheral_id);
-        return NRF_ERROR_NOT_FOUND;
-    }
-    
-    /* Characteristic discovery */
-    do
-    {
-        if ((error_code = sd_ble_gattc_characteristics_discover(gs_peripheral[peripheral_id].conn_handle, &handle_range)) != NRF_SUCCESS)
-        {
-            LOG_DEBUG("(Peripheral %i) Characteristic discovery: error code 0x%x", peripheral_id, error_code);
-            return error_code;
-        }
-        if ((error_code = event_handle(BLE_GATTC_EVT_CHAR_DISC_RSP, 2000, gs_evt_buf, sizeof(gs_evt_buf))) != NRF_SUCCESS)
-        {
-            LOG_DEBUG("(Peripheral %i) Characteristic discovery response: error code 0x%x", peripheral_id, error_code);
-            return error_code;
-        }
-        if (gsp_ble_evt->evt.gattc_evt.gatt_status != BLE_GATT_STATUS_SUCCESS)
-        {
-            LOG_DEBUG("(Peripheral %i) Characteristic discovery response: error code 0x%x", peripheral_id, error_code);
-            return NRF_ERROR_NOT_FOUND;
-        }
-        for (i=0; i < gsp_ble_evt->evt.gattc_evt.params.char_disc_rsp.count; i++)
-        {
-            if ((gsp_ble_evt->evt.gattc_evt.params.char_disc_rsp.chars[i].uuid.uuid == HEART_RATE_SERVICE_CHARACTERISTICS)
-                && (gsp_ble_evt->evt.gattc_evt.params.char_disc_rsp.chars[i].uuid.type == BLE_UUID_TYPE_BLE))
-            {
-                LOG_DEBUG("Characteristic found UUID 0x%04X", gsp_ble_evt->evt.gattc_evt.params.char_disc_rsp.chars[i].uuid.uuid);
-                handle_range.start_handle = gsp_ble_evt->evt.gattc_evt.params.char_disc_rsp.chars[i].handle_value + 1;
-                if (gsp_ble_evt->evt.gattc_evt.params.char_disc_rsp.count > i + 1)
-                {
-                    handle_range.end_handle = gsp_ble_evt->evt.gattc_evt.params.char_disc_rsp.chars[i + 1].handle_decl - 1;
-                }
-                characteristic_found = 1;
-                break;
-            }
-        }
-        
-        if (characteristic_found == 0)
-        {
-            handle_range.start_handle = gsp_ble_evt->evt.gattc_evt.params.char_disc_rsp.chars[gsp_ble_evt->evt.gattc_evt.params.char_disc_rsp.count - 1].handle_decl + 1;
-            LOG_DEBUG("Characteristic handle range 0x%04X", handle_range.start_handle);
-        }
-    } while ((characteristic_found == 0) && (gsp_ble_evt->evt.gattc_evt.params.char_disc_rsp.count > 0));
-    if (characteristic_found == 0)
-    {
-        LOG_DEBUG("(Peripheral %i) Characteristic not found", peripheral_id);
-        return NRF_ERROR_NOT_FOUND;
-    }
-
-    /* Descriptor discovery */
-    do
-    {
-        if ((error_code = sd_ble_gattc_descriptors_discover(gs_peripheral[peripheral_id].conn_handle, &handle_range)) != NRF_SUCCESS)
-        {
-            LOG_DEBUG("(Peripheral %i) Descriptor discovery: error code 0x%x", peripheral_id, error_code);
-            return error_code;
-        }
-        if ((error_code = event_handle(BLE_GATTC_EVT_DESC_DISC_RSP, 2000, gs_evt_buf, sizeof(gs_evt_buf))) != NRF_SUCCESS)
-        {
-            LOG_DEBUG("(Peripheral %i) Descriptor discovery response: error code 0x%x", peripheral_id, error_code);
-            return error_code;
-        }
-        if (gsp_ble_evt->evt.gattc_evt.gatt_status != BLE_GATT_STATUS_SUCCESS)
-        {
-            LOG_DEBUG("(Peripheral %i) Descriptor discovery response error code 0x%x", peripheral_id, error_code);
-            return NRF_ERROR_NOT_FOUND;
-        }
-        for (i = 0; i < gsp_ble_evt->evt.gattc_evt.params.desc_disc_rsp.count; i++)
-        {
-            if ((gsp_ble_evt->evt.gattc_evt.params.desc_disc_rsp.descs[i].uuid.uuid == HEART_RATE_SERVICE_DESCRIPTOR)
-                && (gsp_ble_evt->evt.gattc_evt.params.desc_disc_rsp.descs[i].uuid.type == BLE_UUID_TYPE_BLE))
-            {
-                LOG_DEBUG("Descriptor found UUID 0x%04X", gsp_ble_evt->evt.gattc_evt.params.desc_disc_rsp.descs[i].uuid.uuid);
-                /* Heart Rate Service handle found */
-                gs_peripheral[peripheral_id].descriptor_handle = gsp_ble_evt->evt.gattc_evt.params.desc_disc_rsp.descs[i].handle;
-                break;
-            }
-        }
-        if (gs_peripheral[peripheral_id].descriptor_handle == 0)
-        {
-            handle_range.start_handle = gsp_ble_evt->evt.gattc_evt.params.desc_disc_rsp.descs[gsp_ble_evt->evt.gattc_evt.params.desc_disc_rsp.count - 1].handle + 1;
-        }
-    } while ((gs_peripheral[peripheral_id].descriptor_handle == INVALID_DESCRIPTOR_HANDLE) && (gsp_ble_evt->evt.gattc_evt.params.desc_disc_rsp.count > 0));
-    if (gs_peripheral[peripheral_id].descriptor_handle == INVALID_DESCRIPTOR_HANDLE)
-    {
-        LOG_DEBUG("(Peripheral %i) Descriptor not found", peripheral_id);
-        return NRF_ERROR_NOT_FOUND;
-    }
-    return error_code;
-}
-
-
-/**@brief Function writes cccd to get notification from given peer peripheral.
- *
- * @param[in]   peripheral_id   Peripheral id.
- *
- * @return
- * @retval      NRF_SUCCESS if discovery done without NRF errors
- *              otherwise NRF error code.
-*/
-static uint32_t notifications_enable(uint16_t peripheral_id)
-{
-    uint32_t                 error_code   = NRF_ERROR_NOT_FOUND;
-    ble_gattc_write_params_t write_params = {0};
-    uint16_t                 write_value  = WRITE_VALUE_ENABLE_NOTIFICATIONS;
-
-    /* Central writes to CCCD of peripheral to receive indications */
-    write_params.write_op = BLE_GATT_OP_WRITE_REQ;
-    write_params.handle = gs_peripheral[peripheral_id].descriptor_handle;
-    write_params.offset = 0;
-    write_params.len = sizeof(write_value);
-    write_params.p_value = (uint8_t *)&write_value;
-
-    LOG_DEBUG("(Peripheral %i) Writing CCCD", peripheral_id);
-    if ((error_code = sd_ble_gattc_write(gs_peripheral[peripheral_id].conn_handle, &write_params)) != NRF_SUCCESS)
-    {
-        LOG_DEBUG("(Peripheral %i) Writing CCCD: error code 0x%x", peripheral_id, error_code);
-        return error_code;
-    }
-    return error_code;
-}
-
-/*****************************************************************************
-* MAIN LOOP
-*****************************************************************************/
-
-/**@brief Main function that hadle key pressing, collecting data and sending notifications.
-*/
-static void do_work(void)
-{
-    uint32_t error_code    = NRF_ERROR_NOT_FOUND;
-    uint16_t  peripheral_id = ID_NOT_FOUND;
-    uint8_t  i             = 0;
-
-    uint8_t  buffered_values_average[NUMBER_OF_PERIPHERALS] = {0};
-    uint16_t data_size                                      = sizeof(buffered_values_average);
-
-    for (;;)
-    {
-        if (!nrf_gpio_pin_read(BUTTON_0))
-        {
-            error_code = NRF_SUCCESS;
-            //If no connection to peer central (advertisement in progress) stop advertising before connecting to peer peripherals.
-            if (gs_advertising_is_running)
-            {
-                if ((error_code = sd_ble_gap_adv_stop()) == NRF_SUCCESS)
-                {
-                    LOG_INFO("Advertisement stopped.");
-                    gs_advertising_is_running = false;
-                }
-                else
-                {
-                    LOG_DEBUG("sd_ble_gap_adv_stop() error code 0x%x (is adv on? 0x%x)", error_code, gs_advertising_is_running);
-                }
-            }
-            //Connect to all unconnected peripherals.
-            if(error_code == NRF_SUCCESS)
-            {
-                for (peripheral_id = 0; peripheral_id < NUMBER_OF_PERIPHERALS; peripheral_id++)
-                {
-                    if (gs_peripheral[peripheral_id].conn_handle == BLE_CONN_HANDLE_INVALID)
-                    {
-                        if (connect(peripheral_id) == NRF_SUCCESS)
-                        {
-                            if ((discovery(peripheral_id) == NRF_SUCCESS) && (gs_peripheral[peripheral_id].descriptor_handle != INVALID_DESCRIPTOR_HANDLE))
-                            {
-                                if ((error_code = notifications_enable(peripheral_id))!= NRF_SUCCESS)
-                                {
-                                    LOG_DEBUG("(Peripheral %i) Enablig notifications (writting CCCD) failed - error code 0x%x ", error_code);
-                                }
-                                if ((error_code = buffer_reset(peripheral_id)) == NRF_ERROR_INVALID_PARAM )
-                                {
-                                    LOG_DEBUG("Buffer reset failed - given invalid peripheral id (%i).", peripheral_id);
-                                }
-                            }
-                            else
-                            {
-                                LOG_INFO("(Peripheral %i) Service not found. Disconnecting.", peripheral_id);
-                                if ((error_code = sd_ble_gap_disconnect(gs_peripheral[peripheral_id].conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION)) != NRF_SUCCESS)
-                                {
-                                    LOG_INFO("(Peripheral %i) Disconnection failed.", peripheral_id);
-                                    LOG_DEBUG("(Peripheral %i) Disconnecting failed, error - code = 0x%x", peripheral_id, error_code);
-                                }
-                                else
-                                {
-                                    LOG_INFO("(Peripheral %i) Disconnected.", peripheral_id);
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        LOG_DEBUG("Peripheral 0x%x handle 0x%x - reconnecting skipped.", peripheral_id, gs_peripheral[peripheral_id].conn_handle);
-                    }                        
-                }
-            }
-
-        }
-        if (!nrf_gpio_pin_read(BUTTON_1))
-        {
-            for (peripheral_id = 0; peripheral_id < NUMBER_OF_PERIPHERALS; peripheral_id++)
-            {
-                uint8_t average = average_buffer_value(peripheral_id);
-                
-                _LOG_INFO("[Peripheral %i] %i values in buffer:", peripheral_id, gs_peripheral[peripheral_id].data_buffer.next_entry_index);
-                for (i = 0; i < DATA_BUFFER_SIZE; i++)
-                {
-                    _LOG_INFO(" %i,", (uint8_t) gs_peripheral[peripheral_id].data_buffer.value[i]);
-                }
-                LOG_INFO(" average value (of %i) = %i (0x%x)", gs_peripheral[peripheral_id].data_buffer.next_entry_index, average, average);
-            }
-            LOG_INFO("Connection status:");
-            LOG_INFO("(Central) connection handle = 0x%x", gs_central.conn_handle);
-            for (peripheral_id = 0; peripheral_id < NUMBER_OF_PERIPHERALS; peripheral_id++)
-            {
-                LOG_INFO("(Peripheral %i) connection handle = 0x%x", peripheral_id, gs_peripheral[peripheral_id].conn_handle);
-            }
-        }
-
-        if (!nrf_gpio_pin_read(BUTTON_0)&&!nrf_gpio_pin_read(BUTTON_1))
-        {
-            LOG_INFO("Button 0 and button 1 pressed simultaneously.");
-            scheduler_flag = 0;
-            app_timer_start(scheduler_timer_id, 1000, NULL);
-            while (scheduler_flag == 0) {};
-            LOG_INFO("Calling system reset...");
-            NVIC_SystemReset();
-        }
-
-        error_code = event_handle(BLE_GATTC_EVT_HVX, 200, gs_evt_buf, sizeof(gs_evt_buf));
-        if ((error_code == NRF_SUCCESS) && (gsp_ble_evt->header.evt_id == BLE_GATTC_EVT_HVX))
-        {
-            if ((peripheral_id = peripheral_id_get(gsp_ble_evt->evt.gattc_evt.conn_handle)) != ID_NOT_FOUND )
-            {
-                if (gsp_ble_evt->evt.gattc_evt.params.hvx.type == BLE_GATT_HVX_NOTIFICATION)
-                {
-                    if (gsp_ble_evt->evt.gattc_evt.params.hvx.len == 2)
-                    {
-                        if ((error_code = buffer_add_value(peripheral_id, gsp_ble_evt->evt.gattc_evt.params.hvx.data[1])) == NRF_ERROR_INVALID_PARAM )
-                        {
-                            LOG_DEBUG("Value not added to the buffer - given invalid peripheral id (%i).", peripheral_id);
-                        }
-                    }
-                }
-            }
-            else
-            {
-                LOG_DEBUG("HVX from unknown device (conn handle: %i)", gsp_ble_evt->evt.gattc_evt.conn_handle);
-            }
-        }
-        if (gs_central.notification_enabled && (gs_central.conn_handle != BLE_CONN_HANDLE_INVALID))
-        {
-            ble_gatts_hvx_params_t hvx_params;
-            if (gs_tx_buffer == TX_BUFFER_READY)
-            {
-                for (peripheral_id = 0; peripheral_id < NUMBER_OF_PERIPHERALS; peripheral_id++)
-                {
-                    buffered_values_average[peripheral_id] = average_buffer_value(peripheral_id);
-                }
-                hvx_params.handle = gs_own_char_handle.value_handle;
-                hvx_params.type = BLE_GATT_HVX_NOTIFICATION;
-                hvx_params.offset = 0;
-                hvx_params.p_len = &data_size;
-                hvx_params.p_data = buffered_values_average;
-                error_code = sd_ble_gatts_hvx(gs_central.conn_handle, &hvx_params);
-                if ((error_code != NRF_SUCCESS) && (error_code != NRF_ERROR_INVALID_STATE)) /* NRF_ERROR_INVALID_STATE can be triggered when central has sent disconect meanwhile. */
-                {
-                    LOG_DEBUG("sd_ble_gatts_hvx() error code 0x%x central.conn_handle 0x%x", error_code, gs_central.conn_handle);
-                }
-                gs_tx_buffer = TX_BUFFER_BUSY;
-            }
-        }
-        //If no connection to peer central re-start advertising.
-        if ((!gs_advertising_is_running) && (gs_central.conn_handle == BLE_CONN_HANDLE_INVALID))
-        {
-            if ((error_code = advertise()) != NRF_SUCCESS)
-            {
-                LOG_DEBUG("Restarting advertisement failed - error code = 0x%x", error_code);
-                LOG_INFO("Restarting advertisement failed.");
-            }
-        }
-        
-    }    
-}
-#endif
 
 /**@brief Function for the Timer initialization.
  *
@@ -1514,7 +948,10 @@ static void advertising_init(void)
     uint8_t       flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
 
     // FIXME: battery service is the place holder for Smart Lamp
-    ble_uuid_t adv_uuids[] = {{BLE_UUID_LED_SERVICE, led_uuid_type}};
+    ble_uuid_t adv_uuids[] =
+       {
+           {BLE_UUID_LED_SERVICE, BLE_UUID_TYPE_BLE},
+       };
 
     // Build and set advertising data
     memset(&advdata, 0, sizeof(advdata));
@@ -1621,6 +1058,7 @@ static void scan_start(void)
     APP_ERROR_CHECK(err_code);
 }
 
+/*
 void intermcu_spi_cb(uint8_t type, uint8_t len, uint8_t *buf)
 {
 	if (type == 0x01) {
@@ -1629,10 +1067,13 @@ void intermcu_spi_cb(uint8_t type, uint8_t len, uint8_t *buf)
 		led_set_light(2, (uint32_t)buf[2]);
 	}
 }
+*/
 
 /* Initial configuration of peripherals and hardware before the test begins. Calling the main loop. */
 int main(void)
 {
+	nrf_gpio_cfg_input(12, GPIO_PIN_CNF_PULL_Disabled);
+
     // Initialize peripheral
     board_configure();
 	timers_init();
@@ -1657,10 +1098,11 @@ int main(void)
     advertising_start();
     scan_start(); 
 
-    nrf_pwm_init(18, 17, 15, PWM_MODE_LED_255);
-    nrf_pwm_set_value(0, 1);
-    nrf_pwm_set_value(1, 10);
-    nrf_pwm_set_value(2, 20);
+    nrf_pwm_init(18, 14, 15, 13, PWM_MODE_LED_255);
+    nrf_pwm_set_value(0, 0);
+    nrf_pwm_set_value(1, 0);
+    nrf_pwm_set_value(2, 0);
+    nrf_pwm_set_value(3, 0);
 
     //do_work();
     for (;;) {
