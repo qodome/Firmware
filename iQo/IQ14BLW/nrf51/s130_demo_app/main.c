@@ -76,7 +76,7 @@
 
 // Application Timer
 #define APP_TIMER_PRESCALER             0                                           /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_MAX_TIMERS            8                                           /**< Maximum number of simultaneously created timers. */
+#define APP_TIMER_MAX_TIMERS            9                                           /**< Maximum number of simultaneously created timers. */
 #define APP_TIMER_OP_QUEUE_SIZE         12                                           /**< Size of timer operation queues. */
 
 // Scheduler
@@ -155,10 +155,11 @@ void softdevice_assert_callback(uint32_t pc, uint16_t line_num, const uint8_t *f
 void app_assert_callback(uint32_t line_num, const uint8_t *file_name);
 
 #define LED_TIME_STEP_SIZE					10
-#define LED_TIME_STEP_COUNT					20
+#define LED_TIME_STEP_COUNT					2
 #define LED_TIME_STEP_INTERVAL				APP_TIMER_TICKS(LED_TIME_STEP_SIZE, APP_TIMER_PRESCALER)
 //#define LED_STEP_SIZE						2
 static app_timer_id_t led_dim_timer_id[4];
+static app_timer_id_t background_timer_id;
 uint8_t led_current[4] = {0};
 uint8_t led_target[4] = {0};
 uint8_t led_turning[4] = {0};
@@ -167,7 +168,11 @@ uint8_t led_step_period_remaining[4] = {0};
 uint8_t led_step_size[4] = {0};
 uint8_t led_step_cnt[4] = {0};
 uint16_t led_error_cnt = 0;
-static uint8_t led_tag[4] = {0, 1, 2, 3};
+uint8_t led_start_cnt[4] = {0};
+uint8_t led_timeout_cnt[4] = {0};
+uint8_t led_done = 0;
+uint32_t led_total_cnt = 0;
+uint8_t led_tag[4] = {0, 1, 2, 3};
 
 static ble_memdump_t                            m_memdump;
 static ble_led_t								m_led;
@@ -225,6 +230,8 @@ void led_set_light(uint8_t idx, uint8_t target)
 		return;
 	}
 
+	led_start_cnt[idx] = 0;
+	led_timeout_cnt[idx] = 0;
 	led_target[idx] = target;
 	if (target > led_current[idx]) {
 		led_turning[idx] = 1;
@@ -247,6 +254,7 @@ void led_set_light(uint8_t idx, uint8_t target)
 	}
 
 	APP_ERROR_CHECK(app_timer_start(led_dim_timer_id[idx], LED_TIME_STEP_INTERVAL, &led_tag[idx]));
+	led_start_cnt[idx]++;
 }
 
 // Application error handler
@@ -561,12 +569,24 @@ static __INLINE void write_event_handle(ble_evt_t *p_ble_evt)
     }
 }
 
+uint8_t background_test;
+
+static void background_timeout_handler(void *p_context)
+{
+	background_test = 1;
+}
+
 // LED dimmer
 static void led_dim_timeout_handler(void * p_context)
 {
 	uint8_t idx, delta;
 
 	idx = *(uint8_t *)p_context;
+
+	led_timeout_cnt[idx]++;
+	if (led_start_cnt[idx] != led_timeout_cnt[idx]) {
+		delta = 10;
+	}
 
 	led_step_period_remaining[idx]--;
 	if (led_step_period_remaining[idx] == 0) {
@@ -575,7 +595,7 @@ static void led_dim_timeout_handler(void * p_context)
 		} else if (led_turning[idx] == 0xFF) {
 			led_current[idx] -= led_step_size[idx];
 		}
-		nrf_pwm_set_value(idx, led_current[idx]);
+		//nrf_pwm_set_value(idx, led_current[idx]);
 
 		if (led_step_cnt[idx] > 0) {
 			led_step_cnt[idx]--;
@@ -586,6 +606,16 @@ static void led_dim_timeout_handler(void * p_context)
 			led_turning[idx] = 0;
 			if (led_current[idx] != led_target[idx]) {
 				led_error_cnt++;
+			}
+
+			uint8_t idx, all_done = 0;
+			for (idx = 0; idx < 4; idx++) {
+				if (led_step_cnt[idx] == 0) {
+					all_done++;
+				}
+			}
+			if (all_done == 4) {
+				led_done = 1;
 			}
 			return;
 		}
@@ -613,8 +643,7 @@ static void led_dim_timeout_handler(void * p_context)
 
 	if (led_step_cnt[idx] > 0) {
 		APP_ERROR_CHECK(app_timer_start(led_dim_timer_id[idx], LED_TIME_STEP_INTERVAL, &led_tag[idx]));
-	} else {
-		APP_ERROR_CHECK(app_timer_stop(led_dim_timer_id[idx]));
+		led_start_cnt[idx]++;
 	}
 }
 
@@ -645,6 +674,9 @@ static void timers_init(void)
     for (idx = 0; idx < 4; idx++) {
     	APP_ERROR_CHECK(app_timer_create(&(led_dim_timer_id[idx]), APP_TIMER_MODE_SINGLE_SHOT, led_dim_timeout_handler));
     }
+
+    APP_ERROR_CHECK(app_timer_create(&background_timer_id, APP_TIMER_MODE_REPEATED, background_timeout_handler));
+    APP_ERROR_CHECK(app_timer_start(background_timer_id, APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER), NULL));
 }
 
 static uint32_t adv_report_parse(uint8_t type, data_t * p_advdata, data_t * p_typedata)
@@ -1072,11 +1104,12 @@ void intermcu_spi_cb(uint8_t type, uint8_t len, uint8_t *buf)
 /* Initial configuration of peripherals and hardware before the test begins. Calling the main loop. */
 int main(void)
 {
-	nrf_gpio_cfg_input(12, GPIO_PIN_CNF_PULL_Disabled);
+	//nrf_gpio_cfg_input(12, GPIO_PIN_CNF_PULL_Disabled);
 
     // Initialize peripheral
-    board_configure();
+    //board_configure();
 	timers_init();
+	/*
     //intermcu_init(intermcu_spi_cb);
 	ble_stack_init();
     scheduler_init();
@@ -1098,17 +1131,51 @@ int main(void)
     advertising_start();
     scan_start(); 
 
-    nrf_pwm_init(18, 14, 15, 13, PWM_MODE_LED_255);
-    nrf_pwm_set_value(0, 0);
-    nrf_pwm_set_value(1, 0);
-    nrf_pwm_set_value(2, 0);
-    nrf_pwm_set_value(3, 0);
+    //nrf_pwm_init(18, 14, 15, 13, PWM_MODE_LED_255);
+    //nrf_pwm_set_value(0, 0);
+    //nrf_pwm_set_value(1, 0);
+    //nrf_pwm_set_value(2, 0);
+    //nrf_pwm_set_value(3, 0);
 
     //do_work();
     for (;;) {
         app_sched_execute();
         //power_manage();
     }
+    */
+	uint8_t idx, next_target;
+
+	{
+	    NRF_CLOCK->LFCLKSRC = (NRF_CLOCK_LFCLKSRC_RC_250_PPM_8000MS_CALIBRATION << CLOCK_LFCLKSRC_SRC_Pos);
+	    NRF_CLOCK->EVENTS_LFCLKSTARTED = 0;
+	    NRF_CLOCK->TASKS_LFCLKSTART = 1;
+	    while (NRF_CLOCK->EVENTS_LFCLKSTARTED == 0)
+	    {
+	    }
+	    NRF_CLOCK->EVENTS_LFCLKSTARTED = 0;
+	}
+
+	for (idx = 0; idx < 4; idx++) {
+		led_set_light(idx, 0x49);
+	}
+	led_total_cnt++;
+	next_target = 0;
+
+	while (1) {
+		__WFI();
+		if (led_done == 1) {
+			led_done = 0;
+			for (idx = 0; idx < 4; idx++) {
+				led_set_light(idx, next_target);
+			}
+			led_total_cnt++;
+			if (next_target == 0) {
+				next_target = 0x49;
+			} else {
+				next_target = 0;
+			}
+		}
+	}
 }
 
 /**@brief Assert callback handler for SoftDevice asserts. */
