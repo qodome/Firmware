@@ -68,7 +68,6 @@
 
 #define APP_TIMER_PRESCALER                  0                                          /**< Value of the RTC1 PRESCALER register. */
 #define APP_TIMER_MAX_TIMERS                 14                                          /**< Maximum number of simultaneously created timers. */
-#define APP_TIMER_OP_QUEUE_SIZE              8                                          /**< Size of timer operation queues. */
 
 // Try iOS parameter first
 #define PERIPHERAL_IOS_MIN_CONN_INTERVAL            MSEC_TO_UNITS(500, UNIT_1_25_MS)    /* Minimum acceptable connection interval. */
@@ -321,7 +320,7 @@ void schedule_vdd_check(uint16_t delay)
 static void timers_init(void)
 {
 	// Initialize timer module.
-    APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_MAX_TIMERS, APP_TIMER_OP_QUEUE_SIZE, false);
+    APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_MAX_TIMERS, false);
 
     // Create battery timer.
     APP_ERROR_CHECK(app_timer_create(&m_pwrmgmt_timer_id,
@@ -875,6 +874,7 @@ int main(void)
 	static uint32_t  ticks_now = 0;
 	static uint32_t  ticks_diff = 0;
 #endif
+
 	/////////////////////////////////////////////////////
 	//          P r o t e c t    F l a s h             //
 	/////////////////////////////////////////////////////

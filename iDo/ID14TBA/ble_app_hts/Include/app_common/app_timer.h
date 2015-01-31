@@ -53,10 +53,7 @@
 #define APP_TIMER_CLOCK_FREQ         32768                      /**< Clock frequency of the RTC timer used to implement the app timer module. */
 #define APP_TIMER_MIN_TIMEOUT_TICKS  5                          /**< Minimum value of the timeout_ticks parameter of app_timer_start(). */
 
-#define APP_TIMER_NODE_SIZE          40                         /**< Size of app_timer.timer_node_t (only for use inside APP_TIMER_BUF_SIZE()). */
-#define APP_TIMER_USER_OP_SIZE       24                         /**< Size of app_timer.timer_user_op_t (only for use inside APP_TIMER_BUF_SIZE()). */
-#define APP_TIMER_USER_SIZE          8                          /**< Size of app_timer.timer_user_t (only for use inside APP_TIMER_BUF_SIZE()). */
-#define APP_TIMER_INT_LEVELS         3                          /**< Number of interrupt levels from where timer operations may be initiated (only for use inside APP_TIMER_BUF_SIZE()). */
+#define APP_TIMER_NODE_SIZE          36                         /**< Size of app_timer.timer_node_t (only for use inside APP_TIMER_BUF_SIZE()). */
 
 /**@brief Compute number of bytes required to hold the application timer data structures.
  *
@@ -67,15 +64,9 @@
  *
  * @return     Required application timer buffer size (in bytes).
  */
-#define APP_TIMER_BUF_SIZE(MAX_TIMERS, OP_QUEUE_SIZE)                                              \
+#define APP_TIMER_BUF_SIZE(MAX_TIMERS)                                              			   \
     (                                                                                              \
         ((MAX_TIMERS) * APP_TIMER_NODE_SIZE)                                                       \
-        +                                                                                          \
-        (                                                                                          \
-            APP_TIMER_INT_LEVELS                                                                   \
-            *                                                                                      \
-            (APP_TIMER_USER_SIZE + ((OP_QUEUE_SIZE) + 1) * APP_TIMER_USER_OP_SIZE)                 \
-        )                                                                                          \
     )
 
 /**@brief Convert milliseconds to timer ticks.
@@ -140,15 +131,13 @@ typedef enum
  *       several times as long as it is from the same location, e.g. to do a reinitialization).
  */
 /*lint -emacro(506, APP_TIMER_INIT) */ /* Suppress "Constant value Boolean */
-#define APP_TIMER_INIT(PRESCALER, MAX_TIMERS, OP_QUEUES_SIZE, USE_SCHEDULER)                       \
+#define APP_TIMER_INIT(PRESCALER, MAX_TIMERS, USE_SCHEDULER)                       				   \
     do                                                                                             \
     {                                                                                              \
-        static uint32_t APP_TIMER_BUF[CEIL_DIV(APP_TIMER_BUF_SIZE((MAX_TIMERS),                    \
-                                                                  (OP_QUEUES_SIZE) + 1),           \
+        static uint32_t APP_TIMER_BUF[CEIL_DIV(APP_TIMER_BUF_SIZE((MAX_TIMERS)),                   \
                                                sizeof(uint32_t))];                                 \
         uint32_t ERR_CODE = app_timer_init((PRESCALER),                                            \
                                            (MAX_TIMERS),                                           \
-                                           (OP_QUEUES_SIZE) + 1,                                   \
                                            APP_TIMER_BUF,                                          \
                                            (USE_SCHEDULER) ? app_timer_evt_schedule : NULL);       \
         APP_ERROR_CHECK(ERR_CODE);                                                                 \
@@ -180,7 +169,6 @@ typedef enum
  */
 uint32_t app_timer_init(uint32_t                      prescaler, 
                         uint8_t                       max_timers,
-                        uint8_t                       op_queues_size,
                         void *                        p_buffer,
                         app_timer_evt_schedule_func_t evt_schedule_func);
 
