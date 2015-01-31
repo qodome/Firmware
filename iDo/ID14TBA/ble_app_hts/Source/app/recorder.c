@@ -520,6 +520,7 @@ uint8 __recorder_get_boundary_unix_time_callback(uint8 pg_idx, uint8 rec_idx, ui
                             cnt++;
                         }
                     } else if (__recorder_get_current_head_info(pg_idx, rec_idx, &current_ts) == RECORDER_SUCCESS) {
+                    	__recorder_get_current_tail_next_head_info(pg_idx, rec_idx, current_ts, &current_ts, &npage_idx, &nrec_idx, &next_ts);
                         task_param->tail_ts = current_ts;
                         *cb_ret_ptr = RECORDER_SUCCESS;
                         return RECORDER_FOR_RETURN;
@@ -725,6 +726,7 @@ void recorder_API_task(void * p_event_data , uint16_t event_size)
                     // Get next temp and ts
                     if (__recorder_get_current_next_info(rec_read.page_idx, rec_read.record_entry_idx, rec_read.data_entry_idx, &current_temp, &current_ts, &(rec_read.page_idx), &(rec_read.record_entry_idx), &(rec_read.data_entry_idx), &next_temp, &next_ts) != RECORDER_SUCCESS) {
                         qdb.query_valid = 0;
+                        memset((void *)&record_query_result_buffer, 0, sizeof(record_query_result_buffer));
                         return;
                     }
                     if ((current_ts >= next_ts) || ((next_ts - current_ts) > TEMP_SAMPLE_GAP_THRESHOLD)) {
@@ -733,6 +735,7 @@ void recorder_API_task(void * p_event_data , uint16_t event_size)
                         rec_read.page_idx = pg_backup;
                         rec_read.record_entry_idx = rec_backup;
                         rec_read.data_entry_idx = entry_backup;
+                        memset((void *)&record_query_result_buffer, 0, sizeof(record_query_result_buffer));
                         return;
                     }
                     read_cnt++;
@@ -789,6 +792,11 @@ void recorder_API_task(void * p_event_data , uint16_t event_size)
                     qdb.query_start_point_ts = rec_read.unix_ts;
                 }
             }
+        }
+
+        if (qdb.query_valid == 0) {
+        	// Query is invalid, set result to all ZERO
+        	memset((void *)&record_query_result_buffer, 0, sizeof(record_query_result_buffer));
         }
     }
 
@@ -852,6 +860,7 @@ void recorder_get_query_result(struct query_criteria *query_result)
 		}
 	} else {
 		memcpy((void *)query_result, (void *)&record_query_result_buffer, sizeof(record_query_result_buffer));
+	    memset((void *)&record_query_result_buffer, 0xFF, sizeof(record_query_result_buffer));
 		APP_ERROR_CHECK(app_timer_start(m_recorder_task_timer_id, APP_TIMER_TICKS(50, 0), NULL));
 	}
 }
