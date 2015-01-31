@@ -566,6 +566,7 @@ uint8 __recorder_get_boundary_unix_time_callback(uint8 pg_idx, uint8 rec_idx, ui
 #endif
                         }    
                     } else if (__recorder_get_current_head_info(pg_idx, rec_idx, &current_ts) == RECORDER_SUCCESS) {
+                        __recorder_get_current_tail_next_head_info(pg_idx, rec_idx, current_ts, &current_ts, &npage_idx, &nrec_idx, &next_ts);
                         task_param->tail_ts = current_ts;
                         *cb_ret_ptr = RECORDER_SUCCESS;
                         return RECORDER_FOR_RETURN;
