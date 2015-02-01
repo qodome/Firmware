@@ -145,7 +145,6 @@ static void conn_params_negotiation(void)
     if (m_update_count <= 1) {
     	if (m_update_count == 0) {
     		// First connection parameter shall be updated immediately
-    		//timeout_ticks = m_conn_params_config.first_conn_params_update_delay;
     		APP_ERROR_CHECK(app_sched_event_put(NULL, 0, __update_timeout_handler));
     	} else {
     		APP_ERROR_CHECK(app_timer_start(m_conn_params_timer_id, m_conn_params_config.next_conn_params_update_delay, NULL));
