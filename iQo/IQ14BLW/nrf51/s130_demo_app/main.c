@@ -110,8 +110,8 @@ static void advertising_start(void);
 *****************************************************************************/
 
 /**@brief Disable logging to UART by commenting out this line.*/
-#define USE_UART_LOG_INFO   /* Enable to print standard output to UART. */
-#define USE_UART_LOG_DEBUG  /* Enable to print standard output to UART. */
+//#define USE_UART_LOG_INFO   /* Enable to print standard output to UART. */
+//#define USE_UART_LOG_DEBUG  /* Enable to print standard output to UART. */
 
 /**@brief Macro defined to output log data on the UART or not as user information __PRINT or debug __LOG,
                     based on the USE_UART_LOGGING and USE_UART_PRINTING flag. 
@@ -155,7 +155,7 @@ void softdevice_assert_callback(uint32_t pc, uint16_t line_num, const uint8_t *f
 void app_assert_callback(uint32_t line_num, const uint8_t *file_name);
 
 #define LED_TIME_STEP_SIZE					10
-#define LED_TIME_STEP_COUNT					2
+#define LED_TIME_STEP_COUNT					50
 #define LED_TIME_STEP_INTERVAL				APP_TIMER_TICKS(LED_TIME_STEP_SIZE, APP_TIMER_PRESCALER)
 //#define LED_STEP_SIZE						2
 static app_timer_id_t led_dim_timer_id[4];
@@ -595,7 +595,7 @@ static void led_dim_timeout_handler(void * p_context)
 		} else if (led_turning[idx] == 0xFF) {
 			led_current[idx] -= led_step_size[idx];
 		}
-		//nrf_pwm_set_value(idx, led_current[idx]);
+		nrf_pwm_set_value(idx, led_current[idx]);
 
 		if (led_step_cnt[idx] > 0) {
 			led_step_cnt[idx]--;
@@ -1104,12 +1104,12 @@ void intermcu_spi_cb(uint8_t type, uint8_t len, uint8_t *buf)
 /* Initial configuration of peripherals and hardware before the test begins. Calling the main loop. */
 int main(void)
 {
-	//nrf_gpio_cfg_input(12, GPIO_PIN_CNF_PULL_Disabled);
+	nrf_gpio_cfg_input(12, GPIO_PIN_CNF_PULL_Disabled);
 
     // Initialize peripheral
     //board_configure();
 	timers_init();
-	/*
+
     //intermcu_init(intermcu_spi_cb);
 	ble_stack_init();
     scheduler_init();
@@ -1131,51 +1131,17 @@ int main(void)
     advertising_start();
     scan_start(); 
 
-    //nrf_pwm_init(18, 14, 15, 13, PWM_MODE_LED_255);
-    //nrf_pwm_set_value(0, 0);
-    //nrf_pwm_set_value(1, 0);
-    //nrf_pwm_set_value(2, 0);
-    //nrf_pwm_set_value(3, 0);
+    nrf_pwm_init(18, 14, 15, 13, PWM_MODE_LED_255);
+    nrf_pwm_set_value(0, 0);
+    nrf_pwm_set_value(1, 0);
+    nrf_pwm_set_value(2, 0);
+    nrf_pwm_set_value(3, 0);
 
     //do_work();
     for (;;) {
         app_sched_execute();
         //power_manage();
     }
-    */
-	uint8_t idx, next_target;
-
-	{
-	    NRF_CLOCK->LFCLKSRC = (NRF_CLOCK_LFCLKSRC_RC_250_PPM_8000MS_CALIBRATION << CLOCK_LFCLKSRC_SRC_Pos);
-	    NRF_CLOCK->EVENTS_LFCLKSTARTED = 0;
-	    NRF_CLOCK->TASKS_LFCLKSTART = 1;
-	    while (NRF_CLOCK->EVENTS_LFCLKSTARTED == 0)
-	    {
-	    }
-	    NRF_CLOCK->EVENTS_LFCLKSTARTED = 0;
-	}
-
-	for (idx = 0; idx < 4; idx++) {
-		led_set_light(idx, 0x49);
-	}
-	led_total_cnt++;
-	next_target = 0;
-
-	while (1) {
-		__WFI();
-		if (led_done == 1) {
-			led_done = 0;
-			for (idx = 0; idx < 4; idx++) {
-				led_set_light(idx, next_target);
-			}
-			led_total_cnt++;
-			if (next_target == 0) {
-				next_target = 0x49;
-			} else {
-				next_target = 0;
-			}
-		}
-	}
 }
 
 /**@brief Assert callback handler for SoftDevice asserts. */
@@ -1229,6 +1195,7 @@ static void board_configure(void)
 
 /**@brief Logging function, used for formated output on the UART.
  */
+/*
 void uart_logf(const char *fmt, ...)
 {
     uint16_t i = 0;
@@ -1236,7 +1203,8 @@ void uart_logf(const char *fmt, ...)
     va_list args;
     va_start(args, fmt);    
     i = vsnprintf((char*)logf_buf, sizeof(logf_buf) - 1, fmt, args);
-    logf_buf[i] = 0x00; /* Make sure its zero terminated */
+    logf_buf[i] = 0x00;
     uart_write_buf((uint8_t*)logf_buf, i);
     va_end(args);
 }
+*/

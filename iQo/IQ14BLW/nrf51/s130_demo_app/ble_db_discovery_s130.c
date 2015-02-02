@@ -21,7 +21,7 @@ extern void uart_logf(const char *fmt, ...);
 
 #define SRV_DISC_START_HANDLE  0x0001                    /**< The start handle value used during service discovery. */
 #define DB_DISCOVERY_MAX_USERS BLE_DB_DISCOVERY_MAX_SRV  /**< The maximum number of users/registrations allowed by this module. */
-#define DB_LOG                 uart_logf                 /**< A debug logger macro that can be used in this file to do logging information over UART. */
+//#define DB_LOG                 uart_logf                 /**< A debug logger macro that can be used in this file to do logging information over UART. */
 
 /**@brief Array of structures containing information about the registered application modules. */
 static struct
@@ -257,8 +257,8 @@ static void on_srv_disc_completion(ble_db_discovery_t * p_db_discovery)
         // discovery is about to start.
         p_srv_being_discovered->char_count = 0;
 
-        DB_LOG("[DB]: Starting discovery of service with UUID 0x%x for Connection handle %d\r\n",
-               p_srv_being_discovered->srv_uuid.uuid, p_db_discovery->conn_handle);
+        //DB_LOG("[DB]: Starting discovery of service with UUID 0x%x for Connection handle %d\r\n",
+        //       p_srv_being_discovered->srv_uuid.uuid, p_db_discovery->conn_handle);
 
         uint32_t err_code;
 
@@ -672,9 +672,9 @@ static void on_characteristic_discovery_rsp(ble_db_discovery_t * const    p_db_d
         {
             // No more characteristics and descriptors need to be discovered. Discovery is complete.
             // Send a discovery complete event to the user application.
-            DB_LOG("[DB]: Discovery of service with UUID 0x%x completed with success for Connection"
-                   " handle %d\r\n", p_srv_being_discovered->srv_uuid.uuid,
-                   p_db_discovery->conn_handle);
+            //DB_LOG("[DB]: Discovery of service with UUID 0x%x completed with success for Connection"
+            //       " handle %d\r\n", p_srv_being_discovered->srv_uuid.uuid,
+            //       p_db_discovery->conn_handle);
 
             discovery_complete_evt_trigger(p_db_discovery, true);
 
@@ -756,9 +756,9 @@ static void on_descriptor_discovery_rsp(ble_db_discovery_t * const    p_db_disco
 
     if (raise_discov_complete)
     {
-        DB_LOG("[DB]: Discovery of service with UUID 0x%x completed with success for Connection"
-               "handle %d\r\n", p_srv_being_discovered->srv_uuid.uuid,
-               p_db_discovery->conn_handle);
+        //DB_LOG("[DB]: Discovery of service with UUID 0x%x completed with success for Connection"
+        //       "handle %d\r\n", p_srv_being_discovered->srv_uuid.uuid,
+        //       p_db_discovery->conn_handle);
 
         discovery_complete_evt_trigger(p_db_discovery, true);
 
@@ -848,8 +848,8 @@ uint32_t ble_db_discovery_start(ble_db_discovery_t * const p_db_discovery,
 
     p_srv_being_discovered->srv_uuid = m_registered_handlers[p_db_discovery->curr_srv_ind].srv_uuid;
     
-    DB_LOG("[DB]: Starting discovery of service with UUID 0x%x for Connection handle %d\r\n",
-           p_srv_being_discovered->srv_uuid.uuid, p_db_discovery->conn_handle);
+    //DB_LOG("[DB]: Starting discovery of service with UUID 0x%x for Connection handle %d\r\n",
+    //       p_srv_being_discovered->srv_uuid.uuid, p_db_discovery->conn_handle);
     
     uint32_t err_code;
 

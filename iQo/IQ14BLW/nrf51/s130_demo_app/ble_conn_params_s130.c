@@ -26,7 +26,7 @@ static uint16_t               m_conn_handle;            /**< Current connection 
 static ble_gap_conn_params_t  m_current_conn_params;    /**< Connection parameters received in the most recent Connect event. */
 static app_timer_id_t         m_conn_params_timer_id;   /**< Connection parameters timer. */
 
-extern void uart_logf(const char *fmt, ...);
+//extern void uart_logf(const char *fmt, ...);
 
 static void init_preferred_conn_params(void)
 {
@@ -293,7 +293,7 @@ void ble_conn_params_on_ble_evt(ble_evt_t * p_ble_evt)
         case BLE_GAP_EVT_CONN_PARAM_UPDATE_REQUEST:
         	APP_ERROR_CHECK(sd_ble_gap_conn_param_update(p_ble_evt->evt.gap_evt.conn_handle,
         	           	   &p_ble_evt->evt.gap_evt.params.conn_param_update_request.conn_params));
-        	uart_logf("Received conn_param update request from peer, accepted");
+        	//uart_logf("Received conn_param update request from peer, accepted");
         	break;
 
         default:

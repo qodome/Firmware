@@ -10,9 +10,9 @@
 #include "app_trace.h"
 #include "app_error.h"
 
-extern void uart_logf(const char *fmt, ...);
+//extern void uart_logf(const char *fmt, ...);
 
-#define LOG(F, ...)             (uart_logf(F "\r\n", ##__VA_ARGS__))
+//#define LOG(F, ...)             (uart_logf(F "\r\n", ##__VA_ARGS__))
 #define TX_BUFFER_MASK          0x07        /**< TX Buffer mask, must be a mask of continuous zeroes, followed by continuous sequence of ones: 000...111. */
 #define TX_BUFFER_SIZE          (TX_BUFFER_MASK + 1)  /**< Size of send buffer, which is 1 higher than the mask. */
 
@@ -70,14 +70,14 @@ static void tx_buffer_process(void)
         }
         if (err_code == NRF_SUCCESS)
         {
-            LOG("[HTS_C]: SD Read/Write API returns Success..\r\n");
+            //LOG("[HTS_C]: SD Read/Write API returns Success..\r\n");
             m_tx_index++;
             m_tx_index &= TX_BUFFER_MASK;
         }
         else
         {
-            LOG("[HTS_C]: SD Read/Write API returns error. This message sending will be "
-                "attempted again..\r\n");
+            //LOG("[HTS_C]: SD Read/Write API returns error. This message sending will be "
+            //    "attempted again..\r\n");
         }
     }
 }
@@ -125,7 +125,7 @@ static void db_discover_evt_handler(ble_db_discovery_evt_t * p_evt)
                 if (p_evt->params.discovered_db.charateristics[i].characteristic.uuid.uuid ==
                         BLE_UUID_TEMPERATURE_MEASUREMENT_CHAR)
                 {
-                    LOG("[HTS_C]: Health Therometer Service discovered at peer.\r\n");
+                    //LOG("[HTS_C]: Health Therometer Service discovered at peer.\r\n");
                     p_ble_hts_c->hts_cccd_handle =
                         p_evt->params.discovered_db.charateristics[i].cccd_handle;
                     p_ble_hts_c->tm_handle      =
@@ -196,8 +196,8 @@ void ble_hts_c_on_ble_evt(ble_hts_c_t * p_ble_hts_c, const ble_evt_t * p_ble_evt
  */
 static uint32_t cccd_configure(uint16_t conn_handle, uint16_t handle_cccd, bool enable)
 {
-    LOG("[HTS_C]: Configuring CCCD. CCCD Handle = %d, Connection Handle = %d\r\n",
-        handle_cccd,conn_handle);
+    //LOG("[HTS_C]: Configuring CCCD. CCCD Handle = %d, Connection Handle = %d\r\n",
+    //    handle_cccd,conn_handle);
 
     tx_message_t * p_msg;
     uint16_t       cccd_val = enable ? BLE_GATT_HVX_INDICATION : 0;

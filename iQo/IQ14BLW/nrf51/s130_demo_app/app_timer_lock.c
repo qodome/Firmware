@@ -367,11 +367,42 @@ uint32_t app_timer_start(app_timer_id_t timer_id, uint32_t timeout_ticks, void *
 
 uint32_t app_timer_stop(app_timer_id_t timer_id)
 {
+	 uint8_t nested_critical_region;
+	// Check state and parameters
+	if (mp_nodes == NULL) {
+	return NRF_ERROR_INVALID_STATE;
+	}
+	if (timer_id >= m_node_array_size) {
+	return NRF_ERROR_INVALID_PARAM;
+	}
+	if (mp_nodes[timer_id].state != STATE_ALLOCATED) {
+	return NRF_ERROR_INVALID_STATE;
+	}
+	// Backup&&disable interrput to update global timer list
+	sd_nvic_critical_region_enter(&nested_critical_region);
+	mp_nodes[timer_id].is_running = false;
+	// Restore interrupt
+	sd_nvic_critical_region_exit(nested_critical_region);
+	return NRF_SUCCESS;
 }
 
 
 uint32_t app_timer_stop_all(void)
 {
+	int i;
+	uint8_t nested_critical_region;
+	// Check state and parameters
+	if (mp_nodes == NULL) {
+	return NRF_ERROR_INVALID_STATE;
+	}
+	// Backup&&disable interrput to update global timer list
+	sd_nvic_critical_region_enter(&nested_critical_region);
+	for (i = 0; i < m_node_array_size; i++) {
+	mp_nodes[i].is_running = false;
+	}
+	// Restore interrupt
+	sd_nvic_critical_region_exit(nested_critical_region);
+	return NRF_SUCCESS;
 }
 
 
