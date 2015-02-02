@@ -24,6 +24,7 @@ C_SOURCE_FILES += spi_master.c
 C_SOURCE_FILES += app_scheduler.c
 C_SOURCE_FILES += UTCtime_convert.c
 C_SOURCE_FILES += temp_service.c
+C_SOURCE_FILES += acc_service.c
 C_SOURCE_FILES += temp_state.c
 C_SOURCE_FILES += cmd_buffer.c
 C_SOURCE_FILES += ble_radio_notification.c
@@ -36,6 +37,7 @@ C_SOURCE_FILES += dfu_app_handler.c
 C_SOURCE_FILES += ble_flash.c
 C_SOURCE_FILES += ble_qodome_public.c
 C_SOURCE_FILES += pwrmgmt.c
+C_SOURCE_FILES += app_gpiote.c
 
 OUTPUT_FILENAME := ble_app_hts
 

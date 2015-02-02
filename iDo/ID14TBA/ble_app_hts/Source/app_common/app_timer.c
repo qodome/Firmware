@@ -340,6 +340,7 @@ static void app_timer_start_internal(app_timer_id_t timer_id, uint32_t timeout_t
 uint32_t app_timer_start(app_timer_id_t timer_id, uint32_t timeout_ticks, void * p_context)
 {
     uint8_t nested_critical_region;
+    uint8_t skip_mutex = current_int_priority_get() == APP_IRQ_PRIORITY_HIGH ? 1 : 0;
     
     // Check state and parameters
     if (mp_nodes == NULL) {
@@ -353,12 +354,16 @@ uint32_t app_timer_start(app_timer_id_t timer_id, uint32_t timeout_ticks, void *
     }
 
     // Backup&&disable interrput to update global timer list
-    sd_nvic_critical_region_enter(&nested_critical_region);
+    if (skip_mutex == 0) {
+    	sd_nvic_critical_region_enter(&nested_critical_region);
+    }
 
     app_timer_start_internal(timer_id, timeout_ticks, p_context);
 
     // Restore interrupt
-    sd_nvic_critical_region_exit(nested_critical_region);
+    if (skip_mutex == 0) {
+    	sd_nvic_critical_region_exit(nested_critical_region);
+    }
 
     return NRF_SUCCESS;
 }
@@ -366,6 +371,7 @@ uint32_t app_timer_start(app_timer_id_t timer_id, uint32_t timeout_ticks, void *
 uint32_t app_timer_stop(app_timer_id_t timer_id)
 {
     uint8_t nested_critical_region;
+    uint8_t skip_mutex = current_int_priority_get() == APP_IRQ_PRIORITY_HIGH ? 1 : 0;
 
     // Check state and parameters
     if (mp_nodes == NULL) {
@@ -379,12 +385,16 @@ uint32_t app_timer_stop(app_timer_id_t timer_id)
     }
 
     // Backup&&disable interrput to update global timer list
-    sd_nvic_critical_region_enter(&nested_critical_region);
+    if (skip_mutex == 0) {
+    	sd_nvic_critical_region_enter(&nested_critical_region);
+    }
 
     mp_nodes[timer_id].is_running = false;
 
     // Restore interrupt
-    sd_nvic_critical_region_exit(nested_critical_region);
+    if (skip_mutex == 0) {
+    	sd_nvic_critical_region_exit(nested_critical_region);
+    }
 
     return NRF_SUCCESS;
 }
@@ -394,6 +404,7 @@ uint32_t app_timer_stop_all(void)
 {
     int i;
     uint8_t nested_critical_region;
+    uint8_t skip_mutex = current_int_priority_get() == APP_IRQ_PRIORITY_HIGH ? 1 : 0;
 
     // Check state and parameters
     if (mp_nodes == NULL) {
@@ -401,14 +412,18 @@ uint32_t app_timer_stop_all(void)
     }
 
     // Backup&&disable interrput to update global timer list
-    sd_nvic_critical_region_enter(&nested_critical_region);
+    if (skip_mutex == 0) {
+    	sd_nvic_critical_region_enter(&nested_critical_region);
+    }
 
     for (i = 0; i < m_node_array_size; i++) {
         mp_nodes[i].is_running = false;
     }
 
     // Restore interrupt
-    sd_nvic_critical_region_exit(nested_critical_region);
+    if (skip_mutex == 0) {
+    	sd_nvic_critical_region_exit(nested_critical_region);
+    }
 
     return NRF_SUCCESS;
 }

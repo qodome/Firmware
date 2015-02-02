@@ -42,6 +42,7 @@
 #include "spi_master.h"
 #include "UTCtime_convert.h"
 #include "temp_service.h"
+#include "acc_service.h"
 #include "ble_time.h"
 #include "ble_memdump.h"
 #include "temp_state.h"
@@ -58,6 +59,7 @@
 #include "ble_qodome_public.h"
 #include "pwrmgmt.h"
 #include "app_adv.h"
+#include "app_gpiote.h"
 
 #define FIRMWARE_VERSION					"1.1.0(00)"
 #define SOFTWARE_VERSION					"0.0.0"
@@ -100,6 +102,7 @@
 #define SEC_PARAM_MAX_KEY_SIZE               16                                         /**< Maximum encryption key size. */
 
 #define DEAD_BEEF                            0xDEADBEEF                                 /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
+#define APP_GPIOTE_MAX_USERS            	 1				// Two users: ADXL362 INT1/INT2
 
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;   /**< Handle of the current connection. */
 static ble_gap_adv_params_t m_adv_params;                              /**< Parameters to be passed to the stack when starting advertising. */
@@ -861,6 +864,11 @@ static void wdt_init(void)
 	NRF_WDT->TASKS_START = 1;
 }
 
+static void gpiote_init(void)
+{
+    APP_GPIOTE_INIT(APP_GPIOTE_MAX_USERS);
+}
+
 void protect_flash(void)
 {
 	APP_ERROR_CHECK(sd_flash_protect(0, 0xFF800000));
@@ -887,6 +895,7 @@ int main(void)
 	////////////////////////////////////////////////////
 	//wdt_init();
     timers_init();
+    gpiote_init();
     ble_stack_init();
     scheduler_init();
     ble_radio_notification_init(APP_IRQ_PRIORITY_LOW, 0, flash_radio_notification_evt_handler_t);
@@ -897,6 +906,7 @@ int main(void)
 	ble_time_init_timer();
     temp_state_init();
     temp_init_timer_spi();
+    acc_init_timer_io_spi();
     CBInit();
     recorder_init();
     pwrmgmt_init();
