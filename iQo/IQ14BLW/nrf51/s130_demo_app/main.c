@@ -154,8 +154,8 @@ typedef struct
 void softdevice_assert_callback(uint32_t pc, uint16_t line_num, const uint8_t *file_name);
 void app_assert_callback(uint32_t line_num, const uint8_t *file_name);
 
-#define LED_TIME_STEP_SIZE					10
-#define LED_TIME_STEP_COUNT					50
+#define LED_TIME_STEP_SIZE					20
+#define LED_TIME_STEP_COUNT					200
 #define LED_TIME_STEP_INTERVAL				APP_TIMER_TICKS(LED_TIME_STEP_SIZE, APP_TIMER_PRESCALER)
 //#define LED_STEP_SIZE						2
 static app_timer_id_t led_dim_timer_id[4];
@@ -1131,7 +1131,7 @@ int main(void)
     advertising_start();
     scan_start(); 
 
-    nrf_pwm_init(18, 14, 15, 13, PWM_MODE_LED_255);
+    nrf_pwm_init(18, 14, 15, 13, PWM_MODE_MTR_255);
     nrf_pwm_set_value(0, 0);
     nrf_pwm_set_value(1, 0);
     nrf_pwm_set_value(2, 0);
