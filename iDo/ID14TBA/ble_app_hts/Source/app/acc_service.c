@@ -24,7 +24,7 @@ uint8_t acc_started = 0;
 uint16_t acc_int_cnt = 0;
 uint16_t acc_act_cnt = 0;
 uint16_t acc_inact_cnt = 0;
-uint8_t acc_working_mode = 1;
+uint8_t acc_working_mode = 0;
 uint8_t acc_status;
 
 uint8_t acc_service_spi_read(uint8_t addr)
@@ -211,9 +211,11 @@ void acc_init_timer_io_spi(void)
 
     APP_ERROR_CHECK(app_timer_start(m_acc_timer_id, APP_TIMER_TICKS(200, 0), NULL));
 
-    nrf_gpio_pin_dir_set(8, NRF_GPIO_PIN_DIR_INPUT);
+    if (acc_working_mode != 0) {
+    	nrf_gpio_pin_dir_set(8, NRF_GPIO_PIN_DIR_INPUT);
 
-    APP_ERROR_CHECK(app_gpiote_user_register(&m_gpio_uid, int1_low_to_high_bitmask, high_to_low_bitmask, int1_gpiote_event_handler));
-    APP_ERROR_CHECK(app_gpiote_user_enable(m_gpio_uid));
+    	APP_ERROR_CHECK(app_gpiote_user_register(&m_gpio_uid, int1_low_to_high_bitmask, high_to_low_bitmask, int1_gpiote_event_handler));
+    	APP_ERROR_CHECK(app_gpiote_user_enable(m_gpio_uid));
+    }
 }
 
