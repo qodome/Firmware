@@ -229,6 +229,8 @@ void acc_init_timer_io_spi(void)
     	return;
     }
 
+    // FIXME: first stop acc, then soft reset???
+
     acc_service_spi_write(0x2D, 0x00);
     if (acc_working_mode == 0) {
         acc_service_spi_write(0x28, 0x02);
