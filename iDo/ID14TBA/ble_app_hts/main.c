@@ -893,7 +893,7 @@ int main(void)
     ////////////////////////////////////////////////////
 	//      I n i t i a l i z e    S y s t e m        //
 	////////////////////////////////////////////////////
-	//wdt_init();
+	wdt_init();
     timers_init();
     gpiote_init();
     ble_stack_init();
