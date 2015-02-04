@@ -404,11 +404,11 @@ bStatus_t DevInfo_AddService( void )
     		devInfoSerialNumber[idx * 3 + 2] = ':';
     	}
     }
-    devInfoFirmwareRev[0] = '0';                        // FIXME: change this to 1 for release image
+    devInfoFirmwareRev[0] = '1';                        // FIXME: change this to 1 for release image
     devInfoFirmwareRev[1] = '.';
     devInfoFirmwareRev[2] = '0';
     devInfoFirmwareRev[3] = '.';
-    devInfoFirmwareRev[4] = '0';
+    devInfoFirmwareRev[4] = '1';
     devInfoFirmwareRev[5] = '(';
     //osal_memcpy(devInfoFirmwareRev, str_list, 6);
     devInfoFirmwareRev[6] = bin_to_ascii((OAD_IMAGE_VERSION >> 4) & 0x0F);
