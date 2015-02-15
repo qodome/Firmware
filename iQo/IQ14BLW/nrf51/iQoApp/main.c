@@ -35,6 +35,7 @@
 
 /* Addresses of peer peripherals that are expeted to run Heart Rate Service. */
 #define NUMBER_OF_PERIPHERALS                   1
+#define IS_SRVC_CHANGED_CHARACT_PRESENT      	0
 
 /* Services on Peripherals */
 #define HEART_RATE_SERVICE                      0x180D
@@ -1445,7 +1446,14 @@ static void ble_stack_init(void)
     LOG_DEBUG("%s: Enabling SoftDevice...", __FUNCTION__);
 
     // Initialize the SoftDevice handler module.
-    SOFTDEVICE_HANDLER_INIT(NRF_CLOCK_LFCLKSRC_XTAL_20_PPM, false);
+    SOFTDEVICE_HANDLER_INIT(NRF_CLOCK_LFCLKSRC_RC_250_PPM_8000MS_CALIBRATION, false);
+
+    // Enable BLE stack
+    ble_enable_params_t ble_enable_params;
+    memset(&ble_enable_params, 0, sizeof(ble_enable_params));
+    ble_enable_params.gatts_enable_params.service_changed = IS_SRVC_CHANGED_CHARACT_PRESENT;
+    err_code = sd_ble_enable(&ble_enable_params);
+    APP_ERROR_CHECK(err_code);
 
     // Register with the SoftDevice handler module for BLE events.
     err_code = softdevice_ble_evt_handler_set(ble_evt_dispatch);
