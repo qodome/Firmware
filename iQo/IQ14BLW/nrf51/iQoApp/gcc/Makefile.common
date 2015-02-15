@@ -27,10 +27,15 @@ ifeq ($(LINKER_SCRIPT),)
 			else
 				ifeq ($(USE_SOFTDEVICE), S130)
 					LINKER_SCRIPT = gcc_nrf51_s130_xxaa.ld
-					OUTPUT_FILENAME := $(OUTPUT_FILENAME)_$(DEVICE_VARIANT)
+					OUTPUT_FILENAME := $(OUTPUT_FILENAME)_s130_$(DEVICE_VARIANT)
 				else
-					LINKER_SCRIPT = gcc_$(DEVICESERIES)_blank_$(DEVICE_VARIANT).ld
-					OUTPUT_FILENAME := $(OUTPUT_FILENAME)_$(DEVICE_VARIANT)
+					ifeq ($(USE_SOFTDEVICE), S130_FLASH)
+						LINKER_SCRIPT = gcc_nrf51_s130_flash_xxaa.ld
+						OUTPUT_FILENAME := $(OUTPUT_FILENAME)_s130_$(DEVICE_VARIANT)
+					else
+						LINKER_SCRIPT = gcc_$(DEVICESERIES)_blank_$(DEVICE_VARIANT).ld
+						OUTPUT_FILENAME := $(OUTPUT_FILENAME)_$(DEVICE_VARIANT)
+					endif
 				endif
 			endif
 		endif
@@ -63,7 +68,7 @@ ASSEMBLER_SOURCE_FILES += gcc_startup_$(DEVICESERIES).s
 #LDFLAGS += -L"$(GNU_INSTALL_ROOT)/arm-none-eabi/lib/armv6-m"
 #LDFLAGS += -L"$(GNU_INSTALL_ROOT)/lib/gcc/arm-none-eabi/$(GNU_VERSION)/armv6-m"
 LDFLAGS += -Xlinker -Map=$(LISTING_DIRECTORY)/$(OUTPUT_FILENAME).map
-LDFLAGS += -mcpu=$(CPU) -mthumb -mabi=aapcs -L $(TEMPLATE_PATH) -T$(LINKER_SCRIPT) 
+LDFLAGS += -mcpu=$(CPU) -mthumb -mabi=aapcs -T$(LINKER_SCRIPT) 
 
 # Compiler flags
 CFLAGS += -mcpu=$(CPU) -mthumb -mabi=aapcs -D$(DEVICE) -D$(BOARD) -D$(TARGET_CHIP) --std=gnu99
@@ -76,7 +81,6 @@ ASMFLAGS += -x assembler-with-cpp
 INCLUDEPATHS += -I"../"
 INCLUDEPATHS += -I"$(SDK_PATH)Include"
 INCLUDEPATHS += -I"$(SDK_PATH)Include/gcc"
-INCLUDEPATHS += -I"$(SDK_PATH)Include/ext_sensors"
 
 # Sorting removes duplicates
 BUILD_DIRECTORIES := $(sort $(OBJECT_DIRECTORY) $(OUTPUT_BINARY_DIRECTORY) $(LISTING_DIRECTORY) )
@@ -103,15 +107,15 @@ vpath %.s $(ASSEMBLER_SOURCE_PATHS)
 -include $(addprefix $(OBJECT_DIRECTORY)/, $(COBJS:.o=.d))
 
 ### Targets
-debug:    CFLAGS += -DDEBUG -g3 -O0
-debug:    ASMFLAGS += -DDEBUG -g3 -O0
-debug:    $(OUTPUT_BINARY_DIRECTORY)/$(OUTPUT_FILENAME).hex
+debug:    CFLAGS += -DDEBUG -g -O0
+debug:    ASMFLAGS += -DDEBUG -g -O0
+debug:    $(OUTPUT_BINARY_DIRECTORY)/$(OUTPUT_FILENAME).bin $(OUTPUT_BINARY_DIRECTORY)/$(OUTPUT_FILENAME).hex
 
 .PHONY: release
 release: clean
 release:  CFLAGS += -DNDEBUG -O3
 release:  ASMFLAGS += -DNDEBUG -O3
-release:  $(OUTPUT_BINARY_DIRECTORY)/$(OUTPUT_FILENAME).hex
+release:  $(OUTPUT_BINARY_DIRECTORY)/$(OUTPUT_FILENAME).bin $(OUTPUT_BINARY_DIRECTORY)/$(OUTPUT_FILENAME).hex
 
 echostuff:
 	@echo C_OBJECTS: [$(C_OBJECTS)]

@@ -16,6 +16,8 @@ iMo/IM14BEA/nRF51822/bootloader/gcc/_build/*
 iMo/IM14BEA/nRF51822/bootloader/gcc/Makefile.custom
 iQo/IQ14BLW/nrf51/s130_demo_app/gcc/_build/*
 iQo/IQ14BLW/nrf51/s130_demo_app/gcc/Makefile.custom
+iQo/IQ14BLW/nrf51/iQoBoot/gcc/_build/*
+iQo/IQ14BLW/nrf51/iQoApp/gcc/_build/*
 iDo/ID14TB/hts/_old_iDo-OAD-ImgA/*
 iDo/ID14TB/hts/_old_iDo-OAD-ImgB/*
 iDo/ID14TB/hts/_old_iDo-ImgA-for-flash/*

@@ -26,7 +26,7 @@ ifeq ($(LINKER_SCRIPT),)
 				OUTPUT_FILENAME := $(OUTPUT_FILENAME)_$(DEVICE_VARIANT)
 			else
 				ifeq ($(USE_SOFTDEVICE), S130)
-					LINKER_SCRIPT = gcc_nrf51_s130_xxaa.ld
+					LINKER_SCRIPT = gcc_nrf51_s130_bootloader_xxaa.ld
 					OUTPUT_FILENAME := $(OUTPUT_FILENAME)_$(DEVICE_VARIANT)
 				else
 					LINKER_SCRIPT = gcc_$(DEVICESERIES)_blank_$(DEVICE_VARIANT).ld
