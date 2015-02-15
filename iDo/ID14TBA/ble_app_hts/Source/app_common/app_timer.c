@@ -426,7 +426,8 @@ uint32_t app_timer_stop(app_timer_id_t timer_id)
     	}
 		mp_nodes[timer_id_idx].next = TIMER_NULL;
     } else {
-    	persistent_record_error(PERSISTENT_ERROR_TIMER2, (uint32_t)timer_id);
+    	// Timer not started yet, not error!
+    	//persistent_record_error(PERSISTENT_ERROR_TIMER2, (uint32_t)timer_id);
     }
 
     // Restore interrupt

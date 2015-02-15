@@ -55,25 +55,20 @@ void temp_service_set_tm_intreval(uint16_t interval)
 
 void temp_tm_start(void)
 {
-	uint32_t err_code;
-
 	m_tm_enabled = true;
 
-	err_code = app_timer_start(m_it_timer_id, m_it_timeout_ticks, NULL);
-	APP_ERROR_CHECK(err_code);
-
-	err_code = app_timer_start(m_tm_timer_id, m_tm_interval_ticks, NULL);
-	APP_ERROR_CHECK(err_code);
+	APP_ERROR_CHECK(app_timer_stop(m_it_timer_id));
+	APP_ERROR_CHECK(app_timer_start(m_it_timer_id, m_it_timeout_ticks, NULL));
+	APP_ERROR_CHECK(app_timer_stop(m_tm_timer_id));
+	APP_ERROR_CHECK(app_timer_start(m_tm_timer_id, m_tm_interval_ticks, NULL));
 }
 
 void temp_it_start(void)
 {
-	uint32_t err_code;
-
 	m_it_enabled = true;
 
-	err_code = app_timer_start(m_it_timer_id, m_it_timeout_ticks, NULL);
-	APP_ERROR_CHECK(err_code);
+	APP_ERROR_CHECK(app_timer_stop(m_it_timer_id));
+	APP_ERROR_CHECK(app_timer_start(m_it_timer_id, m_it_timeout_ticks, NULL));
 }
 
 void temp_tm_stop(void)
