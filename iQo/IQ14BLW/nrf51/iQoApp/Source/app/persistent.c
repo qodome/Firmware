@@ -83,7 +83,7 @@ void persistent_init(void)
 	uint8_t i, j;
 	uint8_t buf[16], buf2[4];
 	uint32_t magic32 = 0xEFBEADDE;		// reverse DEADBEEF
-	uint32_t ido2Name1 = 0x326F4469;	// reverse iDo2
+	uint32_t ido2Name1 = 0x006F5169;	// reverse iQo
 	uint32_t ido2Name2 = 0x00000000;	// string end
 	uint32_t tmp32;
 	uint32_t buf32[64];

@@ -884,6 +884,9 @@ int main(void)
 	static uint32_t  ticks_diff = 0;
 #endif
 
+	// FIXME: component initialization dependencies!
+	// FIXME: add memdump address range protection!
+
 	/////////////////////////////////////////////////////
 	//          P r o t e c t    F l a s h             //
 	/////////////////////////////////////////////////////

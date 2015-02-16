@@ -163,9 +163,6 @@ void flash_radio_notification_evt_handler_t(bool radio_active)
 	if (app_sched_event_put(NULL, 0, flash_time_to_shoot) != NRF_SUCCESS) {
 		flash_interrupt_schedule_fail_cnt++;
 	}
-
-	// Ask battery if need to measure battery level
-	battery_on_radio_off_evt();
 }
 
 // This function will be called in app_scheduler

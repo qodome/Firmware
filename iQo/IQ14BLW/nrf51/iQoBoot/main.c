@@ -241,7 +241,7 @@ int main(void)
     }
 
     // Initialize watchdog
-    //wdt_init();
+    wdt_init();
 
     // This check ensures that the defined fields in the bootloader corresponds with actual
     // setting in the nRF51 chip.
@@ -259,7 +259,7 @@ int main(void)
 
         ble_stack_init(!app_reset);
         scheduler_init();
-        //watchdog_timer_start();
+        watchdog_timer_start();
 
         err_code = bootloader_dfu_sd_update_finalize();
         APP_ERROR_CHECK(err_code);
@@ -269,7 +269,7 @@ int main(void)
         // If stack is present then continue initialization of bootloader.
         ble_stack_init(!app_reset);
         scheduler_init();
-        //watchdog_timer_start();
+        watchdog_timer_start();
     }
 
     dfu_start  = app_reset;

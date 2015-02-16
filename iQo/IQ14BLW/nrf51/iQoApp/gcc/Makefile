@@ -12,14 +12,18 @@ C_SOURCE_FILES += app_scheduler.c
 C_SOURCE_FILES += ble_advdata.c
 C_SOURCE_FILES += ble_conn_params_s130.c
 C_SOURCE_FILES += ble_db_discovery.c
-C_SOURCE_FILES += ble_hts_c.c
 C_SOURCE_FILES += nrf_pwm.c
 C_SOURCE_FILES += ble_led.c
+C_SOURCE_FILES += ble_iqo.c
+C_SOURCE_FILES += ble_iqo_c.c
 C_SOURCE_FILES += spi_slave.c
 C_SOURCE_FILES += intermcu_spi.c
 C_SOURCE_FILES += persistent.c
 C_SOURCE_FILES += flash_helper.c
 C_SOURCE_FILES += bootloader_util_gcc.c
+C_SOURCE_FILES += led_service.c
+C_SOURCE_FILES += ble_radio_notification.c
+C_SOURCE_FILES += ble_flash.c
 
 OUTPUT_FILENAME := iQoApp
 
