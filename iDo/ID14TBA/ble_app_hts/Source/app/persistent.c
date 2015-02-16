@@ -32,25 +32,20 @@ uint8_t persistent_flash_first_page(void)
 
 static uint8 __persistent_mark_bit_map(uint8_t *buf, uint8_t len)
 {
-	uint8_t i, j, flag, count = 0;
+	uint8_t i, j, count = 0;
 
 	if (len >= 32) {
 		return 0xFF;
 	}
 
 	for (i = 0; i < len; i++) {
-		flag = 0;
 		for (j = 0; j < 8; j++) {
 			if ((buf[i] & (1 << j)) == (1 << j)) {
 				buf[i] &= ~(1 << j);
-				flag = 1;
-				break;
+				return count;
 			} else {
 				count++;
 			}
-		}
-		if (flag == 1) {
-			break;
 		}
 	}
 
@@ -134,13 +129,25 @@ void persistent_init(void)
 void persistent_flash_backup_prepare(uint16_t offset, uint8_t *buf, uint16_t len)
 {
 	uint32_t buf32[64];
-	uint8_t i;
+	uint8_t i, j;
 
 	HalFlashErase(pidx + 1);
 	for (i = 0; i < 4; i++) {
 		HalFlashRead(pidx, i * 256, (uint8_t *)buf32, 256);
 		if (i == 0) {
 			buf32[0] = 0xFFFFADDE;
+		}
+		// Cleanup old power mgmt data
+		if (offset == 520) {
+			if (i == 2) {
+				for (j = 2; j < 64; j++) {
+					buf32[j] = 0xFFFFFFFF;
+				}
+			} else if (i == 3) {
+				for (j = 0; j < 64; j++) {
+					buf32[j] = 0xFFFFFFFF;
+				}
+			}
 		}
 		if ((offset / 256) == (uint16_t)i) {
 			memcpy((((uint8_t *)buf32) + (uint32_t)(offset % 256)), buf, len);
@@ -220,10 +227,11 @@ void persistent_pwrmgmt_set_latest(struct pwrmgmt_data *pwr_ptr)
     HalFlashRead(pidx, (uint16_t)u32, (uint8_t *)&pwr_idx_bits, 4);
 	count = __persistent_get_idx_from_bit_map((uint8_t *)&pwr_idx_bits, 4);
 	if (count < PERSISTENT_PWR_MAX) {
-		count = __persistent_mark_bit_map((uint8_t *)&pwr_idx_bits, 4);
-		HalFlashWrite(pidx, (uint16_t)u32, (uint8_t *)&pwr_idx_bits, 4);
 		u32 = (uint32)&(((struct persistent_page *)0)->pwr_log[count]);
 		HalFlashWrite(pidx, (uint16_t)u32, (uint8_t *)pwr_ptr, sizeof(struct pwrmgmt_data));
+		__persistent_mark_bit_map((uint8_t *)&pwr_idx_bits, 4);
+		u32 = (uint32)&(((struct persistent_page *)0)->pwr_idx_bits[0]);
+		HalFlashWrite(pidx, (uint16_t)u32, (uint8_t *)&pwr_idx_bits, 4);
 	} else {
 		flash_trigger_refresh_pwr_mgmt_info(pwr_ptr);
 	}

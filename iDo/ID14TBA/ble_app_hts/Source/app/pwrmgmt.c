@@ -248,9 +248,11 @@ uint8 pwrmgmt_battery_percent(void)
 
 void pwrmgmt_flash_dump(void)
 {
-    pwrmgmt_glean_stats();
-    pd.battery_voltage = battery_get_last_measure();
-    persistent_pwrmgmt_set_latest(&pd);
+    if (pinit_done == 1) {
+        pwrmgmt_glean_stats();
+        pd.battery_voltage = battery_get_last_measure();
+        persistent_pwrmgmt_set_latest(&pd);
+    }
 }
 
 void pwrmgmt_on_conn_params_evt(ble_conn_params_evt_t * p_evt)

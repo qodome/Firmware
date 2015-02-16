@@ -25,7 +25,7 @@ struct pwrmgmt_data {
     uint32  connect_cnt;
     uint32  connected_pkt_cnt;
     uint32  temp_sample_cnt;
-};
+} __attribute__((packed));
 
 typedef void (*pwrmgmt_callback_t)(void);
 
