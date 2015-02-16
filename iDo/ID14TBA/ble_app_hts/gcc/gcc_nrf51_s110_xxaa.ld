@@ -5,7 +5,7 @@ GROUP(-lgcc -lc -lnosys)
 
 MEMORY
 {
-  FLASH (rx) : ORIGIN = 0x00016000, LENGTH = 0xEC00 
+  FLASH (rx) : ORIGIN = 0x00016000, LENGTH = 0xF000					/* FIXME: each time modified code, check hex file to make sure image size does not exceed limit! */
   RAM (rwx) :  ORIGIN = 0x20002000, LENGTH = 0x2000 
 }
 
