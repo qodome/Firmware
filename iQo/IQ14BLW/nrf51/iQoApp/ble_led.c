@@ -14,17 +14,24 @@
 #include "app_util.h"
 #include "app_error.h"
 
+extern bool is_central(uint16_t conn_handle);
+
 uint8_t led_pwm[4] = {0, 0, 0, 0};
 
 static void on_connect(ble_led_t * p_led, ble_evt_t * p_ble_evt)
 {
-	p_led->conn_handle = p_ble_evt->evt.gatts_evt.conn_handle;
+	if (p_ble_evt->evt.gap_evt.params.connected.role == BLE_GAP_ROLE_PERIPH) {
+		p_led->conn_handle = p_ble_evt->evt.gatts_evt.conn_handle;
+	}
 }
 
 static void on_disconnect(ble_led_t * p_led, ble_evt_t * p_ble_evt)
 {
     UNUSED_PARAMETER(p_ble_evt);
-    p_led->conn_handle = BLE_CONN_HANDLE_INVALID;
+
+    if (is_central(p_ble_evt->evt.gap_evt.conn_handle)) {
+    	p_led->conn_handle = BLE_CONN_HANDLE_INVALID;
+    }
 }
 
 extern void led_set_light(uint8_t idx, uint8_t target);

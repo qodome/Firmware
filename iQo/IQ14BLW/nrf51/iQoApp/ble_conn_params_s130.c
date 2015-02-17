@@ -18,6 +18,7 @@
 #include "ble_srv_common.h"
 #include "app_util.h"
 
+extern bool is_central(uint16_t conn_handle);
 
 static ble_conn_params_init_t m_conn_params_config;     /**< Configuration as specified by the application. */
 static ble_gap_conn_params_t  m_preferred_conn_params;  /**< Connection parameters preferred by the application. */
@@ -195,18 +196,20 @@ static void conn_params_negotiation(void)
 
 static void on_connect(ble_evt_t * p_ble_evt)
 {
-    // Save connection parameters
-    m_conn_handle         = p_ble_evt->evt.gap_evt.conn_handle;
-    m_current_conn_params = p_ble_evt->evt.gap_evt.params.connected.conn_params;
-    m_update_count        = 0;  // Connection parameter negotiation should re-start every connection
+	if (p_ble_evt->evt.gap_evt.params.connected.role == BLE_GAP_ROLE_PERIPH) {
+		// Save connection parameters
+		m_conn_handle         = p_ble_evt->evt.gap_evt.conn_handle;
+		m_current_conn_params = p_ble_evt->evt.gap_evt.params.connected.conn_params;
+		m_update_count        = 0;  // Connection parameter negotiation should re-start every connection
 
-    init_preferred_conn_params();
+		init_preferred_conn_params();
 
-    // Check if we shall handle negotiation on connect
-    if (m_conn_params_config.start_on_notify_cccd_handle == BLE_GATT_HANDLE_INVALID)
-    {
-        conn_params_negotiation();
-    }
+		// Check if we shall handle negotiation on connect
+		if (m_conn_params_config.start_on_notify_cccd_handle == BLE_GATT_HANDLE_INVALID)
+		{
+			conn_params_negotiation();
+		}
+	}
 }
 
 
@@ -214,15 +217,16 @@ static void on_disconnect(ble_evt_t * p_ble_evt)
 {
     uint32_t err_code;
 
-    m_conn_handle = BLE_CONN_HANDLE_INVALID;
+    if (is_central(p_ble_evt->evt.gap_evt.conn_handle)) {
+    	m_conn_handle = BLE_CONN_HANDLE_INVALID;
 
-    // Stop timer if running
-    m_update_count = 0; // Connection parameters updates should happen during every connection
+    	// Stop timer if running
+    	m_update_count = 0; // Connection parameters updates should happen during every connection
 
-    err_code = app_timer_stop(m_conn_params_timer_id);
-    if ((err_code != NRF_SUCCESS) && (m_conn_params_config.error_handler != NULL))
-    {
-        m_conn_params_config.error_handler(err_code);
+    	err_code = app_timer_stop(m_conn_params_timer_id);
+    	if ((err_code != NRF_SUCCESS) && (m_conn_params_config.error_handler != NULL)) {
+    		m_conn_params_config.error_handler(err_code);
+    	}
     }
 }
 

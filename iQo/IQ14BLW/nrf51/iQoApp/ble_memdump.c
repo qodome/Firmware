@@ -13,17 +13,24 @@
 #include "app_util.h"
 #include "app_error.h"
 
+extern bool is_central(uint16_t conn_handle);
+
 uint32_t memdump_addr = 0;
 
 static void on_connect(ble_memdump_t * p_memdump, ble_evt_t * p_ble_evt)
 {
-	p_memdump->conn_handle = p_ble_evt->evt.gatts_evt.conn_handle;
+	if (p_ble_evt->evt.gap_evt.params.connected.role == BLE_GAP_ROLE_PERIPH) {
+		p_memdump->conn_handle = p_ble_evt->evt.gatts_evt.conn_handle;
+	}
 }
 
 static void on_disconnect(ble_memdump_t * p_memdump, ble_evt_t * p_ble_evt)
 {
     UNUSED_PARAMETER(p_ble_evt);
-    p_memdump->conn_handle = BLE_CONN_HANDLE_INVALID;
+
+    if (is_central(p_ble_evt->evt.gap_evt.conn_handle)) {
+    	p_memdump->conn_handle = BLE_CONN_HANDLE_INVALID;
+    }
 }
 
 static void on_write(ble_memdump_t * p_memdump, ble_evt_t * p_ble_evt)

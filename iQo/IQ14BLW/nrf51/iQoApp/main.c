@@ -128,6 +128,9 @@ uint8_t *last_error_file_name = NULL;
 uint8_t flash_write_w_backup_status = 0;
 uint8_t flash_write_w_backup_data[24];
 
+uint16_t temp_notify_cnt = 0;
+uint16_t acc_notify_cnt = 0;
+
 extern ble_iqo_id_t iqo_tgt_identify;
 
 static const ble_gap_conn_params_t m_connection_param =
@@ -290,12 +293,9 @@ ble_iqo_c_t *peripheral_get_iqo_c(uint16_t conn_handle)
 
 bool is_central(uint16_t conn_handle)
 {
-    if (conn_handle == gs_central.conn_handle)
-    {
+    if (conn_handle == gs_central.conn_handle) {
         return true;
-    }
-    else
-    {
+    } else {
         return false;
     }
 }
@@ -357,7 +357,7 @@ static void iqo_c_evt_handler(ble_iqo_c_t * p_iqo_c, ble_iqo_c_evt_t * p_iqo_c_e
             break;
 
         case BLE_IQO_C_EVT_IT_NOTIFY:
-            //FIXME
+        	temp_notify_cnt++;
             break;
 
         case BLE_IQO_C_EVT_DISCOVERY_ACC_COMPLETE:
@@ -365,7 +365,7 @@ static void iqo_c_evt_handler(ble_iqo_c_t * p_iqo_c, ble_iqo_c_evt_t * p_iqo_c_e
             break;
 
         case BLE_IQO_C_EVT_ACC_NOTIFY:
-            //FIXME
+            acc_notify_cnt++;
             break;
 
         default:

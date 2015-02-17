@@ -1,7 +1,7 @@
 TARGET_CHIP := NRF51822_QFAA_CA
 BOARD := BOARD_NRF6310
 
-include ./Makefile.custom
+SDK_PATH := ../
 
 # application source
 C_SOURCE_FILES += main.c

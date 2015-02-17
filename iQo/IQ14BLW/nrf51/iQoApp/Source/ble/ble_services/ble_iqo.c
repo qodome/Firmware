@@ -8,6 +8,8 @@
 #include "app_util_platform.h"
 #include "ble_iqo.h"
 
+extern bool is_central(uint16_t conn_handle);
+
 ble_iqo_cmd_t iqo_tgt_cmd;
 ble_iqo_id_t iqo_tgt_identify;
 ble_iqo_t *iqo_ptr = NULL;
@@ -16,13 +18,18 @@ extern void scan_start(void);
 
 static void on_connect(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
 {
-	p_iqo->conn_handle = p_ble_evt->evt.gatts_evt.conn_handle;
+	if (p_ble_evt->evt.gap_evt.params.connected.role == BLE_GAP_ROLE_PERIPH) {
+		p_iqo->conn_handle = p_ble_evt->evt.gatts_evt.conn_handle;
+	}
 }
 
 static void on_disconnect(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
 {
     UNUSED_PARAMETER(p_ble_evt);
-    p_iqo->conn_handle = BLE_CONN_HANDLE_INVALID;
+
+    if (is_central(p_ble_evt->evt.gap_evt.conn_handle)) {
+    	p_iqo->conn_handle = BLE_CONN_HANDLE_INVALID;
+    }
 }
 
 static void on_write(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
