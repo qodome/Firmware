@@ -31,6 +31,7 @@ static void on_write(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
 
     if (p_evt_write->handle == p_iqo->iqo_identify_handle.value_handle) {
         memcpy(&(iqo_tgt_identify.id[0]), p_evt_write->data, p_evt_write->len);
+        iqo_tgt_identify.id[p_evt_write->len] = 0;
     } else if (p_evt_write->handle == p_iqo->iqo_cmd_handle.value_handle) {
         // FIXME: parse the command!
         scan_start();

@@ -7,7 +7,7 @@
  * up to three peer peripheral devices running Heart Rate Service (a sample application from SDK) for the nRF51822 evaluation board (PCA10001).
  * Average value of each of peer peripheral can be sent to peer central as notifications.
  */
- 
+
 #include <stdint.h>
 #include <string.h>
 #include <stdarg.h>
@@ -68,8 +68,8 @@
 #define PERIPHERAL_IOS_SLAVE_LATENCY                1                                   /* Slave latency. */
 #define PERIPHERAL_IOS_CONN_SUP_TIMEOUT             MSEC_TO_UNITS(4000, UNIT_10_MS)     /* Connection supervisory timeout. */
 // Parameter update
-#define PERIPHERAL_FIRST_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)  
-#define PERIPHERAL_NEXT_CONN_PARAMS_UPDATE_DELAY    APP_TIMER_TICKS(3000, APP_TIMER_PRESCALER) 
+#define PERIPHERAL_FIRST_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
+#define PERIPHERAL_NEXT_CONN_PARAMS_UPDATE_DELAY    APP_TIMER_TICKS(3000, APP_TIMER_PRESCALER)
 #define WATCHDOG_KICK_PERIOD          				APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
 #define PERIPHERAL_MAX_CONN_PARAMS_UPDATE_COUNT     1
 
@@ -101,7 +101,7 @@
  */
 #define MSEC_TO_UNITS(TIME, RESOLUTION) (((TIME) * 1000) / (RESOLUTION))
 
-/**@brief Local function prototypes. 
+/**@brief Local function prototypes.
  */
 static void advertising_start(void);
 
@@ -115,11 +115,6 @@ static void advertising_start(void);
             (*(DST)) <<= 8;                                                                      \
             (*(DST)) |= (SRC)[0];                                                                \
         } while(0)
-
-typedef struct {
-    uint8_t *p_data;
-    uint16_t data_len;
-} data_t;
 
 static ble_led_t m_led;
 static ble_iqo_t m_iqo;
@@ -149,7 +144,7 @@ static const ble_gap_conn_params_t m_connection_param =
 #define DATA_BUFFER_SIZE                   12 /* Size of bufer that collects HTS data from one peripheral. */
 
 #define TX_BUFFER_READY                    1 /* TX buffer empty. */
-#define TX_BUFFER_BUSY                     0 /* TX buffer in use. */                               
+#define TX_BUFFER_BUSY                     0 /* TX buffer in use. */
 
 static uint8_t gs_tx_buffer = TX_BUFFER_READY;
 
@@ -216,7 +211,7 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 // Start scan for device
 void scan_start(void)
 {
-    m_scan_param.active = 0;
+    m_scan_param.active = 1;
     m_scan_param.selective = 0;
     m_scan_param.interval = SCAN_INTERVAL;
     m_scan_param.window = SCAN_WINDOW;
@@ -253,7 +248,7 @@ static void peripheral_info_reset(uint16_t peripheral_id)
 static void peripherals_info_reset(void)
 {
     uint16_t peripheral_id = ID_NOT_FOUND;
-    
+
     for (peripheral_id = 0; peripheral_id < NUMBER_OF_PERIPHERALS; peripheral_id++) {
         peripheral_info_reset(peripheral_id);
     }
@@ -263,7 +258,7 @@ static void peripherals_info_reset(void)
 static uint16_t peripheral_id_get(uint16_t conn_handle)
 {
     uint8_t i = 0;
-    
+
     for (i = 0; i < NUMBER_OF_PERIPHERALS; i++) {
         if (conn_handle == gs_peripheral[i].conn_handle) {
             return i;
@@ -354,27 +349,6 @@ static void timers_init(void)
     APP_ERROR_CHECK(app_timer_start(m_watchdog_timer_id, WATCHDOG_KICK_PERIOD, NULL));
 }
 
-static uint32_t adv_report_parse(uint8_t type, data_t * p_advdata, data_t * p_typedata)
-{
-    uint32_t index = 0;
-    uint8_t * p_data;
-
-    p_data = p_advdata->p_data;
-
-    while (index < p_advdata->data_len) {
-        uint8_t field_length = p_data[index];
-        uint8_t field_type = p_data[index+1];
-
-        if (field_type == type) {
-            p_typedata->p_data = &p_data[index+2];
-            p_typedata->data_len = field_length-1;
-            return NRF_SUCCESS;
-        }
-        index += field_length+1;
-    }
-    return NRF_ERROR_NOT_FOUND;
-}
-
 static void iqo_c_evt_handler(ble_iqo_c_t * p_iqo_c, ble_iqo_c_evt_t * p_iqo_c_evt)
 {
     switch (p_iqo_c_evt->evt_type) {
@@ -406,60 +380,32 @@ static void iqo_c_init(uint16_t conn_handle)
 
     iqo_c_init_obj.evt_handler = iqo_c_evt_handler;
 
-    uint32_t err_code = ble_iqo_c_init(conn_handle, 
-                                        (peripheral_id == ID_NOT_FOUND) ? NULL : &(gs_peripheral[peripheral_id].iqo_c), 
+    uint32_t err_code = ble_iqo_c_init(conn_handle,
+                                        (peripheral_id == ID_NOT_FOUND) ? NULL : &(gs_peripheral[peripheral_id].iqo_c),
                                         &iqo_c_init_obj);
     APP_ERROR_CHECK(err_code);
 }
 
 static void on_ble_evt(ble_evt_t * p_ble_evt)
 {
-    data_t adv_data;
-    data_t type_data;
-    uint32_t err_code = NRF_SUCCESS;
     const ble_gap_evt_t *p_gap_evt = &p_ble_evt->evt.gap_evt;
 
     switch (p_ble_evt->header.evt_id)
     {
-        case BLE_GAP_EVT_SCAN_REQ_REPORT:
-
-            break;
-
         case BLE_GAP_EVT_ADV_REPORT:
-            // Initialize advertisement report for parsing.
-            adv_data.p_data = (uint8_t *)p_gap_evt->params.adv_report.data;
-            adv_data.data_len = p_gap_evt->params.adv_report.dlen;
+        	// Check scan response with full name
+        	if (p_gap_evt->params.adv_report.scan_rsp == 1 && p_gap_evt->params.adv_report.data[1] == 0x09) {
+        		if (memcmp(&(p_gap_evt->params.adv_report.data[2]), &(iqo_tgt_identify.id[0]), (uint32_t)(p_gap_evt->params.adv_report.data[0] - 1)) == 0 &&
+        			iqo_tgt_identify.id[p_gap_evt->params.adv_report.data[0] - 1] == 0) {
+            		// Stop scan
+            		APP_ERROR_CHECK(sd_ble_gap_scan_stop());
 
-            err_code = adv_report_parse(BLE_GAP_AD_TYPE_16BIT_SERVICE_UUID_MORE_AVAILABLE,
-                                        &adv_data,
-                                        &type_data);
-            if (err_code != NRF_SUCCESS) {
-                // Compare short local name in case complete name does not match.
-                err_code = adv_report_parse(BLE_GAP_AD_TYPE_16BIT_SERVICE_UUID_COMPLETE,
-                                            &adv_data,
-                                            &type_data);
-            }
-
-            // Verify if short or complete name matches target.
-            if (err_code == NRF_SUCCESS) {
-                uint16_t extracted_uuid;
-
-                // UUIDs found, look for matching UUID
-                for (uint32_t u_index = 0; u_index < (type_data.data_len/UUID16_SIZE); u_index++) {
-                    UUID16_EXTRACT(&extracted_uuid,&type_data.p_data[u_index * UUID16_SIZE]);
-
-                    if(extracted_uuid == TARGET_UUID) {
-                        // Stop scanning.
-                        APP_ERROR_CHECK(sd_ble_gap_scan_stop());
-                        
-                        // Initiate connection.
-                        APP_ERROR_CHECK(sd_ble_gap_connect(&p_gap_evt->params.adv_report.peer_addr,
-                                                       &m_scan_param,
-                                                       &m_connection_param));
-                        break;
-                    }
-                }
-            }
+            		// Initiate connection.
+            		APP_ERROR_CHECK(sd_ble_gap_connect(&p_gap_evt->params.adv_report.peer_addr,
+            											&m_scan_param,
+            		                                    &m_connection_param));
+        		}
+        	}
             break;
 
         case BLE_GAP_EVT_CONNECTED:
