@@ -129,11 +129,6 @@ static void timers_init(void)
                                 watchdog_timeout_handler));
 }
 
-static void watchdog_timer_start(void)
-{
-	APP_ERROR_CHECK(app_timer_start(m_watchdog_timer_id, WATCHDOG_KICK_PERIOD, NULL));
-}
-
 /**@brief Function for dispatching a BLE stack event to all modules with a BLE stack event handler.
  *
  * @details This function is called from the scheduler in the main loop after a BLE stack
@@ -145,7 +140,6 @@ static void sys_evt_dispatch(uint32_t event)
 {
     pstorage_sys_event_handler(event);
 }
-
 
 /**@brief Function for initializing the BLE stack.
  *
@@ -259,7 +253,7 @@ int main(void)
 
         ble_stack_init(!app_reset);
         scheduler_init();
-        watchdog_timer_start();
+    	APP_ERROR_CHECK(app_timer_start(m_watchdog_timer_id, WATCHDOG_KICK_PERIOD, NULL));
 
         err_code = bootloader_dfu_sd_update_finalize();
         APP_ERROR_CHECK(err_code);
@@ -269,7 +263,7 @@ int main(void)
         // If stack is present then continue initialization of bootloader.
         ble_stack_init(!app_reset);
         scheduler_init();
-        watchdog_timer_start();
+    	APP_ERROR_CHECK(app_timer_start(m_watchdog_timer_id, WATCHDOG_KICK_PERIOD, NULL));
     }
 
     dfu_start  = app_reset;

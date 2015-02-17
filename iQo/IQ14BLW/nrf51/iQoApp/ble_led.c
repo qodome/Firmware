@@ -6,23 +6,13 @@
  */
 
 #include "ble_led.h"
+#include "ble_iqo.h"
 #include <string.h>
 #include "nordic_common.h"
 #include "ble_l2cap.h"
 #include "ble_srv_common.h"
 #include "app_util.h"
 #include "app_error.h"
-
-extern uint8_t led_uuid_type;
-
-/**@brief 128-bit UUID base List. */
-static const ble_uuid128_t qodome_base_uuid128 =
-{
-   {
-       0x20, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF
-   }
-};
 
 uint8_t led_pwm[4] = {0, 0, 0, 0};
 
@@ -129,8 +119,7 @@ static uint32_t hts_led_char_add(ble_led_t * p_led, uint8_t uuid_type)
     char_md.p_cccd_md        = NULL;
     char_md.p_sccd_md        = NULL;
 
-    ble_uuid.type = uuid_type;
-    ble_uuid.uuid = BLE_UUID_LED_CHAR;
+    BLE_UUID_BLE_ASSIGN(ble_uuid, BLE_UUID_IQO_LED_CHAR);
 
     memset(&attr_md, 0, sizeof(attr_md));
 
@@ -169,14 +158,7 @@ uint32_t ble_led_init(ble_led_t * p_led)
     p_led->conn_handle = BLE_CONN_HANDLE_INVALID;
 
     // Add service
-    ble_uuid.uuid = BLE_UUID_LED_SERVICE;
-    err_code = sd_ble_uuid_vs_add(&qodome_base_uuid128, &ble_uuid.type);
-    if (err_code != NRF_SUCCESS)
-    {
-        return err_code;
-    }
-
-    led_uuid_type = ble_uuid.type;
+    BLE_UUID_BLE_ASSIGN(ble_uuid, BLE_UUID_IQO_SERVICE);
 
     err_code = sd_ble_gatts_service_add(BLE_GATTS_SRVC_TYPE_PRIMARY, &ble_uuid, &p_led->service_handle);
     if (err_code != NRF_SUCCESS)

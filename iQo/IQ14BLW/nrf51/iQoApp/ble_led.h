@@ -13,9 +13,6 @@
 #include "ble.h"
 #include "ble_srv_common.h"
 
-#define BLE_UUID_LED_SERVICE    0x2014
-#define BLE_UUID_LED_CHAR       0x1212
-
 // Forward declaration of the ble_led_t type.
 typedef struct ble_led_s ble_led_t;
 

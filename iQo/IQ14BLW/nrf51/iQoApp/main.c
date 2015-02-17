@@ -70,6 +70,7 @@
 // Parameter update
 #define PERIPHERAL_FIRST_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)  
 #define PERIPHERAL_NEXT_CONN_PARAMS_UPDATE_DELAY    APP_TIMER_TICKS(3000, APP_TIMER_PRESCALER) 
+#define WATCHDOG_KICK_PERIOD          				APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER)
 #define PERIPHERAL_MAX_CONN_PARAMS_UPDATE_COUNT     1
 
 #define SCAN_INTERVAL                           MSEC_TO_UNITS(100, UNIT_0_625_MS) /* Scan interval between 2.5ms to 10.24s  (100 ms).*/
@@ -124,7 +125,7 @@ static ble_led_t m_led;
 static ble_iqo_t m_iqo;
 static ble_memdump_t m_memdump;
 static ble_gap_scan_params_t m_scan_param;
-uint8_t led_uuid_type = 0;
+static app_timer_id_t m_watchdog_timer_id;
 
 uint16_t error_cnt = 0;
 uint32_t last_error_code = 0;
@@ -334,10 +335,23 @@ static void services_init(void)
     APP_ERROR_CHECK(ble_led_init(&m_led));
 }
 
+// Watchdog timeout handler
+static void watchdog_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+    NRF_WDT->RR[0] = 0x6E524635;  //Reload watchdog register 0
+}
+
 // Initialize timer module
 static void timers_init(void)
 {
     APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_MAX_TIMERS, false);
+
+    // Create watchdog timer.
+    APP_ERROR_CHECK(app_timer_create(&m_watchdog_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                watchdog_timeout_handler));
+    APP_ERROR_CHECK(app_timer_start(m_watchdog_timer_id, WATCHDOG_KICK_PERIOD, NULL));
 }
 
 static uint32_t adv_report_parse(uint8_t type, data_t * p_advdata, data_t * p_typedata)
@@ -567,14 +581,20 @@ static void gap_params_init(void)
 {
     ble_gap_conn_params_t   gap_conn_params;
     ble_gap_conn_sec_mode_t sec_mode;
-    uint8_t					dev_name[21];
+    //uint8_t					dev_name[21];
 
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec_mode);
 
+    /*
     persistent_get_dev_name(dev_name);
     APP_ERROR_CHECK(sd_ble_gap_device_name_set(&sec_mode,
             		(const uint8_t *)dev_name,
             		strlen((char *)dev_name)));
+	*/
+#define DEVICE_NAME                             "iQo"
+    APP_ERROR_CHECK(sd_ble_gap_device_name_set(&sec_mode,
+    				(const uint8_t *)DEVICE_NAME,
+                    strlen(DEVICE_NAME)));
 
     APP_ERROR_CHECK(sd_ble_gap_appearance_set(BLE_APPEARANCE_UNKNOWN));
 
@@ -592,10 +612,9 @@ static void advertising_init(void)
 {
     ble_advdata_t advdata;      // flag, appearance, service
     ble_advdata_t srdata;       // full device name
-    uint8_t       flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
+    uint8_t flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
 
-    // FIXME: battery service is the place holder for Smart Lamp
-    ble_uuid_t adv_uuids[] = {{BLE_UUID_LED_SERVICE, led_uuid_type}};
+    ble_uuid_t adv_uuids[] = {{BLE_UUID_IQO_SERVICE, BLE_UUID_TYPE_BLE}};
 
     // Build and set advertising data
     memset(&advdata, 0, sizeof(advdata));

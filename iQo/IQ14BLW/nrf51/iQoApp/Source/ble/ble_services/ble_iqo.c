@@ -156,6 +156,7 @@ uint32_t ble_iqo_init(ble_iqo_t * p_iqo)
 
     // Initialize service structure
     p_iqo->conn_handle = BLE_CONN_HANDLE_INVALID;
+
     // Add service
     BLE_UUID_BLE_ASSIGN(ble_uuid, BLE_UUID_IQO_SERVICE);
 

@@ -13,6 +13,7 @@
 #define BLE_UUID_IQO_SERVICE    	0x90D0
 #define BLE_UUID_IQO_CMD_CHAR   	0x9002
 #define BLE_UUID_IQO_IDENTIFY_CHAR  0x9003
+#define BLE_UUID_IQO_LED_CHAR  		0x9004
 
 typedef struct ble_iqo_s ble_iqo_t;
 typedef void (*ble_iqo_evt_handler_t) (ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt);
