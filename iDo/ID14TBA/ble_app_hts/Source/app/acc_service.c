@@ -34,10 +34,6 @@ uint16_t acc_act_cnt = 0;
 uint16_t acc_inact_cnt = 0;
 uint8_t acc_working_mode = 1;
 uint8_t acc_status;
-uint32_t acc_report_ts = 0;
-uint8_t acc_report_gravity = 0;
-uint32_t acc_current_ts = 0;
-uint8_t acc_current_gravity = 0;
 
 uint8_t acc_service_spi_read(uint8_t addr)
 {
@@ -117,7 +113,7 @@ static void acc_timeout_handler(void * p_context)
     UNUSED_PARAMETER(p_context);
     uint16_t acc_fifo_sample_cnt;
     uint8_t pkt_cnt;
-    uint8_t pkt[8];
+    uint8_t pkt[1];
 
     if (acc_service_spi_read(0x00) != 0xAD) {
     	persistent_record_error(PERSISTENT_ERROR_ADXL362, 1);
@@ -183,20 +179,15 @@ static void acc_timeout_handler(void * p_context)
             sd_ble_gatts_hvx(acc_ptr->conn_handle, &hvx_params);
         }
 #else
-        if (date_time_initialized() == 0) {
-        	return;
-        }
-        if (acc_report_ts != 0) {
+        acc_status = acc_service_spi_read(0x0B);
+        if (acc_status & 0x40) {
         	uint16_t               hvx_len;
         	ble_gatts_hvx_params_t hvx_params;
-        	ble_date_time_t time;
 
-        	hvx_len = 8;
+        	hvx_len = 1;
 
         	memset(&hvx_params, 0, sizeof(hvx_params));
-        	pkt[0] = acc_report_gravity;
-        	osal_ConvertUTCTime(&time, acc_report_ts);
-        	ble_date_time_encode(&time, &pkt[1]);
+        	pkt[0] = acc_status;
 
         	hvx_params.handle = acc_ptr->acc_data_handle.value_handle;
         	hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
@@ -205,16 +196,6 @@ static void acc_timeout_handler(void * p_context)
         	hvx_params.p_data = pkt;
 
         	sd_ble_gatts_hvx(acc_ptr->conn_handle, &hvx_params);
-        }
-        acc_status = acc_service_spi_read(0x0B);
-        if (acc_status & 0x40) {
-        	acc_current_gravity++;
-        }
-        acc_current_ts = date_time_get_wall();
-        if (acc_current_ts >= (acc_report_ts + 300)) {
-        	acc_report_ts = acc_current_ts;
-        	acc_report_gravity = acc_current_gravity;
-        	acc_current_gravity = 0;
         }
 #endif
     }

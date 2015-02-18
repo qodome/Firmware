@@ -1,7 +1,7 @@
 TARGET_CHIP := NRF51822_QFAA_CA
 BOARD := BOARD_IMO
 
-SDK_PATH := ../
+include Makefile.custom
 
 C_SOURCE_FILES += main.c
 C_SOURCE_FILES += pstorage.c

@@ -61,7 +61,7 @@
 #include "app_adv.h"
 #include "app_gpiote.h"
 
-#define FIRMWARE_VERSION					"1.1.0(00)"
+#define FIRMWARE_VERSION					"1.1.0(01)"
 #define SOFTWARE_VERSION					"0.0.0"
 
 #define IS_SRVC_CHANGED_CHARACT_PRESENT      0                                          /**< Include or not the service_changed characteristic. if not enabled, the server's database cannot be changed for the lifetime of the device*/
