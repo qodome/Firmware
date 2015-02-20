@@ -141,6 +141,7 @@ static uint32_t iqo_identify_char_add(ble_iqo_t * p_iqo)
     attr_md.vlen       = 1;
 
     memset(&iqo_tgt_identify, 0, sizeof(ble_iqo_id_t));
+    memcpy(&(iqo_tgt_identify.id[0]), "Ting's ACC1", 11);
 
     attr_char_value.p_uuid    = &ble_uuid;
     attr_char_value.p_attr_md = &attr_md;

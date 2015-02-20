@@ -19,4 +19,6 @@ void intermcu_init(intermcu_spi_recv_cb spi_recv_cb);
  */
 uint32_t intermcu_spi_transaction(uint8_t *tx_buffer, uint16_t tx_len);
 
+void intermcu_notify_acc(void);
+
 #endif

@@ -20,10 +20,18 @@
 #define NRF51_TO_RT5350_MAIL_IO				7
 #define RT5350_TO_NRF51_MAIL_IO				6
 
+#define NRF_CMD_POLL			0x00
+
+#define NRF_IDLE_NOTIFY			0x20
+#define NRF_ACC_NOTIFY			0x21
+#define NRF_TEMP_NOTIFY			0x22
+
 enum intermcu_state {
 	IO_INVALID = 0,
 	IO_INIT,
-	IO_UP,
+	IO_UP1,
+	IO_DOWN1,
+	IO_UP2,
 	IO_CONNECTED,
 	IO_HEADER_IN_PROGRESS,
 	IO_HEADER_RECEIVED,
@@ -47,6 +55,11 @@ enum intermcu_state intermcu_init_state = IO_INVALID;
 uint32_t init_state_cnt = 0;
 struct intermcu_header magic_header;
 
+uint16_t intermcu_abnormal_cnt1 = 0;
+uint16_t intermcu_abnormal_cnt2 = 0;
+
+static uint8_t intermcu_notify_acc_flag = 0;
+
 /*
  * FIXME: run callback in background thread!
  */
@@ -58,8 +71,18 @@ static void spi_slave_event_handle(spi_slave_evt_t event)
         	intermcu_init_state = IO_HEADER_RECEIVED;
         } else if (intermcu_init_state == IO_PAYLOAD_IN_PROGRESS) {
         	intermcu_init_state = IO_PAYLOAD_RECEIVED;
+        } else {
+        	intermcu_abnormal_cnt1++;
+        	intermcu_init_state = IO_INVALID;
+        	nrf_gpio_pin_clear(NRF51_TO_RT5350_MAIL_IO);
+        	init_state_cnt = 0;
         }
     }
+}
+
+void intermcu_notify_acc(void)
+{
+	intermcu_notify_acc_flag = 1;
 }
 
 // Initialize IO
@@ -81,6 +104,8 @@ static void roni_init(void)
 // When timer time happens, toggle GPIO to raise interrupt
 static void intermcu_timeout_handler(void * p_context)
 {
+	uint8_t buf[20];
+
 	if (intermcu_init_state < IO_CONNECTED) {
 		if (intermcu_init_state == IO_INVALID) {
 			if (nrf_gpio_pin_read(RT5350_TO_NRF51_MAIL_IO) == 0) {
@@ -88,16 +113,37 @@ static void intermcu_timeout_handler(void * p_context)
 			}
 		} else if (intermcu_init_state == IO_INIT) {
 			if (nrf_gpio_pin_read(RT5350_TO_NRF51_MAIL_IO) == 1) {
-				intermcu_init_state = IO_UP;
+				intermcu_init_state = IO_UP1;
 				init_state_cnt = 0;
 			}
-		} else if (intermcu_init_state == IO_UP) {
+		} else if (intermcu_init_state == IO_UP1) {
 			if (nrf_gpio_pin_read(RT5350_TO_NRF51_MAIL_IO) == 1) {
 				init_state_cnt++;
 			} else {
-				if ((init_state_cnt >= 20) && (init_state_cnt <= 40)) {
+				if ((init_state_cnt >= 5) && (init_state_cnt <= 20)) {
+					intermcu_init_state = IO_DOWN1;
+				} else {
+					intermcu_init_state = IO_INIT;
+				}
+				init_state_cnt = 0;
+			}
+		} else if (intermcu_init_state == IO_DOWN1) {
+			if (nrf_gpio_pin_read(RT5350_TO_NRF51_MAIL_IO) == 0) {
+				init_state_cnt++;
+			} else {
+				if ((init_state_cnt >= 5) && (init_state_cnt <= 20)) {
+					intermcu_init_state = IO_UP2;
+				} else {
+					intermcu_init_state = IO_INIT;
+				}
+				init_state_cnt = 0;
+			}
+		} else if (intermcu_init_state == IO_UP2) {
+			if (nrf_gpio_pin_read(RT5350_TO_NRF51_MAIL_IO) == 1) {
+				init_state_cnt++;
+			} else {
+				if ((init_state_cnt >= 5) && (init_state_cnt <= 20)) {
 					intermcu_init_state = IO_CONNECTED;
-					init_state_cnt = 0;
 					rino_init();
 				} else {
 					intermcu_init_state = IO_INIT;
@@ -106,13 +152,14 @@ static void intermcu_timeout_handler(void * p_context)
 			}
 		} else {
 			intermcu_init_state = IO_INVALID;
+			init_state_cnt = 0;
 		}
 	} else {
 		// Handle commands from RT5350
 		if (intermcu_init_state == IO_CONNECTED) {
 			if (nrf_gpio_pin_read(RT5350_TO_NRF51_MAIL_IO) == 1) {
 				// Prepare SPI transaction
-				intermcu_spi_transaction(m_tx_buf, 2);
+				APP_ERROR_CHECK(intermcu_spi_transaction(m_tx_buf, 2));
 
 				// Setup flag to tell RT5350 we are ready!
 				nrf_gpio_pin_set(NRF51_TO_RT5350_MAIL_IO);
@@ -126,8 +173,19 @@ static void intermcu_timeout_handler(void * p_context)
 			intermcu_init_state = IO_WAIT_FOR_PAYLOAD;
 		} else if (intermcu_init_state == IO_WAIT_FOR_PAYLOAD) {
 			if (nrf_gpio_pin_read(RT5350_TO_NRF51_MAIL_IO) == 1) {
-				// Prepare SPI transaction
-				intermcu_spi_transaction(m_tx_buf, magic_header.len);
+				// Check command type
+				if (magic_header.type == NRF_CMD_POLL) {
+					if (intermcu_notify_acc_flag == 1) {
+						intermcu_notify_acc_flag = 0;
+						buf[0] = NRF_ACC_NOTIFY;
+					} else {
+						buf[0] = NRF_IDLE_NOTIFY;
+					}
+					APP_ERROR_CHECK(intermcu_spi_transaction(buf, magic_header.len));
+				} else {
+					// FIXME: RT5350 has command sent to us
+					APP_ERROR_CHECK(intermcu_spi_transaction(buf, magic_header.len));
+				}
 
 				// Setup flag to tell RT5350 we are ready!
 				nrf_gpio_pin_set(NRF51_TO_RT5350_MAIL_IO);
@@ -140,9 +198,19 @@ static void intermcu_timeout_handler(void * p_context)
 	        }
 			nrf_gpio_pin_clear(NRF51_TO_RT5350_MAIL_IO);
 			intermcu_init_state = IO_WAIT_PEER_IDLE;
+			init_state_cnt = 0;
 		} else if (intermcu_init_state == IO_WAIT_PEER_IDLE) {
 			if (nrf_gpio_pin_read(RT5350_TO_NRF51_MAIL_IO) == 0) {
 				intermcu_init_state = IO_CONNECTED;
+				init_state_cnt = 0;
+			} else {
+				init_state_cnt++;
+				if (init_state_cnt > 20) {
+		        	intermcu_abnormal_cnt2++;
+		        	intermcu_init_state = IO_INVALID;
+		        	nrf_gpio_pin_clear(NRF51_TO_RT5350_MAIL_IO);
+		        	init_state_cnt = 0;
+				}
 			}
 		}
 	}

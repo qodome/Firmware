@@ -55,4 +55,7 @@ void ble_iqo_c_on_ble_evt(ble_iqo_c_t * p_ble_iqo_c, const ble_evt_t * p_ble_evt
 uint32_t ble_iqo_c_temp_enable(ble_iqo_c_t * p_ble_iqo_c);
 uint32_t ble_iqo_c_acc_enable(ble_iqo_c_t * p_ble_iqo_c);
 
+// Setup DB discovery
+uint32_t ble_iqo_c_setup(void);
+
 #endif

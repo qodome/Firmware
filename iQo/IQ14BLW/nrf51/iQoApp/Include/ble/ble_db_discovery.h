@@ -160,18 +160,6 @@ typedef void (* ble_db_discovery_evt_handler_t)(ble_db_discovery_evt_t * p_evt);
  */
 uint32_t ble_db_discovery_init(void);
 
-
-/**@brief Function for closing the DB Discovery module.
- *
- * @details This function will clear up any internal variables and states maintained by the
- *          module. To re-use the module after calling this function, the function @ref
- *          ble_db_discovery_init must be called again.
- *
- * @retval  NRF_SUCCESS                 Operation success.
- */
-uint32_t ble_db_discovery_close(void);
-
-
 /**@brief Function for registering with the DB Discovery module.
  *
  * @details   The application can use this function to inform which service it is interested in 

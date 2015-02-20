@@ -79,7 +79,7 @@
 
 // Application Timer
 #define APP_TIMER_PRESCALER             0                                           /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_MAX_TIMERS            8                                           /**< Maximum number of simultaneously created timers. */
+#define APP_TIMER_MAX_TIMERS            9                                           /**< Maximum number of simultaneously created timers. */
 
 // Scheduler
 #define SCHED_MAX_EVENT_DATA_SIZE       sizeof(app_timer_event_t)                   /**< Maximum size of scheduler events. Note that scheduler BLE stack events do not contain any data, as the events are being pulled from the stack in the event handler. */
@@ -131,6 +131,7 @@ uint8_t flash_write_w_backup_data[24];
 uint16_t temp_notify_cnt = 0;
 uint16_t acc_notify_cnt = 0;
 
+extern uint8_t debug_cnt[16];
 extern ble_iqo_id_t iqo_tgt_identify;
 
 static const ble_gap_conn_params_t m_connection_param =
@@ -291,6 +292,16 @@ ble_iqo_c_t *peripheral_get_iqo_c(uint16_t conn_handle)
     return NULL;
 }
 
+ble_db_discovery_t *peripheral_get_db(uint16_t conn_handle)
+{
+    for (uint8_t i = 0; i < NUMBER_OF_PERIPHERALS; i++) {
+        if (gs_peripheral[i].conn_handle == conn_handle) {
+            return &(gs_peripheral[i].db_discovery);
+        }
+    }
+    return NULL;
+}
+
 bool is_central(uint16_t conn_handle)
 {
     if (conn_handle == gs_central.conn_handle) {
@@ -328,6 +339,7 @@ static void services_init(void)
     APP_ERROR_CHECK(ble_iqo_init(&m_iqo));
     APP_ERROR_CHECK(ble_memdump_init(&m_memdump));
     APP_ERROR_CHECK(ble_led_init(&m_led));
+    APP_ERROR_CHECK(ble_iqo_c_setup());
 }
 
 // Watchdog timeout handler
@@ -366,6 +378,7 @@ static void iqo_c_evt_handler(ble_iqo_c_t * p_iqo_c, ble_iqo_c_evt_t * p_iqo_c_e
 
         case BLE_IQO_C_EVT_ACC_NOTIFY:
             acc_notify_cnt++;
+            intermcu_notify_acc();
             break;
 
         default:
@@ -388,6 +401,7 @@ static void iqo_c_init(uint16_t conn_handle)
 
 static void on_ble_evt(ble_evt_t * p_ble_evt)
 {
+	uint16_t peripheral_id = ID_NOT_FOUND;
     const ble_gap_evt_t *p_gap_evt = &p_ble_evt->evt.gap_evt;
 
     switch (p_ble_evt->header.evt_id)
@@ -404,6 +418,8 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             		APP_ERROR_CHECK(sd_ble_gap_connect(&p_gap_evt->params.adv_report.peer_addr,
             											&m_scan_param,
             		                                    &m_connection_param));
+
+            		debug_cnt[6]++;
         		}
         	}
             break;
@@ -423,6 +439,8 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
 
                 // Initialize collector
                 iqo_c_init(p_ble_evt->evt.gap_evt.conn_handle);
+
+                debug_cnt[7]++;
             }
             break;
 
@@ -433,7 +451,11 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
                 central_info_reset();
                 advertising_start();
             } else {
-                // Try reconnect ???
+            	if ((peripheral_id = peripheral_id_get(p_ble_evt->evt.gap_evt.conn_handle)) != ID_NOT_FOUND) {
+            		peripheral_info_reset(peripheral_id);
+            	}
+            	scan_start();
+            	debug_cnt[8]++;
             }
             break;
 
@@ -686,9 +708,9 @@ int main(void)
     /////////////////////////////////////////////////////
     gap_params_init();
     advertising_init();
+    db_discovery_init();
     services_init();
     conn_params_init();
-    db_discovery_init();
     peripherals_info_reset();
     central_info_reset();
 

@@ -15,13 +15,14 @@
 #include "nrf_error.h"
 #include "ble.h"
 #include "app_trace.h"
+#include "app_error.h"
+#include "app_timer.h"
 #include "nordic_common.h"
-
-extern void uart_logf(const char *fmt, ...);
 
 #define SRV_DISC_START_HANDLE  0x0001                    /**< The start handle value used during service discovery. */
 #define DB_DISCOVERY_MAX_USERS BLE_DB_DISCOVERY_MAX_SRV  /**< The maximum number of users/registrations allowed by this module. */
-#define DB_LOG                 uart_logf                 /**< A debug logger macro that can be used in this file to do logging information over UART. */
+
+#define DB_DISCOVERY_INTERVAL               APP_TIMER_TICKS(1000, 0)
 
 /**@brief Array of structures containing information about the registered application modules. */
 static struct
@@ -46,7 +47,9 @@ static uint32_t m_pending_usr_evt_index;    /**< The index to the pending user e
 static uint32_t m_num_of_handlers_reg;      /**< The number of handlers registered with the DB Discovery module. */
 static uint32_t m_num_of_discoveries_made;  /**< The total number of service discoveries (successful or unsuccessful) made since initialization. */
 static bool     m_initialized = false;      /**< This variable Indicates if the module is initialized or not. */
+static app_timer_id_t m_db_discovery_timer;
 
+uint8_t debug_cnt[16];
 extern bool is_central(uint16_t conn_handle);
 
 /**@brief     Function for fetching the event handler provided by a registered application module.
@@ -105,7 +108,7 @@ static void pending_user_evts_send(void)
 {
     uint32_t i;
 
-    for (i = 0; i < m_num_of_handlers_reg; i++)
+    for (i = 0; i < m_pending_usr_evt_index; i++)
     {
         // Pass the event to the corresponding event handler.
         m_pending_user_evts[i].evt_handler(&(m_pending_user_evts[i].evt));
@@ -150,16 +153,7 @@ static void discovery_error_evt_trigger(ble_db_discovery_t * const p_db_discover
 
             m_pending_usr_evt_index++;
 
-            if (m_pending_usr_evt_index == m_num_of_handlers_reg)
-            {
-                // All registered modules have pending events.
-                // Send all pending events to the user modules.
-                pending_user_evts_send();
-            }
-        }
-        else
-        {
-            // Too many events pending. Do nothing. (Ideally this should not happen.)
+            pending_user_evts_send();
         }
     }
 }
@@ -211,16 +205,7 @@ static void discovery_complete_evt_trigger(ble_db_discovery_t * const p_db_disco
 
             m_pending_usr_evt_index++;
 
-            if (m_pending_usr_evt_index == m_num_of_handlers_reg)
-            {
-                // All registered modules have pending events. Send all pending events to the user
-                // modules.
-                pending_user_evts_send();
-            }
-            else
-            {
-                // Too many events pending. Do nothing. (Ideally this should not happen.)
-            }
+            pending_user_evts_send();
         }
     }
 }
@@ -235,50 +220,32 @@ static void discovery_complete_evt_trigger(ble_db_discovery_t * const p_db_disco
  */
 static void on_srv_disc_completion(ble_db_discovery_t * p_db_discovery)
 {
+    ble_db_discovery_srv_t *p_srv_being_discovered;
     m_num_of_discoveries_made++;
 
-    // Check if more services need to be discovered.
-    if (m_num_of_discoveries_made < m_num_of_handlers_reg)
-    {
-        // Reset the current characteristic index since a new service discovery is about to start.
+    if (m_num_of_discoveries_made < m_num_of_handlers_reg) {
         p_db_discovery->curr_char_ind = 0;
-
-        // Initiate discovery of the next service.
         p_db_discovery->curr_srv_ind++;
 
-        ble_db_discovery_srv_t * p_srv_being_discovered;
-
         p_srv_being_discovered = &(p_db_discovery->services[p_db_discovery->curr_srv_ind]);
-
         p_srv_being_discovered->srv_uuid =
             m_registered_handlers[p_db_discovery->curr_srv_ind].srv_uuid;
 
-        // Reset the characteristic count in the current service to zero since a new service
-        // discovery is about to start.
         p_srv_being_discovered->char_count = 0;
 
         uint32_t err_code;
 
-        err_code = sd_ble_gattc_primary_services_discover
-                   (
+        err_code = sd_ble_gattc_primary_services_discover(
                    p_db_discovery->conn_handle,
                    SRV_DISC_START_HANDLE,
-                   &(p_srv_being_discovered->srv_uuid)
-                   );
-        if (err_code != NRF_SUCCESS)
-        {
+                   &(p_srv_being_discovered->srv_uuid));
+        if (err_code != NRF_SUCCESS) {
             p_db_discovery->discovery_in_progress = false;
-
-            // Error with discovering the service.
-            // Indicate the error to the registered user application.
-            discovery_error_evt_trigger(p_db_discovery, err_code);
-
+            p_db_discovery->curr_srv_ind--;
+            APP_ERROR_CHECK(app_timer_start(m_db_discovery_timer, DB_DISCOVERY_INTERVAL, (void *)p_db_discovery));
             return;
         }
-    }
-    else
-    {
-        // No more service discovery is needed.
+    } else {
         p_db_discovery->discovery_in_progress = false;
     }
 }
@@ -527,7 +494,8 @@ static void on_primary_srv_discovery_rsp(ble_db_discovery_t * const    p_db_disc
 {
     if (p_ble_gattc_evt->gatt_status == BLE_GATT_STATUS_SUCCESS)
     {
-        uint32_t err_code;
+    	debug_cnt[2]++;
+        //uint32_t err_code;
         const ble_gattc_evt_prim_srvc_disc_rsp_t * p_prim_srvc_disc_rsp_evt;
         ble_db_discovery_srv_t                   * p_srv_being_discovered;
 
@@ -538,6 +506,7 @@ static void on_primary_srv_discovery_rsp(ble_db_discovery_t * const    p_db_disc
         p_srv_being_discovered->srv_uuid     = p_prim_srvc_disc_rsp_evt->services[0].uuid;
         p_srv_being_discovered->handle_range = p_prim_srvc_disc_rsp_evt->services[0].handle_range;
 
+        /*
         err_code = characteristics_discover(p_db_discovery);
 
         if (err_code != NRF_SUCCESS)
@@ -548,9 +517,11 @@ static void on_primary_srv_discovery_rsp(ble_db_discovery_t * const    p_db_disc
             // Indicate the error to the registered user application.
             discovery_error_evt_trigger(p_db_discovery, err_code);
         }
+        */
     }
     else
     {
+    	debug_cnt[3]++;
         // Trigger Service Not Found event to the application.
         discovery_complete_evt_trigger(p_db_discovery, false);
 
@@ -755,6 +726,43 @@ static void on_descriptor_discovery_rsp(ble_db_discovery_t * const    p_db_disco
     }
 }
 
+static void db_discovery_continue_handler(void * p_context)
+{
+    ble_db_discovery_t *p_db = (ble_db_discovery_t *)p_context;
+    ble_db_discovery_srv_t * p_srv_being_discovered;
+    uint32_t err_code;
+
+    if (p_db == NULL) {
+        return;
+    }
+    if (p_db->discovery_in_progress == true) {
+        APP_ERROR_CHECK(app_timer_start(m_db_discovery_timer, DB_DISCOVERY_INTERVAL, p_context));
+        return;
+    }
+
+    if (m_num_of_discoveries_made < m_num_of_handlers_reg) {
+        p_db->discovery_in_progress = true;
+        p_db->curr_char_ind = 0;
+        p_db->curr_srv_ind++;
+
+        p_srv_being_discovered = &(p_db->services[p_db->curr_srv_ind]);
+        p_srv_being_discovered->srv_uuid =
+            m_registered_handlers[p_db->curr_srv_ind].srv_uuid;
+
+        p_srv_being_discovered->char_count = 0;
+
+        err_code = sd_ble_gattc_primary_services_discover(
+                   p_db->conn_handle,
+                   SRV_DISC_START_HANDLE,
+                   &(p_srv_being_discovered->srv_uuid));
+        if (err_code != NRF_SUCCESS) {
+            p_db->discovery_in_progress = false;
+            p_db->curr_srv_ind--;
+            APP_ERROR_CHECK(app_timer_start(m_db_discovery_timer, DB_DISCOVERY_INTERVAL, p_context));
+            return;
+        }
+    }
+}
 
 uint32_t ble_db_discovery_init(void)
 {
@@ -763,20 +771,10 @@ uint32_t ble_db_discovery_init(void)
     m_num_of_discoveries_made  = 0;
     m_pending_usr_evt_index    = 0;
 
-    return NRF_SUCCESS;
-}
-
-
-uint32_t ble_db_discovery_close()
-{
-    m_num_of_handlers_reg      = 0;
-    m_initialized              = false;
-    m_num_of_discoveries_made  = 0;
-    m_pending_usr_evt_index    = 0;
+    APP_ERROR_CHECK(app_timer_create(&m_db_discovery_timer, APP_TIMER_MODE_SINGLE_SHOT, db_discovery_continue_handler));
 
     return NRF_SUCCESS;
 }
-
 
 uint32_t ble_db_discovery_evt_register(const ble_uuid_t * const             p_uuid,
                                        const ble_db_discovery_evt_handler_t evt_handler)
@@ -841,16 +839,20 @@ uint32_t ble_db_discovery_start(ble_db_discovery_t * const p_db_discovery,
 
     err_code = sd_ble_gattc_primary_services_discover(p_db_discovery->conn_handle,
                                                       SRV_DISC_START_HANDLE,
-                                                      &(p_srv_being_discovered->srv_uuid));
+                                                      NULL);
+                                                      //&(p_srv_being_discovered->srv_uuid));
     if (err_code != NRF_SUCCESS)
     {
+    	debug_cnt[0]++;
         return err_code;
     }
+    debug_cnt[1]++;
     p_db_discovery->discovery_in_progress = true;
 
     return NRF_SUCCESS;
 }
 
+uint8_t debug_timeout;
 
 void ble_db_discovery_on_ble_evt(ble_db_discovery_t * const p_db_discovery,
                                  const ble_evt_t * const    p_ble_evt)
@@ -871,7 +873,7 @@ void ble_db_discovery_on_ble_evt(ble_db_discovery_t * const p_db_discovery,
         case BLE_GAP_EVT_CONNECTED:
             if (p_ble_evt->evt.gap_evt.params.connected.role == BLE_GAP_ROLE_CENTRAL) {
                 p_db_discovery->conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
-                ble_db_discovery_start(p_db_discovery, p_ble_evt->evt.gap_evt.conn_handle);
+                APP_ERROR_CHECK(ble_db_discovery_start(p_db_discovery, p_ble_evt->evt.gap_evt.conn_handle));
             }
             break;
         
@@ -893,6 +895,13 @@ void ble_db_discovery_on_ble_evt(ble_db_discovery_t * const p_db_discovery,
         case BLE_GATTC_EVT_DESC_DISC_RSP:
             on_descriptor_discovery_rsp(p_db_discovery, &(p_ble_evt->evt.gattc_evt));
             break;
+
+        case BLE_GATTC_EVT_TIMEOUT:
+        	if (p_db_discovery->discovery_in_progress == true) {
+    			debug_timeout = p_ble_evt->evt.gattc_evt.params.timeout.src;
+    			APP_ERROR_CHECK(app_timer_start(m_db_discovery_timer, DB_DISCOVERY_INTERVAL, (void *)p_db_discovery));
+        	}
+        	break;
 
         default:
             break;

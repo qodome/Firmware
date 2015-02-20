@@ -42,6 +42,7 @@ uint32_t m_tx_insert_index = 0;        /* Current index in the transmit buffer w
 uint32_t m_tx_index = 0;               /* Current index in the transmit buffer from where the next message to be transmitted resides. */
 
 extern ble_iqo_c_t *peripheral_get_iqo_c(uint16_t conn_handle);
+extern ble_db_discovery_t *peripheral_get_db(uint16_t conn_handle);
 
 /* Function for passing any pending request from the buffer to the stack. */
 static void tx_buffer_process(void)
@@ -90,7 +91,7 @@ static void on_hvx(ble_iqo_c_t * p_ble_iqo_c, const ble_evt_t * p_ble_evt)
 
 static void db_discover_evt_handler(ble_db_discovery_evt_t * p_evt)
 {
-    static ble_iqo_c_t * p_ble_iqo_c; 
+    static ble_iqo_c_t * p_ble_iqo_c;
 
     // Check if TEMP was discovered.
     if (p_evt->evt_type == BLE_DB_DISCOVERY_COMPLETE &&
@@ -129,14 +130,14 @@ static void db_discover_evt_handler(ble_db_discovery_evt_t * p_evt)
             evt.evt_type = BLE_IQO_C_EVT_DISCOVERY_ACC_COMPLETE;
             p_ble_iqo_c->evt_handler(p_ble_iqo_c, &evt);
         }
+    } else if (p_evt->evt_type == BLE_DB_DISCOVERY_ERROR) {
+
+    } else if (p_evt->evt_type == BLE_DB_DISCOVERY_SRV_NOT_FOUND) {
     }
 }
 
 uint32_t ble_iqo_c_init(uint16_t conn_handle, ble_iqo_c_t * p_ble_iqo_c, ble_iqo_c_init_t * p_ble_iqo_c_init)
 {
-    uint32_t ret;
-    ble_uuid_t uuid;
-
     if ((p_ble_iqo_c == NULL) || (p_ble_iqo_c_init == NULL)) {
         return NRF_ERROR_NULL;
     }
@@ -148,18 +149,7 @@ uint32_t ble_iqo_c_init(uint16_t conn_handle, ble_iqo_c_t * p_ble_iqo_c, ble_iqo
     p_ble_iqo_c->iqo_c_acc_cccd_handle = BLE_GATT_HANDLE_INVALID;
     p_ble_iqo_c->iqo_c_acc_handle = BLE_GATT_HANDLE_INVALID;
 
-    uuid.type = BLE_UUID_TYPE_BLE;
-    uuid.uuid = BLE_UUID_HEALTH_THERMOMETER_SERVICE;
-
-    ret = ble_db_discovery_evt_register(&uuid, db_discover_evt_handler);
-    if (ret != NRF_SUCCESS) {
-        return ret;
-    }
-
-    uuid.type = BLE_UUID_TYPE_BLE;
-    uuid.uuid = 0x1110;             // ACC service
-
-    return ble_db_discovery_evt_register(&uuid, db_discover_evt_handler);
+    return NRF_SUCCESS;
 }
 
 void ble_iqo_c_on_ble_evt(ble_iqo_c_t * p_ble_iqo_c, const ble_evt_t * p_ble_evt)
@@ -224,4 +214,24 @@ uint32_t ble_iqo_c_acc_enable(ble_iqo_c_t * p_ble_iqo_c)
     }
 
     return cccd_configure(p_ble_iqo_c->conn_handle, p_ble_iqo_c->iqo_c_acc_cccd_handle, true);
+}
+
+// Setup DB discovery
+uint32_t ble_iqo_c_setup(void)
+{
+    uint32_t ret;
+    ble_uuid_t uuid;
+
+    uuid.type = BLE_UUID_TYPE_BLE;
+    uuid.uuid = BLE_UUID_HEALTH_THERMOMETER_SERVICE;
+
+    ret = ble_db_discovery_evt_register(&uuid, db_discover_evt_handler);
+    if (ret != NRF_SUCCESS) {
+        return ret;
+    }
+
+    uuid.type = BLE_UUID_TYPE_BLE;
+    uuid.uuid = 0x1110;             // ACC service
+
+    return ble_db_discovery_evt_register(&uuid, db_discover_evt_handler);
 }
