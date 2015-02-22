@@ -42,10 +42,7 @@
 #define IS_SRVC_CHANGED_CHARACT_PRESENT      	0
 
 /* Services on Peripherals */
-#define HEART_RATE_SERVICE                      0x180D
-#define HEART_RATE_SERVICE_CHARACTERISTICS      0x2A37              /* HR Measurement service characteristic */
-#define HEART_RATE_SERVICE_DESCRIPTOR           0x2902              /* HR Measurement service descriptor */
-#define BUFFER_SIZE                             16
+#define BUFFER_SIZE                             4
 #define WRITE_VALUE_ENABLE_NOTIFICATIONS        0x0001              /* Enable notifications command. */
 #define WRITE_VALUE_DISABLE_NOTIFICATIONS       0x0000              /* Disable notifications command. */
 
@@ -79,7 +76,7 @@
 
 // Application Timer
 #define APP_TIMER_PRESCALER             0                                           /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_MAX_TIMERS            9                                           /**< Maximum number of simultaneously created timers. */
+#define APP_TIMER_MAX_TIMERS            8                                           /**< Maximum number of simultaneously created timers. */
 
 // Scheduler
 #define SCHED_MAX_EVENT_DATA_SIZE       sizeof(app_timer_event_t)                   /**< Maximum size of scheduler events. Note that scheduler BLE stack events do not contain any data, as the events are being pulled from the stack in the event handler. */
@@ -131,8 +128,8 @@ uint8_t flash_write_w_backup_data[24];
 uint16_t temp_notify_cnt = 0;
 uint16_t acc_notify_cnt = 0;
 
-extern uint8_t debug_cnt[16];
 extern ble_iqo_id_t iqo_tgt_identify;
+extern uint8_t debug_cnt[16];
 
 static const ble_gap_conn_params_t m_connection_param =
 {
@@ -145,22 +142,9 @@ static const ble_gap_conn_params_t m_connection_param =
 /*****************************************************************************
 * Functions and structures related to connection and buffers
 *****************************************************************************/
-#define DATA_BUFFER_SIZE                   12 /* Size of bufer that collects HTS data from one peripheral. */
-
-#define TX_BUFFER_READY                    1 /* TX buffer empty. */
-#define TX_BUFFER_BUSY                     0 /* TX buffer in use. */
-
-static uint8_t gs_tx_buffer = TX_BUFFER_READY;
-
-typedef struct {
-    uint8_t next_entry_index;
-    uint8_t value[DATA_BUFFER_SIZE];
-} data_buffer_t;
-
 typedef struct {
     uint16_t                conn_handle;
     uint16_t                descriptor_handle;
-    data_buffer_t           data_buffer;
     ble_db_discovery_t      db_discovery;
     ble_iqo_c_t             iqo_c;
 } peripheral_t;
@@ -225,6 +209,13 @@ void scan_start(void)
     APP_ERROR_CHECK(sd_ble_gap_scan_start(&m_scan_param));
 }
 
+void disconnect_peer(void)
+{
+	if (gs_peripheral[0].conn_handle != BLE_CONN_HANDLE_INVALID) {
+		APP_ERROR_CHECK(sd_ble_gap_disconnect(gs_peripheral[0].conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION));
+	}
+}
+
 #define INVALID_DESCRIPTOR_HANDLE 0
 #define ID_NOT_FOUND 0xFFFF
 
@@ -235,7 +226,6 @@ static void central_info_reset(void)
     gs_central.conn_handle = BLE_CONN_HANDLE_INVALID;
     gs_central.notification_enabled = 0;
     gs_central.cpu_request_done  = 0;
-    gs_tx_buffer = TX_BUFFER_READY;
 }
 
 static void peripheral_info_reset(uint16_t peripheral_id)
@@ -366,19 +356,23 @@ static void iqo_c_evt_handler(ble_iqo_c_t * p_iqo_c, ble_iqo_c_evt_t * p_iqo_c_e
     switch (p_iqo_c_evt->evt_type) {
         case BLE_IQO_C_EVT_DISCOVERY_TEMP_COMPLETE:
             APP_ERROR_CHECK(ble_iqo_c_temp_enable(p_iqo_c));
+            debug_cnt[12]++;
             break;
 
         case BLE_IQO_C_EVT_IT_NOTIFY:
         	temp_notify_cnt++;
+        	debug_cnt[13]++;
             break;
 
         case BLE_IQO_C_EVT_DISCOVERY_ACC_COMPLETE:
             APP_ERROR_CHECK(ble_iqo_c_acc_enable(p_iqo_c));
+            debug_cnt[14]++;
             break;
 
         case BLE_IQO_C_EVT_ACC_NOTIFY:
             acc_notify_cnt++;
             intermcu_notify_acc();
+            debug_cnt[15]++;
             break;
 
         default:
@@ -419,7 +413,6 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             											&m_scan_param,
             		                                    &m_connection_param));
 
-            		debug_cnt[6]++;
         		}
         	}
             break;
@@ -440,7 +433,7 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
                 // Initialize collector
                 iqo_c_init(p_ble_evt->evt.gap_evt.conn_handle);
 
-                debug_cnt[7]++;
+                debug_cnt[0]++;
             }
             break;
 
@@ -455,7 +448,7 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             		peripheral_info_reset(peripheral_id);
             	}
             	scan_start();
-            	debug_cnt[8]++;
+            	debug_cnt[1]++;
             }
             break;
 

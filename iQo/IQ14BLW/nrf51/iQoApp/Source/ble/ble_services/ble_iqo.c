@@ -15,6 +15,7 @@ ble_iqo_id_t iqo_tgt_identify;
 ble_iqo_t *iqo_ptr = NULL;
 
 extern void scan_start(void);
+extern void disconnect_peer(void);
 
 static void on_connect(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
 {
@@ -32,6 +33,8 @@ static void on_disconnect(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
     }
 }
 
+static uint8_t connect_cmd = 0;
+
 static void on_write(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
 {
     ble_gatts_evt_write_t * p_evt_write = &p_ble_evt->evt.gatts_evt.params.write;
@@ -41,7 +44,12 @@ static void on_write(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
         iqo_tgt_identify.id[p_evt_write->len] = 0;
     } else if (p_evt_write->handle == p_iqo->iqo_cmd_handle.value_handle) {
         // FIXME: parse the command!
-        scan_start();
+    	if (connect_cmd == 0) {
+    		connect_cmd = 1;
+    		scan_start();
+    	} else {
+    		disconnect_peer();
+    	}
 	}
 }
 

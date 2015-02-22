@@ -11,7 +11,7 @@
 #define SPIS_SCK_PIN        3
 #define SPIS_CSN_PIN        2
 
-#define MAX_BUF_SIZE        32 
+#define MAX_BUF_SIZE        16
 #define TX_BUF_SIZE         MAX_BUF_SIZE        /**< SPI TX buffer size. */      
 #define RX_BUF_SIZE         MAX_BUF_SIZE        /**< SPI RX buffer size. */      
 #define DEF_CHARACTER       0xAAu               /**< SPI default character. Character clocked out in case of an ignored transaction. */      

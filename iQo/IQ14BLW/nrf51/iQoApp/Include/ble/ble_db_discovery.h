@@ -54,7 +54,7 @@
  */
 
 #define BLE_DB_DISCOVERY_MAX_SRV          2  /**< Maximum number of services supported by this module. This also indicates the maximum number of users allowed to be registered to this module. (one user per service). */
-#define BLE_DB_DISCOVERY_MAX_CHAR_PER_SRV 3  /**< Maximum number of characteristics per service supported by this module. */
+#define BLE_DB_DISCOVERY_MAX_CHAR_PER_SRV 6 /**< Maximum number of characteristics per service supported by this module. */
 
 /** @} */
 
