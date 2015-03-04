@@ -1,0 +1,106 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{5F1823C3-5188-43D2-AC85-5B9841792A0C}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>BTLE_spotai_host</RootNamespace>
+    <ProjectName>host_spotai</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>
+    </CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>
+    </CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <ExtensionsToDeleteOnClean>*.cdf;*.cache;*.obj;*.ilk;*.resources;*.tlb;*.tli;*.tlh;*.tmp;*.rsp;*.pgc;*.pgd;*.meta;*.tlog;*.manifest;*.res;*.pch;*.exp;*.idb;*.rep;*.xdc;*.pdb;*_manifest.rc;*.bsc;*.sbr;*.xml</ExtensionsToDeleteOnClean>
+    <IncludePath>$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSdkDir)include;$(FrameworkSDKDir)\include;..\..\..\..\..\dk_apps\src\dialog\include;c:\Keil\ARM\CMSIS\Include;C:\Keil\ARM\RV31\INC;..\..\..\..\..\dk_apps\src\plf\refip\src\arch;..\..\..\..\..\dk_apps\src\plf\refip\src\arch\compiler\rvds;..\..\..\..\..\dk_apps\src\plf\refip\src\arch\boot\rvds;..\..\..\..\..\dk_apps\src\plf\refip\src\arch\ll\rvds;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\reg;..\..\..\..\..\dk_apps\src\modules\common\api;..\..\..\..\..\dk_apps\src\modules\dbg\api;..\..\..\..\..\dk_apps\src\modules\display\api;..\..\..\..\..\dk_apps\src\modules\gtl\api;..\..\..\..\..\dk_apps\src\modules\ke\api;..\..\..\..\..\dk_apps\src\modules\nvds\api;..\..\..\..\..\dk_apps\src\modules\rf\api;..\..\..\..\..\dk_apps\src\modules\rwip\api;..\..\..\..\..\dk_apps\src\ip\ble\ll\src\rwble;..\..\..\..\..\dk_apps\src\ip\ble\ll\src\controller\em;..\..\..\..\..\dk_apps\src\ip\ble\ll\src\controller\llc;..\..\..\..\..\dk_apps\src\ip\ble\ll\src\controller\lld;..\..\..\..\..\dk_apps\src\ip\ble\ll\src\controller\llm;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\led;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\timer;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\syscntl;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\emi;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\uart;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\flash;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\att;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\att\attc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\att\attm;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\gap;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\gap\gapc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\gap\gapm;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\att\atts;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\gatt;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\gatt\gattc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\gatt\gattm;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\l2c\l2cc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\l2c\l2cm;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\smp\smpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\smp\smpm;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\accel;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\bas\basc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\bas\bass;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\blp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\blp\blpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\blp\blps;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\dis\disc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\dis\diss;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\find\findl;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\find\findt;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\hogp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\hogp\hogpbh;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\hogp\hogpd;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\hogp\hogprh;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\hrp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\hrp\hrpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\hrp\hrps;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\htp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\htp\htpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\htp\htpt;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\prox\proxm;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\prox\proxr;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\scpp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\scpp\scppc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\scpp\scpps;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\intc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\rwble_hl;..\..\..\..\..\dk_apps\src\ip\ble\ll\src\hcic;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\smp;..\..\..\..\..\dk_apps\src\modules\app\api;..\..\..\..\..\dk_apps\src\modules\gtl\src;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\anp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\anp\anpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\anp\anps;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\cscp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\cscp\cscpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\cscp\cscps;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\glp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\glp\glpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\glp\glps;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\pasp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\pasp\paspc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\pasp\pasps;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\rscp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\rscp\rscpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\rscp\rscps;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\tip;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\tip\tipc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\tip\tips</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <IncludePath>$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSdkDir)include;$(FrameworkSDKDir)\include;..\..\..\..\..\dk_apps\src\dialog\include;c:\Keil\ARM\CMSIS\Include;C:\Keil\ARM\RV31\INC;..\..\..\..\..\dk_apps\src\plf\refip\src\arch;..\..\..\..\..\dk_apps\src\plf\refip\src\arch\compiler\rvds;..\..\..\..\..\dk_apps\src\plf\refip\src\arch\boot\rvds;..\..\..\..\..\dk_apps\src\plf\refip\src\arch\ll\rvds;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\reg;..\..\..\..\..\dk_apps\src\modules\common\api;..\..\..\..\..\dk_apps\src\modules\dbg\api;..\..\..\..\..\dk_apps\src\modules\display\api;..\..\..\..\..\dk_apps\src\modules\gtl\api;..\..\..\..\..\dk_apps\src\modules\ke\api;..\..\..\..\..\dk_apps\src\modules\nvds\api;..\..\..\..\..\dk_apps\src\modules\rf\api;..\..\..\..\..\dk_apps\src\modules\rwip\api;..\..\..\..\..\dk_apps\src\ip\ble\ll\src\rwble;..\..\..\..\..\dk_apps\src\ip\ble\ll\src\controller\em;..\..\..\..\..\dk_apps\src\ip\ble\ll\src\controller\llc;..\..\..\..\..\dk_apps\src\ip\ble\ll\src\controller\lld;..\..\..\..\..\dk_apps\src\ip\ble\ll\src\controller\llm;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\led;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\timer;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\syscntl;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\emi;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\uart;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\flash;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\att;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\att\attc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\att\attm;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\gap;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\gap\gapc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\gap\gapm;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\att\atts;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\gatt;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\gatt\gattc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\gatt\gattm;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\l2c\l2cc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\l2c\l2cm;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\smp\smpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\smp\smpm;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\accel;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\bas\basc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\bas\bass;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\blp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\blp\blpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\blp\blps;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\dis\disc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\dis\diss;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\find\findl;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\find\findt;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\hogp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\hogp\hogpbh;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\hogp\hogpd;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\hogp\hogprh;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\hrp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\hrp\hrpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\hrp\hrps;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\htp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\htp\htpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\htp\htpt;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\prox\proxm;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\prox\proxr;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\scpp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\scpp\scppc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\scpp\scpps;..\..\..\..\..\dk_apps\src\plf\refip\src\driver\intc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\rwble_hl;..\..\..\..\..\dk_apps\src\ip\ble\ll\src\hcic;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\host\smp;..\..\..\..\..\dk_apps\src\modules\app\api;..\..\..\..\..\dk_apps\src\modules\gtl\src;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\anp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\anp\anpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\anp\anps;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\cscp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\cscp\cscpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\cscp\cscps;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\glp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\glp\glpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\glp\glps;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\pasp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\pasp\paspc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\pasp\pasps;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\rscp;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\rscp\rscpc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\rscp\rscps;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\tip;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\tip\tipc;..\..\..\..\..\dk_apps\src\ip\ble\hl\src\profiles\tip\tips</IncludePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions);CFG_BLE;CFG_ALLROLES;CFG_PRF_PXPM;CFG_PRF_DISC;BLE_PROX_MONITOR;BLE_CLIENT_PRF;CFG_CON=6;CFG_SECURITY_ON=1</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>../include/</AdditionalIncludeDirectories>
+      <UndefinePreprocessorDefinitions>
+      </UndefinePreprocessorDefinitions>
+      <UndefineAllPreprocessorDefinitions>false</UndefineAllPreprocessorDefinitions>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <CompileAs>CompileAsC</CompileAs>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions);CFG_BLE;CFG_ALLROLES;CFG_PRF_PXPM;CFG_PRF_DISC;BLE_PROX_MONITOR;BLE_CLIENT_PRF;CFG_CON=6;CFG_SECURITY_ON=1</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>../include/</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="..\include\app.h" />
+    <ClInclude Include="..\include\app_task.h" />
+    <ClInclude Include="..\include\ble_msg.h" />
+    <ClInclude Include="..\include\queue.h" />
+    <ClInclude Include="..\include\uart.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\app.c" />
+    <ClCompile Include="..\src\app_task.c" />
+    <ClCompile Include="..\src\ble_msg.c" />
+    <ClCompile Include="..\src\queue.c" />
+    <ClCompile Include="..\src\uart.c" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

@@ -1,0 +1,1 @@
+#define FLASH_PROGRAMMER_SW_VERSION "v_3.0.4.0"
