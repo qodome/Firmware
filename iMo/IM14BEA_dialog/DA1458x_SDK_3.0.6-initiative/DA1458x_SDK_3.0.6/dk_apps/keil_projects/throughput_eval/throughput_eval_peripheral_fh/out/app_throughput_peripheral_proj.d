@@ -70,6 +70,7 @@
 .\out\app_throughput_peripheral_proj.o: .\..\..\..\src\ip\ble\hl\src\host\gap\gapc\gapc.h
 .\out\app_throughput_peripheral_proj.o: .\..\..\..\src\modules\nvds\api\nvds.h
 .\out\app_throughput_peripheral_proj.o: .\..\..\..\src\ip\ble\hl\src\host\l2c\l2cc\l2cc_task.h
+.\out\app_throughput_peripheral_proj.o: ..\..\..\src\plf\refip\src\driver\pwm\pwm.h
 .\out\app_throughput_peripheral_proj.o: .\..\..\..\src\modules\app\src\app_utils\app_stream_queue\app_stream_queue.h
 .\out\app_throughput_peripheral_proj.o: ..\..\..\src\plf\refip\src\driver\spi\spi.h
 .\out\app_throughput_peripheral_proj.o: .\..\..\..\src\plf\refip\src\driver\gpio\gpio.h

@@ -242,7 +242,9 @@ void test_pkt_init (void);
 */
 void ecg_wakeup_cb(void);
 void app_ecg_enable(void);
-void test_pkt_gen (void);                           
+void test_pkt_gen (void); 
+void app_acc_timer0_interrupt(void);
+void acc_initial(void);
 /// @} APP
 
 #endif //APP_TEMPLATE_PROJ_H_

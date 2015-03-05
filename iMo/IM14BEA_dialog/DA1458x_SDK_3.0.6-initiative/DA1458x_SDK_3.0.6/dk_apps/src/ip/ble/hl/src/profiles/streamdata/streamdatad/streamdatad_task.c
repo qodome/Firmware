@@ -288,7 +288,7 @@ uint8_t check_packet_buffer_enable(void)
 	  uint8_t flag_check = 0; 
 	
     packet_buffer_enabled = NULL;
-    attmdb_att_get_value(STREAMDATAD_DIR_EN_HANDLE(STREAMDATAD_IDX_STREAMDATAD_D0_EN), &(len), (uint8_t**)&(packet_buffer_enabled));
+    attmdb_att_get_value(STREAMDATAD_DIR_EN_HANDLE(0), &(len), (uint8_t**)&(packet_buffer_enabled));
         
     if ((packet_buffer_enabled && (*packet_buffer_enabled)))
 		{
@@ -296,6 +296,24 @@ uint8_t check_packet_buffer_enable(void)
 		}
 		return  flag_check;
 }
+
+// acc streamdatah 
+uint8_t check_acc_buffer_enable(void)
+{
+    uint16_t* packet_buffer_enabled; 
+    uint16_t len = 0;	
+	  uint8_t flag_check = 0; 
+	
+    packet_buffer_enabled = NULL;
+    attmdb_att_get_value(STREAMDATAD_DIR_EN_HANDLE(3), &(len), (uint8_t**)&(packet_buffer_enabled));
+        
+    if ((packet_buffer_enabled && (*packet_buffer_enabled)))
+		{
+		    flag_check = 1;
+		}
+		return  flag_check;
+}
+
 
 /**
  ****************************************************************************************

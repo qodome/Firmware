@@ -159,7 +159,7 @@ extern const struct ke_state_handler streamdatad_state_handler[STREAMDATAD_STATE
 extern const struct ke_state_handler streamdatad_default_handler;
 extern ke_state_t streamdatad_state[STREAMDATAD_IDX_MAX];
 uint8_t check_packet_buffer_enable(void);
-
+uint8_t check_acc_buffer_enable(void);
 #endif /* BLE_STREAMDATA_DEVICE*/
 
 /// @} STREAMDATADTASK

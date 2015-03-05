@@ -837,8 +837,8 @@ stream_fifo_init ();
 
     // ecg interrupt
 		app_ecg_enable();
-		// acc_initial();
-	  // app_acc_timer0_interrupt();
+		acc_initial();
+	  app_acc_timer0_interrupt();
 	  // ENable ADP150
     RESERVE_GPIO(ECG_COMM, GPIO_PORT_2, GPIO_PIN_9, PIN_AD8232_PWR_CTRL); 
     GPIO_ConfigurePin(GPIO_PORT_2, GPIO_PIN_9, OUTPUT, PID_GPIO, false);

@@ -13,6 +13,7 @@
 ".\out\uart_ext_wkup.o"
 ".\out\wkupct_quadec.o"
 ".\out\spi.o"
+".\out\pwm.o"
 "..\..\..\patch_code\obj\ke_task.obj"
 "..\..\..\patch_code\obj\ch_map.obj"
 ".\out\gapm.o"
