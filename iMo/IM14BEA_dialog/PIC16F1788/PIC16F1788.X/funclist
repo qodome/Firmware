@@ -1,0 +1,15 @@
+_start_oscillator_fast: CODE, 458 0 18
+_main: CODE, 87 0 165
+_start_oscillator_low: CODE, 418 0 20
+__initialization: CODE, 64 0 19
+i1_start_oscillator_low: CODE, 438 0 20
+_isr: CODE, 4 0 58
+_initial_ccp_tmr1: CODE, 396 0 22
+_delay_ms: CODE, 309 0 30
+_initial_adc: CODE, 369 0 27
+_initial_spi: CODE, 476 0 13
+_initial_isr: CODE, 501 0 7
+_initial_fvr: CODE, 508 0 7
+_initial_port: CODE, 252 0 57
+___wmul: CODE, 339 0 30
+Total: 493
