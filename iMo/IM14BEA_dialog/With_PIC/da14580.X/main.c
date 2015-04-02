@@ -76,8 +76,8 @@ interrupt void isr(void)
             SSPBUF = adc_buf_read_ptr[adc_buf_ridx++];
         } else {
             switch_to_slow();
-            RC4 = 0;
-            RA0 = 0;
+            RC6 = 0;
+            RA2 = 0;
         }
     }
 }
@@ -118,30 +118,31 @@ int main(int argc, char** argv)
 
     // Configure SPI pin function location
 
-    ANSA5 = 0;              // MCU_SS   - RA5 digital
-    ANSB6 = 0;              // MCU_MOSI - RB6 digital
-    ANSC5 = 0;              // MCU_MISO - RC5 digital
+    ANSB4 = 0;              // MCU_SS   - RB4 digital
+    ANSC3 = 0;              // MCU_SCK  - RC3 digital
+    ANSC4 = 0;              // MCU_MOSI - RC4 digital
+    ANSB5 = 0;              // MCU_MISO - RB5 digital
     
-    SDOSEL = 0;             // SDO RC5
-    SDISEL = 1;             // SDI RB6
-    SCKSEL = 1;             // SCK RB7
-    APFCON2bits.SSSEL = 0;  // SS RA5
+    SDOSEL = 1;             // SDO RB5
+    SDISEL = 0;             // SDI RC4
+    SCKSEL = 0;             // SCK RC3
+    APFCON2bits.SSSEL = 0b11;  // SS RB4
 
     // SPI pin direction
-    TRISA5 = 1;
-    TRISB6 = 1;
-    TRISB7 = 1;
-    TRISC5 = 0;
+    TRISB4 = 1;
+    TRISC3 = 1;
+    TRISC4 = 1;
+    TRISB5 = 0;
 
     // INT GPIO direction
-    // BULK_RDY configured on RC4
-    ANSC4 = 0;
-    TRISC4 = 0;             // RC4 output
-    RC4 = 0;
-    // RA0 for debug
-    ANSA0 = 0;
-    TRISA0 = 0;
-    RA0 = 0;
+    // BULK_RDY configured on RC6
+    ANSC6 = 0;
+    TRISC6 = 0;             // RC6 output
+    RC6 = 0;
+    // RA2 for debug
+    ANSA2 = 0;
+    TRISA2 = 0;
+    RA2 = 0;
 
     // User clear error indication bits for SPI
     WCOL = 0;
@@ -225,15 +226,15 @@ int main(int argc, char** argv)
             switch_to_fast();
 
             // Interrupt BLE
-            RC4 = 1;
-            RA0 = 1;
+            RC6 = 1;
+            RA2 = 1;
 
             adc_buf_widx = 0;
             adc_buf_wptr = (adc_buf_wptr + 1) % 2;
         }
         if (adc_buf_widx == 250) {
-            RC4 = 0;
-            RA0 = 0;
+            RC6 = 0;
+            RA2 = 0;
         }
     }
     return (EXIT_SUCCESS);

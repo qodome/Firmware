@@ -58,27 +58,28 @@ uint8_t ecg_start_flag __attribute__((section("retention_mem_area0"), zero_init)
 uint8_t ecg_compressed[500];
 uint32_t compressed_size = 0;
 // uint32_t ecg_data_length = 200;
-uint8_t read_ecg_data[500];
 // uint32_t decoding_size = 0;
 // uint8_t decoding_data[500] = {0};
 // uint32_t total_size = 0;
 #define MAX_TX_BUFS (32)
 #define STREAMDATAD_PACKET_SIZE (20)
 uint8 test_pkt [MAX_TX_BUFS][STREAMDATAD_PACKET_SIZE];
-uint32_t band_id = 0x000000;
-uint32_t address_read = 0x000000;
+uint32_t sram_address_write = 0;
+uint32_t sram_address_read = 0xFFFFFFFF;
+uint8_t async_callback_in_progress = 0;
+uint8_t ecg_trigger_in_progress = 0;
+uint8_t ecg_trigger_async_handle = 0;
 bool flag_block = 0;// when block = 0  ,WRITE	SRAM address 0x000000 ~0x010000
 								//  when block = 1  ,WRITE SRAM address 0x010000 ~0x020000
 
-bool flag_start_read = 0;
 // acc varible
 uint8_t acc_addr = 0;
 uint8_t acc_value = 0;
-uint8_t acc_data[20] = {0};
 uint16_t acc_cnt = 0;
 uint8_t acc_data_enabled = 0;
 uint8_t acc_sample_cnt = 0;
 uint8_t acc_started = 0;
+uint8_t acc_data[12] = {0};
 
 // test
 uint8_t test_acc = 0;
@@ -89,6 +90,8 @@ uint16_t acc_fifo_sample_cnt;
 #ifdef METRICS
 extern struct metrics global_metrics_tosend;
 #endif
+
+void acc_timeout_handler(void);
 
 /*
  * FUNCTION DEFINITIONS
@@ -927,7 +930,6 @@ int app_ext_transmit_cmd_handler(ke_msg_id_t const msgid,
 
 void app_ext_stats_report_send(void)
 {
-    
     if (ke_state_get(TASK_APP) == APP_CONNECTED)
     {
 #ifdef METRICS
@@ -959,86 +961,48 @@ void app_ext_stats_report_send(void)
 ****************************************************************************************
 */
 
-void write_ecg_data_to_sram(uint32_t size,uint32_t address, uint8_t *write_ecg_ptr)
+void write_ecg_data_to_sram(uint32_t size, uint8_t *write_ecg_ptr)
 {
-		uint32_t i; 
-	  uint32_t address_temp = 0;
-	  uint32_t band_id_init = 0x010000;
-		
-/**
-****************************************************************************************
- Initialize SPI
-****************************************************************************************
-*/	
-		RESERVE_GPIO(SPI_EN, GPIO_PORT_2, GPIO_PIN_5, PID_SPI_EN); 
-    RESERVE_GPIO(SPI_CLK, GPIO_PORT_2, GPIO_PIN_8, PID_SPI_CLK);
-    RESERVE_GPIO(SPI_DO, GPIO_PORT_2, GPIO_PIN_9, PID_SPI_DO);
-    RESERVE_GPIO(SPI_DI, GPIO_PORT_2, GPIO_PIN_6, PID_SPI_DI);
-    RESERVE_GPIO(EN_HOLD, GPIO_PORT_2, GPIO_PIN_7, PID_HOLD);
+    uint32_t i;
+			
+	RESERVE_GPIO(SPI_EN, GPIO_PORT_0, GPIO_PIN_7, PID_SPI_EN); 
+    RESERVE_GPIO(SPI_CLK, GPIO_PORT_0, GPIO_PIN_0, PID_SPI_CLK);
+    RESERVE_GPIO(SPI_DO, GPIO_PORT_0, GPIO_PIN_6, PID_SPI_DO);
+    RESERVE_GPIO(SPI_DI, GPIO_PORT_0, GPIO_PIN_5, PID_SPI_DI);
 	
-    GPIO_ConfigurePin(GPIO_PORT_2, GPIO_PIN_5, OUTPUT, PID_SPI_EN, true );
-    GPIO_ConfigurePin(GPIO_PORT_2, GPIO_PIN_8, OUTPUT, PID_SPI_CLK, false );
-    GPIO_ConfigurePin(GPIO_PORT_2, GPIO_PIN_9, OUTPUT, PID_SPI_DO, false );	
-    GPIO_ConfigurePin(GPIO_PORT_2, GPIO_PIN_6, INPUT, PID_SPI_DI, false );
-	  GPIO_ConfigurePin(GPIO_PORT_2, GPIO_PIN_7, OUTPUT, PID_GPIO, true );
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_7, OUTPUT, PID_SPI_EN, true );
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_0, OUTPUT, PID_SPI_CLK, false );
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_6, OUTPUT, PID_SPI_DO, false );	
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_5, INPUT, PID_SPI_DI, false );
 	
     SPI_Pad_t cs_pad_param;
-    cs_pad_param.port = GPIO_PORT_2;
-    cs_pad_param.pin = GPIO_PIN_5;
+    cs_pad_param.port = GPIO_PORT_0;
+    cs_pad_param.pin = GPIO_PIN_7;
     
     spi_init(&cs_pad_param, SPI_MODE_8BIT, SPI_ROLE_MASTER, SPI_CLK_IDLE_POL_LOW, SPI_PHA_MODE_0, SPI_MINT_DISABLE, SPI_XTAL_DIV_14);
  		
-		if((size + address) >= 0x020000) 
-		{
-				address = band_id_init * 0;
-				address_temp = address;
-				band_id = address + size;
-				flag_block = 0;
-			 // flag_start_read = 1;
-		}
+	if((size + sram_address_write) > 0x20000) {
+        sram_address_read = 0x10000;
+	    sram_address_write = 0;
+    } else if((sram_address_write < 0x010000) && ((size + sram_address_write) > 0x010000)) {	
+        sram_address_read = 0;
+        sram_address_write = 0x10000;
+    }
 	
-		else if(((size + address) <= 0x010000 ) && ((address) <  0x010000))
-		{
-				
-				address_temp = address;
-				band_id = address +size;
-				flag_block = 0;
-		}
-		else if(((size + address) >= 0x010000 ) && ((address) <  0x010000))
-		{
-				address = band_id_init;
-				address_temp = address;
-				band_id = address +size;
-				flag_block = 1;
-			 // flag_start_read = 1;
-		}
-		
-		else // if(((size + address) <= 0x020000 ) && ((address) >  0x010000))
-		{
-				address_temp = address;
-			  band_id = address +size;
-				flag_block = 1;
-				
-		}
-		
-		
-	  for (i=0; i<size; i++)
-		{			
-						
-				spi_cs_high();  // Close CS 
-				spi_cs_low();   // Open CS
+    for (i = 0; i < size; i++) {			 
+        spi_cs_low();   // Open CS
 							
-				spi_access(0x02); //Command for write programming
-				spi_access((uint8_t)(address_temp>>16));
-				spi_access((uint8_t)(address_temp>>8));
-				spi_access((uint8_t)address_temp);
-				spi_access(*write_ecg_ptr++);
-				
-				spi_cs_high();  // Close CS
+        spi_access(0x02); //Command for write programming
+        spi_access((uint8_t)(sram_address_write >> 16));
+        spi_access((uint8_t)(sram_address_write >> 8));
+        spi_access((uint8_t)sram_address_write);
+        spi_access(write_ecg_ptr[i]);		
+        
+        spi_cs_high();  // Close CS
 			
-				address_temp ++;
-				// total_size++;
-		}		
+        sram_address_write++;
+        __nop();
+    }		
 }
 
 /**
@@ -1048,88 +1012,76 @@ void write_ecg_data_to_sram(uint32_t size,uint32_t address, uint8_t *write_ecg_p
 * @return Message type
 ****************************************************************************************
 */
-void read_ecg_data_from_sram(uint32_t size, uint32_t address,uint8_t *read_ecg_ptr)
+uint32_t read_ecg_data_from_sram(uint32_t size, uint8_t *read_ecg_ptr)
 {
-		uint32_t i = 0;
-		uint32_t address_temp = 0;
-    address_temp = address;
-/**
-****************************************************************************************
- Initialize SPI
-****************************************************************************************
-*/	
-		
-		RESERVE_GPIO(SPI_EN, GPIO_PORT_2, GPIO_PIN_5, PID_SPI_EN); 
-    RESERVE_GPIO(SPI_CLK, GPIO_PORT_2, GPIO_PIN_8, PID_SPI_CLK);
-    RESERVE_GPIO(SPI_DO, GPIO_PORT_2, GPIO_PIN_9, PID_SPI_DO);
-    RESERVE_GPIO(SPI_DI, GPIO_PORT_2, GPIO_PIN_6, PID_SPI_DI);
-    RESERVE_GPIO(EN_HOLD, GPIO_PORT_2, GPIO_PIN_7, PID_HOLD);
+    uint32_t i = 0;
+	
+    if (sram_address_read == 0xFFFFFFFF) {
+        return 0;
+    }
+    
+    if((size + sram_address_read) > 0x20000) {
+        return 0;
+    } else if((sram_address_read < 0x010000) && ((size + sram_address_read) > 0x010000)) {	
+        return 0;
+    }
+    
+	RESERVE_GPIO(SPI_EN, GPIO_PORT_0, GPIO_PIN_7, PID_SPI_EN); 
+    RESERVE_GPIO(SPI_CLK, GPIO_PORT_0, GPIO_PIN_0, PID_SPI_CLK);
+    RESERVE_GPIO(SPI_DO, GPIO_PORT_0, GPIO_PIN_6, PID_SPI_DO);
+    RESERVE_GPIO(SPI_DI, GPIO_PORT_0, GPIO_PIN_5, PID_SPI_DI);
 	
-    GPIO_ConfigurePin(GPIO_PORT_2, GPIO_PIN_5, OUTPUT, PID_SPI_EN, true );
-    GPIO_ConfigurePin(GPIO_PORT_2, GPIO_PIN_8, OUTPUT, PID_SPI_CLK, false );
-    GPIO_ConfigurePin(GPIO_PORT_2, GPIO_PIN_9, OUTPUT, PID_SPI_DO, false );	
-    GPIO_ConfigurePin(GPIO_PORT_2, GPIO_PIN_6, INPUT, PID_SPI_DI, false );
-	  GPIO_ConfigurePin(GPIO_PORT_2, GPIO_PIN_7, OUTPUT, PID_GPIO, true );
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_7, OUTPUT, PID_SPI_EN, true );
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_0, OUTPUT, PID_SPI_CLK, false );
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_6, OUTPUT, PID_SPI_DO, false );	
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_5, INPUT, PID_SPI_DI, false );
 	
     SPI_Pad_t cs_pad_param;
-    cs_pad_param.port = GPIO_PORT_2;
-    cs_pad_param.pin = GPIO_PIN_5;
+    cs_pad_param.port = GPIO_PORT_0;
+    cs_pad_param.pin = GPIO_PIN_7;
     
     spi_init(&cs_pad_param, SPI_MODE_8BIT, SPI_ROLE_MASTER, SPI_CLK_IDLE_POL_LOW, SPI_PHA_MODE_0, SPI_MINT_DISABLE, SPI_XTAL_DIV_14);
-		
-	  if(((size + address) >= 0x010000 ) && ((address) <  0x010000) )
-		{
-				address_read = 0;
-		}
-		if(flag_block == 0)
-		{
-		    address_temp = 0x010000 + address_read;  
-		}
-		else
-		{
-		    address_temp = address_read + 0x000000;
-		}	
 
-		for(i=0; i<size ; i++)
-		{
-			  						
-				spi_cs_high();
-				spi_cs_low();            			            	// pull CS low    
+    for (i = 0; i < size ; i++) {				
+        spi_cs_low();
 			
-				spi_access(0x03);             // Command for sequencial reading from memory		
-				spi_access((uint8_t)(address_temp>>16));
-				spi_access((uint8_t)(address_temp>>8));
-				spi_access((uint8_t)address_temp);
-				*read_ecg_ptr++ = spi_access(0x00);   // bare SPI transaction
+        spi_access(0x03);	
+        spi_access((uint8_t)(sram_address_read >> 16));
+        spi_access((uint8_t)(sram_address_read >> 8));
+        spi_access((uint8_t)sram_address_read);
+        read_ecg_ptr[i] = spi_access(0x00);
 		
-				spi_cs_high();               			            // push CS high
+        spi_cs_high();
 			
-				address_temp ++;			
-		}
-		address_read += size;
+        sram_address_read++;
+        __nop();			
+    }
+    return size;
 }
- 
 
 void app_ecg_trigger(void)
 {    
     uint16_t idx = 0;
     uint32_t tmp = 0;
     uint8_t delay_idx = 0;
-		uint32_t length = 200;
-		// Initialize SPI
-    RESERVE_GPIO(SPI_EN, GPIO_PORT_1, GPIO_PIN_3, PID_SPI_EN); 
-    RESERVE_GPIO(SPI_CLK, GPIO_PORT_0, GPIO_PIN_4, PID_SPI_CLK);
-    RESERVE_GPIO(SPI_DO, GPIO_PORT_0, GPIO_PIN_3, PID_SPI_DO);
-    RESERVE_GPIO(SPI_DI, GPIO_PORT_0, GPIO_PIN_2, PID_SPI_DI);
+	uint32_t length = 1000;
+	
+    ecg_trigger_in_progress = 1;
+    
+    // Initialize SPI
+    RESERVE_GPIO(SPI_EN, GPIO_PORT_0, GPIO_PIN_1, PID_SPI_EN); 
+    RESERVE_GPIO(SPI_CLK, GPIO_PORT_0, GPIO_PIN_0, PID_SPI_CLK);
+    RESERVE_GPIO(SPI_DO, GPIO_PORT_0, GPIO_PIN_6, PID_SPI_DO);
+    RESERVE_GPIO(SPI_DI, GPIO_PORT_0, GPIO_PIN_5, PID_SPI_DI);
         
-    GPIO_ConfigurePin(GPIO_PORT_1, GPIO_PIN_3, OUTPUT, PID_SPI_EN, true );
-    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_4, OUTPUT, PID_SPI_CLK, false );
-    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_3, OUTPUT, PID_SPI_DO, false );	
-    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_2, INPUT, PID_SPI_DI, false );
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_1, OUTPUT, PID_SPI_EN, true );
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_0, OUTPUT, PID_SPI_CLK, false );
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_6, OUTPUT, PID_SPI_DO, false );	
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_5, INPUT, PID_SPI_DI, false );
     
     SPI_Pad_t cs_pad_param;
-    cs_pad_param.port = GPIO_PORT_1;
-    cs_pad_param.pin = GPIO_PIN_3;
+    cs_pad_param.port = GPIO_PORT_0;
+    cs_pad_param.pin = GPIO_PIN_1;
     
     spi_init(&cs_pad_param, SPI_MODE_8BIT, SPI_ROLE_MASTER, SPI_CLK_IDLE_POL_LOW, SPI_PHA_MODE_1, SPI_MINT_DISABLE, SPI_XTAL_DIV_14);
 
@@ -1140,44 +1092,46 @@ void app_ecg_trigger(void)
             __nop();
         }
         ecg_data[idx] = spi_access(tmp);
-    }
+    }
+
     spi_cs_high(); 
     ecg_data_idx = 0;		
-		spi_release();
-    GPIO_ConfigurePin(GPIO_PORT_1, GPIO_PIN_3, OUTPUT, PID_GPIO, true );
-    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_4, OUTPUT, PID_GPIO, false );
-    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_3, OUTPUT, PID_GPIO, false );	
-    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_2, INPUT, PID_GPIO, false );
-   //FIXME
+	spi_release();
+    
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_1, OUTPUT, PID_GPIO, true );
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_0, OUTPUT, PID_GPIO, false );
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_6, OUTPUT, PID_GPIO, false );	
+    GPIO_ConfigurePin(GPIO_PORT_0, GPIO_PIN_5, INPUT, PID_GPIO, false );
 		
-			for(idx=0;idx<length;idx++)
-		{
-				ecg_data[idx] = idx;
-		}
-		
-		write_ecg_data_to_sram(length,band_id, ecg_data); //band_id
-		flag_start_read = 1;
+	write_ecg_data_to_sram(1000, ecg_data);
+    
+    ecg_trigger_in_progress = 0;
 }
 
 void ecg_wakeup_cb(void)
 {
-   // ecg_trigger_flag = 1;
-    
+    // ecg_trigger_flag = 1;
 	if(GetBits16(SYS_STAT_REG, PER_IS_DOWN))   {
 		periph_init();
 	}
-	  app_ecg_trigger(); 
-		app_ecg_enable();
+	
+    if (async_callback_in_progress == 1) {
+        ecg_trigger_async_handle = 1;
+    } else {
+        ecg_trigger_async_handle = 0;
+        app_ecg_trigger();
+    }    
+    app_ecg_enable();
 }
 
 
 void app_ecg_enable(void)
 {   
     RESERVE_GPIO(ECG, GPIO_PORT_2, GPIO_PIN_0, ECG_TRIGGER); 
-		GPIO_SetPinFunction(GPIO_PORT_2, GPIO_PIN_0, INPUT, PID_GPIO);
+	GPIO_SetPinFunction(GPIO_PORT_2, GPIO_PIN_0, INPUT, PID_GPIO);
+    
     wkupct_register_callback(ecg_wakeup_cb);
-   // if (GPIO_GetPinStatus( GPIO_PORT_2, GPIO_PIN_0 ))
-    wkupct_enable_irq(1<<16, 0, 1, 0); // P2_0, polarity low , 1 event, debouncing time = 0
+    wkupct_enable_irq(1<<16, 0, 1, 0);
 }
 
 #if (STREAMDATA_QUEUE)
@@ -1209,10 +1163,10 @@ void test_pkt_init (void)
  ****************************************************************************************
 */
 
-void test_callback (void* addr, int handle)
+void test_callback (void* addr, int handle) 
 {
-  volatile uint16 *val = (volatile uint16 *) addr;
-  (*val)++;
+    volatile uint16 *val = (volatile uint16 *) addr;
+    (*val)++;
 }
 
  /**
@@ -1221,33 +1175,34 @@ void test_callback (void* addr, int handle)
  *
  * @return void.
  ****************************************************************************************
-*/
- 
-void test_pkt_gen (void)
-{
-//    uint32_t ecg_data_length = 200;  
-  	static uint8_t pt=0;
-    static int hnd=0;//service ID 0xFFA0 CharacteristicConfigurationBits 0xFFA2
-	
-	  if(check_packet_buffer_enable() > 0)
-		{
-			
-					if(flag_start_read == 1)
-					{
-								flag_start_read = 0;
-						
-								// read_ecg_data_from_sram(ecg_data_length,address_read, read_ecg_data);//address_read
-		
-								pt = 0;
-								while ((pt < 200) && stream_fifo_add (&ecg_data[pt], STREAMDATAD_PACKET_SIZE/2, STREAMDATAD_DIR_VAL_HANDLE(hnd), L2C_CODE_ATT_HDL_VAL_NTF, test_callback)>0)  //send as many as possible
-								{
-									pt += STREAMDATAD_PACKET_SIZE/2; 
-									// hnd++; if (hnd>=STREAMDATAD_MAX) hnd=0;
-								};
-															 
-					}
-			 
-	   }
+*/
+uint8_t read_ecg_data[STREAMDATAD_PACKET_SIZE/2];
+void test_pkt_gen(void)
+{ 
+    static int hnd = 0; // service ID 0xFFA0 CharacteristicConfigurationBits 0xFFA2
+    int ecg_pkt_cnt = 0;
+
+    async_callback_in_progress = 1;	
+    
+    acc_timeout_handler();
+    
+    if (check_packet_buffer_enable() > 0) {        
+        while (stream_fifo_free() > 0) {
+            if (read_ecg_data_from_sram(STREAMDATAD_PACKET_SIZE/2, read_ecg_data) > 0) {
+                stream_fifo_add(&read_ecg_data[0], STREAMDATAD_PACKET_SIZE/2, STREAMDATAD_DIR_VAL_HANDLE(hnd), L2C_CODE_ATT_HDL_VAL_NTF, test_callback);
+            }
+            ecg_pkt_cnt++;
+            if (ecg_pkt_cnt >= 5) {
+                break;
+            }
+        }
+    }
+    async_callback_in_progress = 0;
+    
+    if (ecg_trigger_async_handle == 1) {
+        ecg_trigger_async_handle = 0;
+        app_ecg_trigger();
+    }
 }
 #endif
 
@@ -1255,7 +1210,8 @@ uint8_t acc_spi_read(uint8_t addr)
 {
     uint8_t acc_read_buffer;	
   	//Initialize SPI
-		RESERVE_GPIO(SPI_EN, GPIO_PORT_1, GPIO_PIN_0, PID_SPI_EN); 
+	
+    RESERVE_GPIO(SPI_EN, GPIO_PORT_1, GPIO_PIN_0, PID_SPI_EN); 
     RESERVE_GPIO(SPI_CLK, GPIO_PORT_0, GPIO_PIN_0, PID_SPI_CLK);
     RESERVE_GPIO(SPI_DO, GPIO_PORT_0, GPIO_PIN_6, PID_SPI_DO);
     RESERVE_GPIO(SPI_DI, GPIO_PORT_0, GPIO_PIN_5, PID_SPI_DI);
@@ -1271,23 +1227,24 @@ uint8_t acc_spi_read(uint8_t addr)
     
     spi_init(&cs_pad_param, SPI_MODE_8BIT, SPI_ROLE_MASTER, SPI_CLK_IDLE_POL_LOW, SPI_PHA_MODE_0, SPI_MINT_DISABLE, SPI_XTAL_DIV_14); 
   						
-		spi_cs_high();
-		spi_cs_low();            			            	// pull CS low    
+    spi_cs_high();
+    spi_cs_low();
 	
-		spi_access(0x0B);             // Command for sequencial reading from memory		
-		spi_access(addr);
-	  acc_read_buffer = spi_access(0x00);   // bare SPI transaction
+    spi_access(0x0B);
+    spi_access(addr);
+    acc_read_buffer = spi_access(0x00);
 
-		spi_cs_high();               			            // push CS high
+    spi_cs_high();
 		
-		return acc_read_buffer;
+    return acc_read_buffer;
 }
 
 void acc_spi_write(uint8_t addr,uint8_t cmd)
 {
     uint32_t idx;  
 	//Initialize SPI
-		RESERVE_GPIO(SPI_EN, GPIO_PORT_1, GPIO_PIN_0, PID_SPI_EN); 
+		
+    RESERVE_GPIO(SPI_EN, GPIO_PORT_1, GPIO_PIN_0, PID_SPI_EN); 
     RESERVE_GPIO(SPI_CLK, GPIO_PORT_0, GPIO_PIN_0, PID_SPI_CLK);
     RESERVE_GPIO(SPI_DO, GPIO_PORT_0, GPIO_PIN_6, PID_SPI_DO);
     RESERVE_GPIO(SPI_DI, GPIO_PORT_0, GPIO_PIN_5, PID_SPI_DI);
@@ -1303,26 +1260,26 @@ void acc_spi_write(uint8_t addr,uint8_t cmd)
     
     spi_init(&cs_pad_param, SPI_MODE_8BIT, SPI_ROLE_MASTER, SPI_CLK_IDLE_POL_LOW, SPI_PHA_MODE_0, SPI_MINT_DISABLE, SPI_XTAL_DIV_14); 
   						
-		spi_cs_high();
-		spi_cs_low();            			            	// pull CS low    
+    spi_cs_high();
+    spi_cs_low();
 	
-		spi_access(0x0A);             // Command for sequencial reading from memory		
-		spi_access(addr);
-		spi_access(cmd);   // bare SPI transaction
+    spi_access(0x0A);
+    spi_access(addr);
+    spi_access(cmd);
 
-		spi_cs_high();               			            // push CS high
-		for(idx = 0;idx<1000;idx++)
-	  {
-		    __nop();
-			  __nop();
-		}
+    spi_cs_high();
+    for(idx = 0; idx < 1000; idx++) {
+        __nop();
+        __nop();
+    }
 }
 
-void acc_fifo_read(uint8_t *acc_fifo_buff_ptr,uint8_t len)
+void acc_fifo_read(uint8_t *acc_fifo_buff_ptr, uint8_t len)
 {
     static uint8_t idx;		
   	//Initialize SPI
-		RESERVE_GPIO(SPI_EN, GPIO_PORT_1, GPIO_PIN_0, PID_SPI_EN); 
+
+    RESERVE_GPIO(SPI_EN, GPIO_PORT_1, GPIO_PIN_0, PID_SPI_EN); 
     RESERVE_GPIO(SPI_CLK, GPIO_PORT_0, GPIO_PIN_0, PID_SPI_CLK);
     RESERVE_GPIO(SPI_DO, GPIO_PORT_0, GPIO_PIN_6, PID_SPI_DO);
     RESERVE_GPIO(SPI_DI,  GPIO_PORT_0, GPIO_PIN_5, PID_SPI_DI);
@@ -1337,104 +1294,64 @@ void acc_fifo_read(uint8_t *acc_fifo_buff_ptr,uint8_t len)
     cs_pad_param.pin = GPIO_PIN_0;
     
     spi_init(&cs_pad_param, SPI_MODE_8BIT, SPI_ROLE_MASTER, SPI_CLK_IDLE_POL_LOW, SPI_PHA_MODE_0, SPI_MINT_DISABLE, SPI_XTAL_DIV_14); 
-  						
-		spi_cs_high();
-		spi_cs_low();            			            	// pull CS low    
+  	
+    spi_cs_high();					
+    spi_cs_low();
 	
-		spi_access(0x0D);             // Command for sequencial reading from memory		
-		for(idx=0;idx<len;idx++)
-		{
-	      *acc_fifo_buff_ptr++ = spi_access(0x00);   // bare SPI transaction
+    spi_access(0x0D);
+    for(idx=0; idx<len; idx++) {
+        *acc_fifo_buff_ptr++ = spi_access(0x00);
     }
-		spi_cs_high();               			            // push CS high
+    spi_cs_high();
 }
 
 void acc_initial(void)
 {
-    // Initialize ACC registers
-	  acc_spi_write(0x2D, 0x00);
+    // Initialize ACC registers
+    acc_spi_write(0x2D, 0x00);
     acc_spi_write(0x1F, 0x52);
-	
 }
 
-void test_acc_callback (void* addr, int handle)
+void test_acc_callback(void* addr, int handle)
 {
-  volatile uint16 *val = (volatile uint16 *) addr;
-  (*val)++;
+    volatile uint16 *val = (volatile uint16 *) addr;
+    (*val)++;
 }
 
 void acc_timeout_handler(void)
 {
-    // uint16_t acc_fifo_sample_cnt;
-    uint8_t pkt_cnt;  
-	  static uint8_t pt= 0;
-    static int hnd= 3; //service ID 0xFFA0 CharacteristicConfigurationBits 0xFFA5
-	 //test function
-//    test_acc = acc_spi_read(0x00);
-//	  test_acc_id = acc_spi_read(0x0C);
-//	  acc_spi_write(0x2B, 0x02);
-	  if (acc_started == 0) 
-		{
-				if (acc_spi_read(0x00) == 0xAD) 
-				{
-						acc_spi_write(0x2D, 0x00);// turn off;0x2D ->POWER CONTROL REGISTER ;0x00 -> standby;
-						acc_spi_write(0x28, 0x02);// configure FIFO;0x28 ->FIFO CONTROL REGISTER; 0x02 -> Stream mode;
-						acc_spi_write(0x2C, 0x11);// configure general device settings; 0x2C ->FLITER CONTROL REGISTER ;0x11 -> ODR(output data rate) 100Hz(10ms)
-						acc_spi_write(0x2D, 0x22);// turn measurement on ;0x2D ->POWER CONTROL REGISTER ;0x22 -> Ultralow noise mode & Measurement mode;
-				} 
-				else
-				{
-					return;
-				}
-				acc_started = 1;
+    static int hnd = 3; //service ID 0xFFA0 CharacteristicConfigurationBits 0xFFA5
+    
+    if (acc_started == 0) {
+        if (acc_spi_read(0x00) == 0xAD) {
+            acc_spi_write(0x2D, 0x00);// turn off;0x2D ->POWER CONTROL REGISTER ;0x00 -> standby;
+            acc_spi_write(0x28, 0x02);// configure FIFO;0x28 ->FIFO CONTROL REGISTER; 0x02 -> Stream mode;
+            acc_spi_write(0x2C, 0x11);// configure general device settings; 0x2C ->FLITER CONTROL REGISTER ;0x11 -> ODR(output data rate) 100Hz(10ms)
+            acc_spi_write(0x2D, 0x22);// turn measurement on ;0x2D ->POWER CONTROL REGISTER ;0x22 -> Ultralow noise mode & Measurement mode;
+        } else {
+            return;
+        }
+        acc_started = 1;
     }
-		// 0x0C FIFO_ENTRIES_L  0x0D FIFO_ENTRIES_H  the number of  valid data samples present in the FIFO buffer.ranges from 0 to 512;
-	  acc_fifo_sample_cnt = ((uint16_t)(acc_spi_read(0x0D) & 0x03) << 8) | ((uint16_t)acc_spi_read(0x0C)); 
-    // Get 3 samples into one pkt, three packts each timeout period
-    if (acc_fifo_sample_cnt > 0) 
-		{
-				pkt_cnt = 0;
-				while ((pkt_cnt <= 10) && (acc_fifo_sample_cnt > 0)) 
-				{
-						if (acc_fifo_sample_cnt >= (10- acc_sample_cnt)) 
-						{
-								acc_fifo_read(&(acc_data[acc_sample_cnt * 2]), 2 * (10 - acc_sample_cnt));
-								acc_fifo_sample_cnt -= (10 - acc_sample_cnt);
-								acc_sample_cnt = 0;
-								// Send value if connected and notifying
-							 
-							  if(check_acc_buffer_enable() > 0)//
-								{
-											pt = 0;
-										
-											while ((pt < 20) && stream_fifo_add (&acc_data[pt], (STREAMDATAD_PACKET_SIZE-8), STREAMDATAD_DIR_VAL_HANDLE(hnd), L2C_CODE_ATT_HDL_VAL_NTF, test_acc_callback) >= 0)  //send as many as possible
-											{
-													pt += (STREAMDATAD_PACKET_SIZE-8);
-													// hnd++; if (hnd>=STREAMDATAD_MAX) hnd=0;
-											};
-											pkt_cnt++;
-							  }
-							 							
-					 }     
-					 else 
-					 {
-							 acc_fifo_read(&(acc_data[acc_sample_cnt * 2]), 2 * acc_fifo_sample_cnt);
-							 acc_sample_cnt += acc_fifo_sample_cnt;
-							 acc_fifo_sample_cnt = 0;
-					 }
-			  }
-    }
+
+    if(check_acc_buffer_enable() > 0) {
+        // 0x0C FIFO_ENTRIES_L  0x0D FIFO_ENTRIES_H  the number of  valid data samples present in the FIFO buffer.ranges from 0 to 512;
+        acc_fifo_sample_cnt = ((uint16_t)(acc_spi_read(0x0D) & 0x03) << 8) | ((uint16_t)acc_spi_read(0x0C)); 
+        while ((stream_fifo_free() > 0) && (acc_fifo_sample_cnt >= 6)) {
+            acc_fifo_read(&(acc_data[0]), 12);
+            stream_fifo_add(&(acc_data[0]), 12, STREAMDATAD_DIR_VAL_HANDLE(hnd), L2C_CODE_ATT_HDL_VAL_NTF, test_acc_callback);
+            acc_fifo_sample_cnt -= 6;
+        }
+    }        
 }
-
 
 void ble_acc_timer_callback(void)
 {
     static uint8_t n=0;
-    if (n==10)
-    {
+    if (n == 10) {
         n=0;
-			  timer0_set(3000, 1500, 1500);
-			  acc_timeout_handler();  			
+        timer0_set(3000, 1500, 1500);
+        //acc_timeout_handler();  			
     }
     n++;		
 }
@@ -1443,7 +1360,7 @@ void app_acc_timer0_interrupt(void)
 {
 	 RESERVE_GPIO(ACCELEROMETER, GPIO_PORT_2, GPIO_PIN_3, ACC_TRIGER); 
 	 GPIO_SetPinFunction(GPIO_PORT_2, GPIO_PIN_3, OUTPUT, PID_PWM0);    
-   
+
     /* TIMER0 */
     //Enables TIMER0 clock
     set_tmr_enable(CLK_PER_REG_TMR_ENABLED);

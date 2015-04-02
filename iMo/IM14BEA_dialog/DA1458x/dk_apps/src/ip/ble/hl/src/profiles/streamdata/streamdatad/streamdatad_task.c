@@ -73,11 +73,16 @@ static const struct att_char_desc streamdatad_d6_char = ATT_CHAR(ATT_CHAR_PROP_R
 static const struct att_char_desc streamdatad_d7_char = ATT_CHAR(ATT_CHAR_PROP_RD | ATT_CHAR_PROP_WR_NO_RESP | ATT_CHAR_PROP_NTF, 0, STREAMDATAD_D7_UUID);
 static const struct att_char_desc streamdatad_d8_char = ATT_CHAR(ATT_CHAR_PROP_RD | ATT_CHAR_PROP_WR_NO_RESP | ATT_CHAR_PROP_NTF, 0, STREAMDATAD_D8_UUID);
 static const struct att_char_desc streamdatad_d9_char = ATT_CHAR(ATT_CHAR_PROP_RD | ATT_CHAR_PROP_WR_NO_RESP | ATT_CHAR_PROP_NTF, 0, STREAMDATAD_D9_UUID);
+// debug interface
+static const struct att_char_desc stream_debug_char = ATT_CHAR(ATT_CHAR_PROP_RD | ATT_CHAR_PROP_WR, 0, STREAM_DEBUG_UUID);
+
 /// Enable description
 static const uint8_t streamdatad_enable_desc[] = STREAMDATAD_ENABLE_DESC;
 
 /// Data description
 static const uint8_t streamdatad_d_desc[] = STREAMDATAD_D_DESC;
+
+uint8_t stream_debug_content[20] = {0};
                                        
                                        
 /// Full STREAMDATAD Database Description - Used to add attributes into the database
@@ -142,6 +147,9 @@ static const struct attm_desc streamdatad_att_db[STREAMDATAD_IDX_NB] =
     [STREAMDATAD_IDX_STREAMDATAD_D9_VAL] =  {STREAMDATAD_D9_UUID, PERM(RD, ENABLE) | PERM(WR, ENABLE) | PERM(NTF, ENABLE), (sizeof(uint8_t) * STREAMDATAD_PACKET_SIZE), 0, (uint8_t*) NULL},
     [STREAMDATAD_IDX_STREAMDATAD_D9_EN] =   {ATT_DESC_CLIENT_CHAR_CFG,(PERM(RD, ENABLE) | PERM(WR, ENABLE) | PERM(NTF, ENABLE)), sizeof(uint16_t), 0, (uint8_t*) NULL},
     [STREAMDATAD_IDX_STREAMDATAD_D9_DESC] = {ATT_DESC_CHAR_USER_DESCRIPTION, PERM(RD, ENABLE), STREAMDATAD_D_DESC_LEN, STREAMDATAD_D_DESC_LEN, (uint8_t*) streamdatad_d_desc},
+    
+    [STREAMDATAD_IDX_STREAM_DEBUG_CHAR] = {ATT_DECL_CHARACTERISTIC, PERM(RD, ENABLE), sizeof(stream_debug_char), sizeof(stream_debug_char), (uint8_t*) &stream_debug_char},
+    [STREAMDATAD_IDX_STREAM_DEBUG_VAL] =  {STREAM_DEBUG_UUID, PERM(RD, ENABLE) | PERM(WR, ENABLE), 20, 20, (uint8_t*)&(stream_debug_content[0])},    
 };
 
 
@@ -285,16 +293,15 @@ uint8_t check_packet_buffer_enable(void)
 {
     uint16_t* packet_buffer_enabled; 
     uint16_t len = 0;	
-	  uint8_t flag_check = 0; 
+	uint8_t flag_check = 0; 
 	
     packet_buffer_enabled = NULL;
     attmdb_att_get_value(STREAMDATAD_DIR_EN_HANDLE(0), &(len), (uint8_t**)&(packet_buffer_enabled));
         
-    if ((packet_buffer_enabled && (*packet_buffer_enabled)))
-		{
-		    flag_check = 1;
-		}
-		return  flag_check;
+    if ((packet_buffer_enabled && (*packet_buffer_enabled))) {
+        flag_check = 1;
+	}
+	return flag_check;
 }
 
 // acc streamdatah 
@@ -465,6 +472,22 @@ static int gattc_write_cmd_ind_handler(ke_msg_id_t const msgid,
         }
         break;
         
+        case STREAMDATAD_IDX_STREAM_DEBUG_VAL:
+            uint8_t *ptr = (uint8_t *)(((uint32_t)(param->value[0])) << 24 |
+                            ((uint32_t)(param->value[1])) << 16 |
+                            ((uint32_t)(param->value[2])) << 8 |
+                            ((uint32_t)(param->value[3])));
+                            
+            for (uint8_t idx = 0; idx < 4; idx++) {
+                stream_debug_content[idx] = param->value[idx];
+            }
+            for (uint8_t idx = 0; idx < 16; idx++) {
+                stream_debug_content[idx + 4] = ptr[idx];
+                //stream_debug_content[idx + 4] = 0xaa;
+            }
+            attmdb_att_set_value(STREAMDATAD_HANDLE(STREAMDATAD_IDX_STREAM_DEBUG_VAL), 20, (uint8_t*)&(stream_debug_content[0]));
+            atts_write_rsp_send(streamdatad_env.conhdl, param->handle, PRF_ERR_OK);
+            break;
     }
 
     return (KE_MSG_CONSUMED);

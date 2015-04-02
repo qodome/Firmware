@@ -343,7 +343,13 @@ int stream_fifo_check (uint8 idx)
     return (pkt_fifo[idx].used);
 }
 
-
+int stream_fifo_free()
+{
+  if (pkt_fifo[fifo_write].used!=0)
+    return -1;
+  else
+    return 1;
+}
 
 /**
  ****************************************************************************************

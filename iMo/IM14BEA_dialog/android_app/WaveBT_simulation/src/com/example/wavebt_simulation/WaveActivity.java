@@ -87,13 +87,13 @@ public class WaveActivity extends Activity {
 		
 		//鍙傛暟鏄剧ず
 		RR_interval = (TextView)this.findViewById(R.id.rR);
-		RR_interval.setText("RR闂存湡锛氬垵濮嬪寲涓�...");
+		RR_interval.setText("RR_interval...");
 		heart_rate = (TextView)this.findViewById(R.id.heartRate);
-		heart_rate.setText("蹇冪巼锛氬垵濮嬪寲涓�...");
+		heart_rate.setText("heart_rate...");
 		QRS_interval = (TextView)this.findViewById(R.id.qRs);
-		QRS_interval.setText("QRS闂存湡锛氬垵濮嬪寲涓�...");
+		QRS_interval.setText("QRS_interval...");
 		arrhythmia = (TextView)this.findViewById(R.id.arrhythmia);
-		arrhythmia.setText("寮傚父蹇冪巼锛氬垵濮嬪寲涓�...");
+		arrhythmia.setText("arrhythmia...");
 		
 		// 鐢绘澘鍜岀敾绗�
 		sfv = (SurfaceView) this.findViewById(R.id.SurfaceView01);

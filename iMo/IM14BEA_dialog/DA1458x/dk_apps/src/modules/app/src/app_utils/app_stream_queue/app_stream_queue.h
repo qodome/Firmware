@@ -82,6 +82,7 @@ void stream_fifo_init (void);
  ****************************************************************************************
  */
 int stream_fifo_add (void* datapt, uint8 len, int handle, int type, void (*p_callback) (void* , int));
+int stream_fifo_free(void);
 
 /**
  ****************************************************************************************
