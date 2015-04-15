@@ -14,6 +14,7 @@ C_SOURCE_FILES += ble_conn_params_s130.c
 C_SOURCE_FILES += ble_db_discovery.c
 C_SOURCE_FILES += nrf_pwm.c
 C_SOURCE_FILES += ble_led.c
+C_SOURCE_FILES += ble_sensor.c
 C_SOURCE_FILES += ble_iqo.c
 C_SOURCE_FILES += ble_iqo_c.c
 C_SOURCE_FILES += spi_slave.c
@@ -24,6 +25,8 @@ C_SOURCE_FILES += bootloader_util_gcc.c
 C_SOURCE_FILES += led_service.c
 C_SOURCE_FILES += ble_radio_notification.c
 C_SOURCE_FILES += ble_flash.c
+C_SOURCE_FILES += twi_hw_master.c
+C_SOURCE_FILES += sensor_service.c
 
 OUTPUT_FILENAME := iQoApp
 

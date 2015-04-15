@@ -7,6 +7,7 @@
 #include "softdevice_handler.h"
 #include "app_util_platform.h"
 #include "ble_iqo.h"
+#include "intermcu_spi.h"
 
 extern bool is_central(uint16_t conn_handle);
 
@@ -33,8 +34,6 @@ static void on_disconnect(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
     }
 }
 
-static uint8_t connect_cmd = 0;
-
 static void on_write(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
 {
     ble_gatts_evt_write_t * p_evt_write = &p_ble_evt->evt.gatts_evt.params.write;
@@ -43,12 +42,22 @@ static void on_write(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
         memcpy(&(iqo_tgt_identify.id[0]), p_evt_write->data, p_evt_write->len);
         iqo_tgt_identify.id[p_evt_write->len] = 0;
     } else if (p_evt_write->handle == p_iqo->iqo_cmd_handle.value_handle) {
-        // FIXME: parse the command!
-    	if (connect_cmd == 0) {
-    		connect_cmd = 1;
+    	memcpy((uint8_t *)&iqo_tgt_cmd, p_evt_write->data, p_evt_write->len);
+    	if (iqo_tgt_cmd.cmd == 0) {
+    		// Connect to peer
     		scan_start();
-    	} else {
+    	} else if (iqo_tgt_cmd.cmd == 1) {
+    		// Disconnect from peer
     		disconnect_peer();
+    	} else if (iqo_tgt_cmd.cmd == 2) {
+    		// Set WiFi SSID
+    		intermcu_notify(NRF_WIFI_SSID_NOTIFY, (p_evt_write->data + 1), (p_evt_write->len - 1));
+    	} else if (iqo_tgt_cmd.cmd == 3) {
+    		// Set WiFi Password
+    		intermcu_notify(NRF_WIFI_PSWD_NOTIFY, (p_evt_write->data + 1), (p_evt_write->len - 1));
+    	} else if (iqo_tgt_cmd.cmd == 4) {
+    		// Reset RT5350
+    		trigger_rt5350_reset();
     	}
 	}
 }
@@ -102,7 +111,7 @@ static uint32_t iqo_cmd_char_add(ble_iqo_t * p_iqo)
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
     attr_md.rd_auth    = 0;
     attr_md.wr_auth    = 0;
-    attr_md.vlen       = 0;
+    attr_md.vlen       = 1;
 
     memset(&iqo_tgt_cmd, 0, sizeof(ble_iqo_cmd_t));
 

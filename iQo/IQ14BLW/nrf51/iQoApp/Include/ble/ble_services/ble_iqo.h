@@ -14,6 +14,7 @@
 #define BLE_UUID_IQO_CMD_CHAR   	0x9002
 #define BLE_UUID_IQO_IDENTIFY_CHAR  0x9003
 #define BLE_UUID_IQO_LED_CHAR  		0x9004
+#define BLE_UUID_IQO_SENSOR_CHAR	0x9005
 
 typedef struct ble_iqo_s ble_iqo_t;
 typedef void (*ble_iqo_evt_handler_t) (ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt);
@@ -33,7 +34,8 @@ typedef struct ble_iqo_s {
 
 typedef struct ble_iqo_cmd_s
 {
-	uint32_t cmd;
+	uint8_t cmd;
+	uint8_t payload[19];
 } __attribute__((packed)) ble_iqo_cmd_t;
 
 typedef struct ble_iqo_id_s

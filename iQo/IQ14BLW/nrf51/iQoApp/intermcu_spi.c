@@ -4,27 +4,25 @@
 #include "app_error.h"
 #include "nrf_gpio.h"
 #include "app_timer.h"
+#include "nrf_delay.h"
 
 // SPI pin configurations
-#define SPIS_MISO_PIN       5
-#define SPIS_MOSI_PIN       4
-#define SPIS_SCK_PIN        3
+#define SPIS_MISO_PIN       7
+#define SPIS_MOSI_PIN       6
+#define SPIS_SCK_PIN        5
 #define SPIS_CSN_PIN        2
 
-#define MAX_BUF_SIZE        16
+#define MAX_BUF_SIZE        20
 #define TX_BUF_SIZE         MAX_BUF_SIZE        /**< SPI TX buffer size. */      
 #define RX_BUF_SIZE         MAX_BUF_SIZE        /**< SPI RX buffer size. */      
 #define DEF_CHARACTER       0xAAu               /**< SPI default character. Character clocked out in case of an ignored transaction. */      
 #define ORC_CHARACTER       0x55u               /**< SPI over-read character. Character clocked out after an over-read of the transmit buffer. */      
 
-#define NRF51_TO_RT5350_MAIL_IO				7
-#define RT5350_TO_NRF51_MAIL_IO				6
+#define NRF51_TO_RT5350_MAIL_IO				4
+#define RT5350_TO_NRF51_MAIL_IO				3
+#define RT5350_RESET_CONTROL_IO				1
 
 #define NRF_CMD_POLL			0x00
-
-#define NRF_IDLE_NOTIFY			0x20
-#define NRF_ACC_NOTIFY			0x21
-#define NRF_TEMP_NOTIFY			0x22
 
 enum intermcu_state {
 	IO_INVALID = 0,
@@ -58,7 +56,9 @@ struct intermcu_header magic_header;
 uint16_t intermcu_abnormal_cnt1 = 0;
 uint16_t intermcu_abnormal_cnt2 = 0;
 
-static uint8_t intermcu_notify_acc_flag = 0;
+static uint8_t intermcu_notify_type = NRF_IDLE_NOTIFY;
+static uint8_t intermcu_notify_len = 0;
+static uint8_t intermcu_notify_buf[19] = {0};
 
 /*
  * FIXME: run callback in background thread!
@@ -80,9 +80,14 @@ static void spi_slave_event_handle(spi_slave_evt_t event)
     }
 }
 
-void intermcu_notify_acc(void)
+void intermcu_notify(uint8_t type, uint8_t *buf, uint8_t len)
 {
-	intermcu_notify_acc_flag = 1;
+	intermcu_notify_type = type;
+	intermcu_notify_len = len;
+	for (uint8_t idx = 0; idx < 19; idx++) {
+		intermcu_notify_buf[idx] = 0;
+	}
+	memcpy(intermcu_notify_buf, buf, len);
 }
 
 // Initialize IO
@@ -99,6 +104,20 @@ static void roni_init(void)
 	// To avoid IO collision, configure RINO as input and wait
 	// until RT5350 signal us
 	nrf_gpio_cfg_input(NRF51_TO_RT5350_MAIL_IO, NRF_GPIO_PIN_PULLDOWN);
+}
+
+void trigger_rt5350_reset(void)
+{
+	nrf_gpio_pin_clear(RT5350_RESET_CONTROL_IO);
+	nrf_delay_us(5000);
+	nrf_gpio_pin_set(RT5350_RESET_CONTROL_IO);
+}
+
+static void rt5350_reset_ctrl_init(void)
+{
+	nrf_gpio_pin_set(RT5350_RESET_CONTROL_IO);
+	nrf_gpio_cfg_output(RT5350_RESET_CONTROL_IO);
+	nrf_gpio_pin_set(RT5350_RESET_CONTROL_IO);
 }
 
 // When timer time happens, toggle GPIO to raise interrupt
@@ -175,12 +194,13 @@ static void intermcu_timeout_handler(void * p_context)
 			if (nrf_gpio_pin_read(RT5350_TO_NRF51_MAIL_IO) == 1) {
 				// Check command type
 				if (magic_header.type == NRF_CMD_POLL) {
-					if (intermcu_notify_acc_flag == 1) {
-						intermcu_notify_acc_flag = 0;
-						buf[0] = NRF_ACC_NOTIFY;
-					} else {
-						buf[0] = NRF_IDLE_NOTIFY;
+					buf[0] = intermcu_notify_type;
+					intermcu_notify_type = NRF_IDLE_NOTIFY;
+					for (uint8_t idx = 0; idx < 19; idx++) {
+						buf[1 + idx] = intermcu_notify_buf[idx];
+						intermcu_notify_buf[idx] = 0;
 					}
+					intermcu_notify_len = 0;
 					APP_ERROR_CHECK(intermcu_spi_transaction(buf, magic_header.len));
 				} else {
 					// FIXME: RT5350 has command sent to us
@@ -244,6 +264,11 @@ static void intermcu_spi_init(void)
  */
 void intermcu_init(intermcu_spi_recv_cb spi_recv_cb)
 {
+	// Enable RT5350
+	rt5350_reset_ctrl_init();
+
+	trigger_rt5350_reset();
+
 	// SPI interface
 	intermcu_spi_init();
 

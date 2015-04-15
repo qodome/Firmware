@@ -120,7 +120,7 @@ void led_service_init(void)
     	APP_ERROR_CHECK(app_timer_create(&(led_dim_timer_id[idx]), APP_TIMER_MODE_SINGLE_SHOT, led_dim_timeout_handler));
     }
 
-    nrf_pwm_init(8, 9, 10, 12, PWM_MODE_LED_255);
+    nrf_pwm_init(12, 9, 10, 11, PWM_MODE_LED_255);
     nrf_pwm_set_value(0, 0);
     nrf_pwm_set_value(1, 0);
     nrf_pwm_set_value(2, 0);

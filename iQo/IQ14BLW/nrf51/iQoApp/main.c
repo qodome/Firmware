@@ -30,10 +30,12 @@
 #include "ble_iqo.h"
 #include "ble_iqo_c.h"
 #include "ble_led.h"
+#include "ble_sensor.h"
 #include "intermcu_spi.h"
 #include "persistent.h"
 #include "flash_helper.h"
 #include "led_service.h"
+#include "sensor_service.h"
 #include "ble_radio_notification.h"
 #include "app_util_platform.h"
 
@@ -76,7 +78,7 @@
 
 // Application Timer
 #define APP_TIMER_PRESCALER             0                                           /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_MAX_TIMERS            8                                           /**< Maximum number of simultaneously created timers. */
+#define APP_TIMER_MAX_TIMERS            9                                           /**< Maximum number of simultaneously created timers. */
 
 // Scheduler
 #define SCHED_MAX_EVENT_DATA_SIZE       sizeof(app_timer_event_t)                   /**< Maximum size of scheduler events. Note that scheduler BLE stack events do not contain any data, as the events are being pulled from the stack in the event handler. */
@@ -113,6 +115,7 @@ static void advertising_start(void);
             (*(DST)) |= (SRC)[0];                                                                \
         } while(0)
 
+ble_sensor_t m_sensor;
 static ble_led_t m_led;
 static ble_iqo_t m_iqo;
 static ble_memdump_t m_memdump;
@@ -317,6 +320,25 @@ static void connect_peer_central(ble_evt_t *p_ble_evt)
     }
 }
 
+static void on_sensor_evt(ble_sensor_t * p_sensor, ble_sensor_evt_t *p_evt)
+{
+	switch (p_evt->evt_type)
+	{
+	case BLE_SENSOR_EVT_NOTIFICATION_ENABLED:
+		ss_isl_start();
+		trigger_rt5350_reset();
+		break;
+
+	case BLE_SENSOR_EVT_NOTIFICATION_DISABLED:
+		ss_isl_stop();
+		break;
+
+	default:
+		// No implementation needed.
+		break;
+	}
+}
+
 /*****************************************************************************
 * Functions related to service setup, advertisement, discovery, device connection
 *****************************************************************************/
@@ -326,9 +348,16 @@ static void connect_peer_central(ble_evt_t *p_ble_evt)
 */
 static void services_init(void)
 {
+    ble_sensor_init_t   sensor_init;
+
+    // Initialize Sensor Service
+    memset(&sensor_init, 0, sizeof(sensor_init));
+    sensor_init.evt_handler = on_sensor_evt;
+
     APP_ERROR_CHECK(ble_iqo_init(&m_iqo));
     APP_ERROR_CHECK(ble_memdump_init(&m_memdump));
     APP_ERROR_CHECK(ble_led_init(&m_led));
+    APP_ERROR_CHECK(ble_sensor_init(&m_sensor, &sensor_init));
     APP_ERROR_CHECK(ble_iqo_c_setup());
 }
 
@@ -371,7 +400,7 @@ static void iqo_c_evt_handler(ble_iqo_c_t * p_iqo_c, ble_iqo_c_evt_t * p_iqo_c_e
 
         case BLE_IQO_C_EVT_ACC_NOTIFY:
             acc_notify_cnt++;
-            intermcu_notify_acc();
+            intermcu_notify(NRF_ACC_NOTIFY, NULL, 0);
             debug_cnt[15]++;
             break;
 
@@ -479,6 +508,7 @@ static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
     ble_conn_params_on_ble_evt(p_ble_evt);
     ble_iqo_c_on_ble_evt((peripheral_id == ID_NOT_FOUND) ? NULL : &(gs_peripheral[peripheral_id].iqo_c), p_ble_evt);
     ble_led_on_ble_evt(&m_led, p_ble_evt);
+    ble_sensor_on_ble_evt(&m_sensor, p_ble_evt);
     ble_iqo_on_ble_evt(&m_iqo, p_ble_evt);
 }
 
@@ -694,6 +724,7 @@ int main(void)
     ////////////////////////////////////////////////////
     // Initialize external RTC
     led_service_init();
+    sensor_service_init();
     APP_ERROR_CHECK(sd_ble_gap_tx_power_set(4));
 
     /////////////////////////////////////////////////////
