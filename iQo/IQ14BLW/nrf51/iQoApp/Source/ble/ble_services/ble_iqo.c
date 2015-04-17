@@ -7,6 +7,7 @@
 #include "softdevice_handler.h"
 #include "app_util_platform.h"
 #include "ble_iqo.h"
+#include "ble_iqo_c.h"
 #include "intermcu_spi.h"
 
 extern bool is_central(uint16_t conn_handle);
@@ -14,6 +15,7 @@ extern bool is_central(uint16_t conn_handle);
 ble_iqo_cmd_t iqo_tgt_cmd;
 ble_iqo_id_t iqo_tgt_identify;
 ble_iqo_t *iqo_ptr = NULL;
+uint8_t ip_buf[15] = {0};
 
 extern void scan_start(void);
 extern void disconnect_peer(void);
@@ -62,6 +64,55 @@ static void on_write(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
 	}
 }
 
+static void on_rw_authorize_request(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
+{
+    ble_gatts_evt_rw_authorize_request_t * evt_rw_auth = &p_ble_evt->evt.gatts_evt.params.authorize_request;
+
+    if (evt_rw_auth->type != BLE_GATTS_AUTHORIZE_TYPE_READ)
+    {
+        // Unexpected operation
+        return;
+    }
+
+    if (evt_rw_auth->request.read.handle == p_iqo->iqo_wifi_status_handle.value_handle) {
+        ble_gatts_rw_authorize_reply_params_t   auth_params;
+        ble_gatts_rw_authorize_reply_params_t * p_auth_params = &auth_params;
+    	uint8_t ret = 0;
+
+    	ret = intermcu_get_wifi_status(ip_buf);
+    	if (ret == 2) {
+    		memset((void *)p_auth_params, 0, sizeof(auth_params));
+    		auth_params.type =  BLE_GATTS_AUTHORIZE_TYPE_READ;
+    		auth_params.params.read.p_data = ip_buf;
+    		auth_params.params.read.len    = 15;
+    		auth_params.params.read.update = 1;
+    	} else {
+    		memset((void *)p_auth_params, 0, sizeof(auth_params));
+    		auth_params.type =  BLE_GATTS_AUTHORIZE_TYPE_READ;
+    		auth_params.params.read.p_data = &ret;
+    		auth_params.params.read.len    = 1;
+    		auth_params.params.read.update = 1;
+    	}
+
+        APP_ERROR_CHECK(sd_ble_gatts_rw_authorize_reply(p_iqo->conn_handle, p_auth_params));
+
+    } else if (evt_rw_auth->request.read.handle == p_iqo->iqo_peer_status_handle.value_handle) {
+        ble_gatts_rw_authorize_reply_params_t   auth_params;
+        ble_gatts_rw_authorize_reply_params_t * p_auth_params = &auth_params;
+    	uint8_t ret = 0;
+
+    	ret = ble_iqo_c_status();
+        memset((void *)p_auth_params, 0, sizeof(auth_params));
+        auth_params.type =  BLE_GATTS_AUTHORIZE_TYPE_READ;
+        auth_params.params.read.p_data = &ret;
+        auth_params.params.read.len    = 1;
+        auth_params.params.read.update = 1;
+
+        APP_ERROR_CHECK(sd_ble_gatts_rw_authorize_reply(p_iqo->conn_handle, p_auth_params));
+
+    }
+}
+
 void ble_iqo_on_ble_evt(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
 {
     switch (p_ble_evt->header.evt_id)
@@ -77,6 +128,10 @@ void ble_iqo_on_ble_evt(ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt)
         case BLE_GATTS_EVT_WRITE:
             on_write(p_iqo, p_ble_evt);
             break;
+
+        case BLE_GATTS_EVT_RW_AUTHORIZE_REQUEST:
+        	on_rw_authorize_request(p_iqo, p_ble_evt);
+        	break;
 
         default:
             // No implementation needed.
@@ -173,6 +228,90 @@ static uint32_t iqo_identify_char_add(ble_iqo_t * p_iqo)
                                            &p_iqo->iqo_identify_handle);
 }
 
+static uint32_t iqo_wifi_status_char_add(ble_iqo_t * p_iqo)
+{
+    ble_gatts_char_md_t char_md;
+    ble_gatts_attr_t    attr_char_value;
+    ble_uuid_t          ble_uuid;
+    ble_gatts_attr_md_t attr_md;
+    uint8_t 			initial_v = 0;
+
+    memset(&char_md, 0, sizeof(char_md));
+
+    char_md.char_props.read  = 1;
+    char_md.char_props.write = 0;
+    char_md.p_char_user_desc = NULL;
+    char_md.p_char_pf        = NULL;
+    char_md.p_user_desc_md   = NULL;
+    char_md.p_cccd_md        = NULL;
+    char_md.p_sccd_md        = NULL;
+
+    BLE_UUID_BLE_ASSIGN(ble_uuid, BLE_UUID_IQO_WIFI_STATUS);
+
+    memset(&attr_md, 0, sizeof(attr_md));
+
+    attr_md.vloc = BLE_GATTS_VLOC_STACK;
+
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
+    attr_md.rd_auth    = 1;
+    attr_md.wr_auth    = 0;
+    attr_md.vlen       = 1;
+
+    attr_char_value.p_uuid    = &ble_uuid;
+    attr_char_value.p_attr_md = &attr_md;
+    attr_char_value.init_len  = 1;
+    attr_char_value.init_offs = 0;
+    attr_char_value.max_len   = 20;
+    attr_char_value.p_value   = &initial_v;
+
+    return sd_ble_gatts_characteristic_add(p_iqo->service_handle,
+                                           &char_md,
+                                           &attr_char_value,
+                                           &p_iqo->iqo_wifi_status_handle);
+}
+
+static uint32_t iqo_peer_status_char_add(ble_iqo_t * p_iqo)
+{
+    ble_gatts_char_md_t char_md;
+    ble_gatts_attr_t    attr_char_value;
+    ble_uuid_t          ble_uuid;
+    ble_gatts_attr_md_t attr_md;
+    uint8_t 			initial_v = 0;
+
+    memset(&char_md, 0, sizeof(char_md));
+
+    char_md.char_props.read  = 1;
+    char_md.char_props.write = 0;
+    char_md.p_char_user_desc = NULL;
+    char_md.p_char_pf        = NULL;
+    char_md.p_user_desc_md   = NULL;
+    char_md.p_cccd_md        = NULL;
+    char_md.p_sccd_md        = NULL;
+
+    BLE_UUID_BLE_ASSIGN(ble_uuid, BLE_UUID_IQO_PEER_STATUS);
+
+    memset(&attr_md, 0, sizeof(attr_md));
+
+    attr_md.vloc = BLE_GATTS_VLOC_STACK;
+
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
+    attr_md.rd_auth    = 1;
+    attr_md.wr_auth    = 0;
+    attr_md.vlen       = 1;
+
+    attr_char_value.p_uuid    = &ble_uuid;
+    attr_char_value.p_attr_md = &attr_md;
+    attr_char_value.init_len  = 1;
+    attr_char_value.init_offs = 0;
+    attr_char_value.max_len   = 20;
+    attr_char_value.p_value   = &initial_v;
+
+    return sd_ble_gatts_characteristic_add(p_iqo->service_handle,
+                                           &char_md,
+                                           &attr_char_value,
+                                           &p_iqo->iqo_peer_status_handle);
+}
+
 uint32_t ble_iqo_init(ble_iqo_t * p_iqo)
 {
     uint32_t   err_code;
@@ -199,6 +338,18 @@ uint32_t ble_iqo_init(ble_iqo_t * p_iqo)
     }
 
     err_code = iqo_identify_char_add(p_iqo);
+    if (err_code != NRF_SUCCESS)
+    {
+        return err_code;
+    }
+
+    err_code = iqo_wifi_status_char_add(p_iqo);
+    if (err_code != NRF_SUCCESS)
+    {
+        return err_code;
+    }
+
+    err_code = iqo_peer_status_char_add(p_iqo);
     if (err_code != NRF_SUCCESS)
     {
         return err_code;

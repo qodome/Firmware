@@ -58,4 +58,6 @@ uint32_t ble_iqo_c_acc_enable(ble_iqo_c_t * p_ble_iqo_c);
 // Setup DB discovery
 uint32_t ble_iqo_c_setup(void);
 
+uint8_t ble_iqo_c_status(void);
+
 #endif

@@ -23,6 +23,7 @@
 #define RT5350_RESET_CONTROL_IO				1
 
 #define NRF_CMD_POLL			0x00
+#define NRF_CMD_SEND_IP			0x01
 
 enum intermcu_state {
 	IO_INVALID = 0,
@@ -59,6 +60,9 @@ uint16_t intermcu_abnormal_cnt2 = 0;
 static uint8_t intermcu_notify_type = NRF_IDLE_NOTIFY;
 static uint8_t intermcu_notify_len = 0;
 static uint8_t intermcu_notify_buf[19] = {0};
+
+uint8_t ip_addr_received = 0;
+uint8_t ip[15] = {0};
 
 /*
  * FIXME: run callback in background thread!
@@ -124,6 +128,7 @@ static void rt5350_reset_ctrl_init(void)
 static void intermcu_timeout_handler(void * p_context)
 {
 	uint8_t buf[20];
+	uint8_t idx;
 
 	if (intermcu_init_state < IO_CONNECTED) {
 		if (intermcu_init_state == IO_INVALID) {
@@ -184,6 +189,7 @@ static void intermcu_timeout_handler(void * p_context)
 				nrf_gpio_pin_set(NRF51_TO_RT5350_MAIL_IO);
 
 				intermcu_init_state = IO_HEADER_IN_PROGRESS;
+
 			}
 		} else if (intermcu_init_state == IO_HEADER_RECEIVED) {
 			nrf_gpio_pin_clear(NRF51_TO_RT5350_MAIL_IO);
@@ -213,6 +219,12 @@ static void intermcu_timeout_handler(void * p_context)
 				intermcu_init_state = IO_PAYLOAD_IN_PROGRESS;
 			}
 		} else if (intermcu_init_state == IO_PAYLOAD_RECEIVED) {
+			if (magic_header.type == NRF_CMD_SEND_IP) {
+				ip_addr_received = 1;
+				for (idx = 0; idx < magic_header.len; idx++) {
+					ip[idx] = m_rx_buf[idx];
+				}
+			}
 	        if (intermcu_recv_cb != NULL) {
 	            (*intermcu_recv_cb)(magic_header.type, magic_header.len, m_rx_buf);
 	        }
@@ -299,4 +311,23 @@ uint32_t intermcu_spi_transaction(uint8_t *tx_buffer, uint16_t tx_len)
 
     //Set buffers.
     return spi_slave_buffers_set(m_tx_buf, m_rx_buf, tx_len, tx_len);
+}
+
+uint8_t intermcu_get_wifi_status(uint8_t *ip_addr_buffer)
+{
+	uint8_t idx;
+
+	if (intermcu_init_state < IO_CONNECTED) {
+		return 0;
+	} else {
+		if (ip_addr_received > 0) {
+			// Fillin IP address
+			for (idx = 0; idx < 15; idx++) {
+				ip_addr_buffer[idx] = ip[idx];
+			}
+			return 2;
+		} else {
+			return 1;
+		}
+	}
 }

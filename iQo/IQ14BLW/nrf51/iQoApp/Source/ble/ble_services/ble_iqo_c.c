@@ -41,6 +41,8 @@ tx_message_t  m_tx_buffer[TX_BUFFER_SIZE];  /* Transmit buffer for messages to b
 uint32_t m_tx_insert_index = 0;        /* Current index in the transmit buffer where the next message should be inserted. */
 uint32_t m_tx_index = 0;               /* Current index in the transmit buffer from where the next message to be transmitted resides. */
 
+uint8_t iqo_c_status = 0;
+
 extern ble_iqo_c_t *peripheral_get_iqo_c(uint16_t conn_handle);
 extern ble_db_discovery_t *peripheral_get_db(uint16_t conn_handle);
 
@@ -85,6 +87,7 @@ static void on_hvx(ble_iqo_c_t * p_ble_iqo_c, const ble_evt_t * p_ble_evt)
         ble_iqo_c_evt_t ble_iqo_c_evt;
 
         ble_iqo_c_evt.evt_type = BLE_IQO_C_EVT_ACC_NOTIFY;
+        iqo_c_status = 3;
         p_ble_iqo_c->evt_handler(p_ble_iqo_c, &ble_iqo_c_evt);
     }
 }
@@ -129,6 +132,7 @@ static void db_discover_evt_handler(ble_db_discovery_evt_t * p_evt)
             ble_iqo_c_evt_t evt;
             evt.evt_type = BLE_IQO_C_EVT_DISCOVERY_ACC_COMPLETE;
             p_ble_iqo_c->evt_handler(p_ble_iqo_c, &evt);
+            iqo_c_status = 1;
         }
     } else if (p_evt->evt_type == BLE_DB_DISCOVERY_ERROR) {
 
@@ -213,6 +217,8 @@ uint32_t ble_iqo_c_acc_enable(ble_iqo_c_t * p_ble_iqo_c)
         return NRF_ERROR_NULL;
     }
 
+    iqo_c_status = 2;
+
     return cccd_configure(p_ble_iqo_c->conn_handle, p_ble_iqo_c->iqo_c_acc_cccd_handle, true);
 }
 
@@ -235,3 +241,9 @@ uint32_t ble_iqo_c_setup(void)
 
     return ble_db_discovery_evt_register(&uuid, db_discover_evt_handler);
 }
+
+uint8_t ble_iqo_c_status(void)
+{
+	return iqo_c_status;
+}
+

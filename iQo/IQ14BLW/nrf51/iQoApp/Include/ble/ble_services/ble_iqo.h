@@ -13,8 +13,9 @@
 #define BLE_UUID_IQO_SERVICE    	0x90D0
 #define BLE_UUID_IQO_CMD_CHAR   	0x9002
 #define BLE_UUID_IQO_IDENTIFY_CHAR  0x9003
-#define BLE_UUID_IQO_LED_CHAR  		0x9004
-#define BLE_UUID_IQO_SENSOR_CHAR	0x9005
+#define BLE_UUID_IQO_WIFI_STATUS    0x9004
+#define BLE_UUID_IQO_PEER_STATUS	0x9005
+//#define BLE_UUID_IQO_SENSOR_CHAR	0x9005
 
 typedef struct ble_iqo_s ble_iqo_t;
 typedef void (*ble_iqo_evt_handler_t) (ble_iqo_t * p_iqo, ble_evt_t * p_ble_evt);
@@ -29,6 +30,8 @@ typedef struct ble_iqo_s {
     uint16_t                    service_handle;
     ble_gatts_char_handles_t    iqo_cmd_handle;
     ble_gatts_char_handles_t    iqo_identify_handle;
+    ble_gatts_char_handles_t    iqo_wifi_status_handle;
+    ble_gatts_char_handles_t    iqo_peer_status_handle;
     uint16_t                    conn_handle;
 } ble_iqo_t;
 

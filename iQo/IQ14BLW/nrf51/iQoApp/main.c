@@ -348,16 +348,16 @@ static void on_sensor_evt(ble_sensor_t * p_sensor, ble_sensor_evt_t *p_evt)
 */
 static void services_init(void)
 {
-    ble_sensor_init_t   sensor_init;
+    //ble_sensor_init_t   sensor_init;
 
     // Initialize Sensor Service
-    memset(&sensor_init, 0, sizeof(sensor_init));
-    sensor_init.evt_handler = on_sensor_evt;
+    //memset(&sensor_init, 0, sizeof(sensor_init));
+    //sensor_init.evt_handler = on_sensor_evt;
 
     APP_ERROR_CHECK(ble_iqo_init(&m_iqo));
     APP_ERROR_CHECK(ble_memdump_init(&m_memdump));
     APP_ERROR_CHECK(ble_led_init(&m_led));
-    APP_ERROR_CHECK(ble_sensor_init(&m_sensor, &sensor_init));
+    //APP_ERROR_CHECK(ble_sensor_init(&m_sensor, &sensor_init));
     APP_ERROR_CHECK(ble_iqo_c_setup());
 }
 
@@ -508,7 +508,7 @@ static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
     ble_conn_params_on_ble_evt(p_ble_evt);
     ble_iqo_c_on_ble_evt((peripheral_id == ID_NOT_FOUND) ? NULL : &(gs_peripheral[peripheral_id].iqo_c), p_ble_evt);
     ble_led_on_ble_evt(&m_led, p_ble_evt);
-    ble_sensor_on_ble_evt(&m_sensor, p_ble_evt);
+    //ble_sensor_on_ble_evt(&m_sensor, p_ble_evt);
     ble_iqo_on_ble_evt(&m_iqo, p_ble_evt);
 }
 
@@ -684,7 +684,6 @@ static void db_discovery_init(void)
 
 void intermcu_spi_cb(uint8_t type, uint8_t len, uint8_t *buf)
 {
-    // FIXME: inter-MCU communication
 }
 
 void protect_flash(void)
@@ -724,7 +723,7 @@ int main(void)
     ////////////////////////////////////////////////////
     // Initialize external RTC
     led_service_init();
-    sensor_service_init();
+    //sensor_service_init();
     APP_ERROR_CHECK(sd_ble_gap_tx_power_set(4));
 
     /////////////////////////////////////////////////////

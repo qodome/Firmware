@@ -165,7 +165,7 @@ uint32_t ble_led_init(ble_led_t * p_led)
     p_led->conn_handle = BLE_CONN_HANDLE_INVALID;
 
     // Add service
-    BLE_UUID_BLE_ASSIGN(ble_uuid, BLE_UUID_IQO_SERVICE);
+    BLE_UUID_BLE_ASSIGN(ble_uuid, BLE_UUID_IQO_LED_SERVICE);
 
     err_code = sd_ble_gatts_service_add(BLE_GATTS_SRVC_TYPE_PRIMARY, &ble_uuid, &p_led->service_handle);
     if (err_code != NRF_SUCCESS)

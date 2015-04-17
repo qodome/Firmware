@@ -29,4 +29,6 @@ void intermcu_notify(uint8_t type, uint8_t *buf, uint8_t len);
 
 void trigger_rt5350_reset(void);
 
+uint8_t intermcu_get_wifi_status(uint8_t *ip_addr_buffer);
+
 #endif
